@@ -1,0 +1,36 @@
+name: zimabackup
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    restart: unless-stopped
+    ports:
+      - "${APP_PORT:-8090}:80"
+    environment:
+      APP_ENV: "${APP_ENV:-dev}"
+      APP_DEBUG: "${APP_DEBUG:-1}"
+      TZ: "${TZ:-Europe/Paris}"
+      RESTIC_CACHE_DIR: /var/www/html/storage/cache/restic
+    volumes:
+      - ./storage:/var/www/html/storage
+      - "${ZIMABACKUP_DATA_PATH:-./dev-data}:/host/DATA"
+      - "${ZIMABACKUP_MEDIA_PATH:-./dev-media}:/host/media"
+
+  worker:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    restart: unless-stopped
+    command: ["php", "bin/worker.php"]
+    environment:
+      APP_ENV: "${APP_ENV:-dev}"
+      APP_DEBUG: "${APP_DEBUG:-1}"
+      TZ: "${TZ:-Europe/Paris}"
+      RESTIC_CACHE_DIR: /var/www/html/storage/cache/restic
+      WORKER_INTERVAL: "${WORKER_INTERVAL:-5}"
+    volumes:
+      - ./storage:/var/www/html/storage
+      - "${ZIMABACKUP_DATA_PATH:-./dev-data}:/host/DATA"
+      - "${ZIMABACKUP_MEDIA_PATH:-./dev-media}:/host/media"

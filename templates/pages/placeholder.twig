@@ -1,0 +1,23 @@
+{% extends "layout.twig" %}
+
+{% block title %}{{ title }} - {{ APP.name }}{% endblock %}
+
+{% block content %}
+<header class="page-header">
+    <div>
+        <p class="eyebrow">Coming next</p>
+        <h1>{{ title }}</h1>
+        <p class="muted">{{ description }}</p>
+    </div>
+</header>
+
+<section class="panel module-placeholder">
+    <div class="placeholder-orb"><span>{{ title|first }}</span></div>
+    <span class="card-kicker">In development</span>
+    <h2>This part of ZimaBackup is next in line.</h2>
+    <p>Repository management is already live. This screen will become the full {{ title|lower }} workflow in the next milestone.</p>
+    {% if title == "Backups" %}
+        <a class="button" href="{{ ROUTER.generate("repositories") }}">Check repositories first</a>
+    {% endif %}
+</section>
+{% endblock %}

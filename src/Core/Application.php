@@ -1,0 +1,136 @@
+<?php
+
+declare(strict_types=1);
+
+namespace ZimaBackup\Core;
+
+use AltoRouter;
+use RuntimeException;
+use Twig\Environment;
+use Twig\Loader\FilesystemLoader;
+use ZimaBackup\Security\Csrf;
+use ZimaBackup\Service\PathService;
+use ZimaBackup\Service\RepositoryService;
+use ZimaBackup\Service\ResticService;
+use ZimaBackup\Service\SchedulerService;
+use ZimaBackup\Service\TaskQueueService;
+
+final class Application
+{
+    private AltoRouter $router;
+    private Environment $twig;
+    private Database $database;
+    private array $config;
+    private array $services = [];
+
+    private function __construct(private readonly string $rootPath)
+    {
+        $this->config = require $this->rootPath . '/config/app.php';
+        date_default_timezone_set($this->config['timezone']);
+
+        $this->database = new Database($this->rootPath . '/storage/database.sqlite');
+        $this->database->migrate($this->rootPath . '/database/migrations');
+
+        $this->router = new AltoRouter();
+
+        $loader = new FilesystemLoader($this->rootPath . '/templates');
+        $cache = $this->config['env'] === 'prod'
+            ? $this->rootPath . '/storage/cache/twig'
+            : false;
+
+        $this->twig = new Environment($loader, [
+            'cache' => $cache,
+            'debug' => $this->config['debug'],
+            'auto_reload' => $this->config['debug'],
+        ]);
+
+        $this->twig->addGlobal('APP', $this->config);
+        $this->twig->addGlobal('ROUTER', $this->router);
+        $this->twig->addGlobal(
+            'CURRENT_PATH',
+            parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/'
+        );
+
+        $pathConfig = require $this->rootPath . '/config/paths.php';
+        $pathService = new PathService($pathConfig['container_roots']);
+        $resticService = new ResticService('restic');
+        $session = new Session();
+        $csrf = new Csrf($session);
+        $queue = new TaskQueueService($this->database);
+
+        $this->services = [
+            Database::class => $this->database,
+            PathService::class => $pathService,
+            ResticService::class => $resticService,
+            Session::class => $session,
+            Csrf::class => $csrf,
+            TaskQueueService::class => $queue,
+        ];
+
+        $this->services[RepositoryService::class] = new RepositoryService(
+            $this->database,
+            $pathService,
+            $resticService,
+            $queue,
+            $this->rootPath . '/storage/secrets/repositories'
+        );
+        $this->services[SchedulerService::class] = new SchedulerService($this->database);
+    }
+
+    public static function create(string $rootPath): self
+    {
+        return new self(rtrim($rootPath, '/'));
+    }
+
+    public function rootPath(): string
+    {
+        return $this->rootPath;
+    }
+
+    public function router(): AltoRouter
+    {
+        return $this->router;
+    }
+
+    public function twig(): Environment
+    {
+        return $this->twig;
+    }
+
+    public function service(string $id): object
+    {
+        if (!isset($this->services[$id])) {
+            throw new RuntimeException(sprintf('Service not registered: %s', $id));
+        }
+
+        return $this->services[$id];
+    }
+
+    public function run(): void
+    {
+        $match = $this->router->match();
+
+        if ($match === false) {
+            http_response_code(404);
+            echo $this->twig->render('errors/404.twig');
+            return;
+        }
+
+        $target = $match['target'];
+        $params = $match['params'] ?? [];
+
+        if (is_callable($target)) {
+            $response = $target(...array_values($params));
+        } elseif (is_array($target) && count($target) === 2 && is_string($target[0])) {
+            [$controllerClass, $method] = $target;
+            $controller = new $controllerClass($this);
+            $response = $controller->{$method}(...array_values($params));
+        } else {
+            throw new RuntimeException('Invalid route target.');
+        }
+
+        if (is_string($response)) {
+            echo $response;
+        }
+    }
+}

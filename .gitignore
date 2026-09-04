@@ -1,0 +1,17 @@
+/vendor/
+/.idea/
+/.vscode/
+/.env
+/storage/database.sqlite*
+/storage/cache/*
+/storage/logs/*
+/storage/secrets/*
+!/storage/cache/.gitkeep
+!/storage/logs/.gitkeep
+!/storage/secrets/.gitkeep
+!/storage/secrets/repositories/
+!/storage/secrets/repositories/.gitkeep
+/dev-data/*
+/dev-media/*
+!/dev-data/.gitkeep
+!/dev-media/.gitkeep

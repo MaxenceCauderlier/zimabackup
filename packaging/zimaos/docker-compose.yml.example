@@ -1,0 +1,58 @@
+name: zimabackup
+
+services:
+  zimabackup:
+    image: ghcr.io/CHANGE_ME/zimabackup:0.2.0
+    restart: unless-stopped
+    ports:
+      - target: 80
+        published: "8090"
+        protocol: tcp
+    environment:
+      APP_ENV: prod
+      APP_DEBUG: "0"
+      TZ: Europe/Paris
+      RESTIC_CACHE_DIR: /var/www/html/storage/cache/restic
+    volumes:
+      - /DATA/AppData/zimabackup:/var/www/html/storage
+      - /DATA:/host/DATA
+      - /media:/host/media
+
+  worker:
+    image: ghcr.io/CHANGE_ME/zimabackup:0.2.0
+    restart: unless-stopped
+    command: ["php", "bin/worker.php"]
+    environment:
+      APP_ENV: prod
+      APP_DEBUG: "0"
+      TZ: Europe/Paris
+      RESTIC_CACHE_DIR: /var/www/html/storage/cache/restic
+      WORKER_INTERVAL: "5"
+    volumes:
+      - /DATA/AppData/zimabackup:/var/www/html/storage
+      - /DATA:/host/DATA
+      - /media:/host/media
+
+x-casaos:
+  id: com.zimabackup.app
+  main: zimabackup
+  index: /
+  port_map: "8090"
+  scheme: http
+  # Replace this with the final public asset URL before publishing to a ZimaOS store.
+  icon: https://CHANGE_ME/icon.svg
+  title:
+    en_US: ZimaBackup
+  tagline:
+    en_US: Simple Restic backups for ZimaOS
+  description:
+    en_US: Create, schedule, verify and restore backups from a ZimaOS-friendly interface.
+  author: CHANGE_ME
+  developer: ZimaBackup
+  category: Utilities
+  architectures:
+    - amd64
+  version: "0.2.0"
+  update_at: "2026-09-03"
+  release_notes:
+    en_US: Repository initialization and worker operation queue.

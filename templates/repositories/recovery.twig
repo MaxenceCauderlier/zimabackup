@@ -1,0 +1,48 @@
+{% extends "layout.twig" %}
+
+{% block title %}Recovery key - {{ APP.name }}{% endblock %}
+
+{% block content %}
+<header class="page-header compact-header">
+    <div>
+        <p class="eyebrow">One important step</p>
+        <h1>Save your recovery key</h1>
+        <p class="muted">Your repository <strong>{{ repository.name }}</strong> is being initialized in the background.</p>
+    </div>
+</header>
+
+<section class="recovery-layout">
+    <article class="panel recovery-panel">
+        {% if recovery_key %}
+            <div class="recovery-icon"><svg viewBox="0 0 24 24" fill="none"><path d="M14.5 8.5a4 4 0 1 0-3.22 3.92L13 14.14V17h2v2h2v2h3v-3.14l-5.08-5.08A4 4 0 0 0 14.5 8.5Z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><circle cx="10.5" cy="8.5" r="1" fill="currentColor"/></svg></div>
+            <span class="card-kicker">Restic recovery key</span>
+            <h2>This is the only time we'll show it</h2>
+            <p class="muted">Store this key somewhere outside this ZimaOS machine. Without it, an encrypted repository cannot be recovered if ZimaBackup's local state is lost.</p>
+
+            <div class="secret-card">
+                <input id="recovery-key" type="text" readonly value="{{ recovery_key }}">
+                <button class="copy-button" type="button" data-copy="#recovery-key">Copy key</button>
+            </div>
+
+            <div class="save-hints">
+                <span>✓ Password manager</span><span>✓ Secure offline copy</span><span>✕ Same ZimaOS disk only</span>
+            </div>
+        {% else %}
+            <div class="alert alert-error">
+                <strong>The recovery key is no longer available here.</strong>
+                <div>For security, it is removed from the web session after the first display.</div>
+            </div>
+        {% endif %}
+
+        <div class="repository-mini-card">
+            <div><span>Repository</span><strong>{{ repository.name }}</strong></div>
+            <div><span>Location</span><code>{{ repository.path }}</code></div>
+            <div><span>Status</span><span class="run-status {{ repository.status }}">{{ repository.status }}</span></div>
+        </div>
+
+        <div class="form-actions recovery-actions">
+            <a class="button" href="{{ ROUTER.generate("repositories") }}">I saved the key <span>→</span></a>
+        </div>
+    </article>
+</section>
+{% endblock %}

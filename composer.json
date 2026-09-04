@@ -1,0 +1,26 @@
+{
+  "name": "zimabackup/zimabackup",
+  "description": "Backup manager for ZimaOS powered by Restic.",
+  "type": "project",
+  "license": "GPL-3.0-or-later",
+  "require": {
+    "php": ">=8.4.1 <9.0",
+    "ext-pdo": "*",
+    "ext-pdo_sqlite": "*",
+    "altorouter/altorouter": "^2.0.3",
+    "symfony/process": "^8.1",
+    "twig/twig": "^3.28"
+  },
+  "autoload": {
+    "psr-4": {
+      "ZimaBackup\\": "src/"
+    }
+  },
+  "config": {
+    "sort-packages": true,
+    "optimize-autoloader": true
+  },
+  "scripts": {
+    "lint": "find src public bin config -name '*.php' -print0 | xargs -0 -n1 php -l"
+  }
+}

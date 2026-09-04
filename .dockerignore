@@ -1,0 +1,8 @@
+.git
+.env
+vendor
+storage
+dev-data
+dev-media
+packaging
+README.md

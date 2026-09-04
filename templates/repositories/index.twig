@@ -1,0 +1,86 @@
+{% extends "layout.twig" %}
+
+{% block title %}Repositories - {{ APP.name }}{% endblock %}
+
+{% block content %}
+{% set ready_count = 0 %}
+{% set pending_count = 0 %}
+{% set failed_count = 0 %}
+{% for repository in repositories %}
+    {% if repository.status == "ready" %}{% set ready_count = ready_count + 1 %}{% endif %}
+    {% if repository.status in ["pending", "initializing"] %}{% set pending_count = pending_count + 1 %}{% endif %}
+    {% if repository.status == "failed" %}{% set failed_count = failed_count + 1 %}{% endif %}
+{% endfor %}
+
+<header class="page-header">
+    <div>
+        <p class="eyebrow">Backup storage</p>
+        <h1>Repositories</h1>
+        <p class="muted">Encrypted destinations where your snapshots are safely stored.</p>
+    </div>
+    <a class="button" href="{{ ROUTER.generate("repositories.create") }}"><span class="button-icon">+</span> New repository</a>
+</header>
+
+<section class="repository-summary">
+    <div><span>Total</span><strong>{{ repositories|length }}</strong></div>
+    <div><span class="summary-dot healthy"></span><span>Ready</span><strong>{{ ready_count }}</strong></div>
+    <div><span class="summary-dot pending"></span><span>Initializing</span><strong>{{ pending_count }}</strong></div>
+    <div><span class="summary-dot danger"></span><span>Issues</span><strong>{{ failed_count }}</strong></div>
+</section>
+
+{% if repositories is empty %}
+    <section class="panel onboarding-empty">
+        <div class="onboarding-visual">
+            <div class="disk-stack"><span></span><span></span><span></span></div>
+            <div class="shield-check">✓</div>
+        </div>
+        <div class="onboarding-copy">
+            <span class="card-kicker">First step</span>
+            <h2>Choose where your backups will live</h2>
+            <p>Create an encrypted Restic repository on an internal ZimaOS disk or an external USB drive. Your recovery key stays under your control.</p>
+            <div class="feature-chips"><span>End-to-end encrypted</span><span>Deduplicated</span><span>Integrity checks</span></div>
+            <a class="button" href="{{ ROUTER.generate("repositories.create") }}">Create first repository</a>
+        </div>
+    </section>
+{% else %}
+    <section class="repository-grid">
+        {% for repository in repositories %}
+            <article class="repository-card {{ repository.status }}">
+                <div class="repository-card-top">
+                    <div class="repository-symbol">
+                        <svg viewBox="0 0 24 24" fill="none"><ellipse cx="12" cy="6.5" rx="7" ry="2.8" stroke="currentColor" stroke-width="1.6"/><path d="M5 6.5v5c0 1.55 3.13 2.8 7 2.8s7-1.25 7-2.8v-5M5 11.5v5c0 1.55 3.13 2.8 7 2.8s7-1.25 7-2.8v-5" stroke="currentColor" stroke-width="1.6"/></svg>
+                    </div>
+                    <span class="run-status {{ repository.status }}"><span class="tiny-dot"></span>{{ repository.status }}</span>
+                </div>
+
+                <div class="repository-title">
+                    <h2>{{ repository.name }}</h2>
+                    <span>{{ repository.type|capitalize }} repository</span>
+                </div>
+
+                <div class="repository-path"><span>Location</span><code>{{ repository.path }}</code></div>
+
+                {% if repository.error %}
+                    <div class="repository-error"><strong>Initialization failed</strong><span>{{ repository.error }}</span></div>
+                {% endif %}
+
+                <div class="repository-card-footer">
+                    <span>Updated {{ repository.updated_at }}</span>
+                    {% if repository.status == "ready" %}<span class="verified-label">✓ Verified</span>{% endif %}
+                    {% if repository.status in ["pending", "initializing"] %}<span class="working-label">Working…</span>{% endif %}
+                </div>
+            </article>
+        {% endfor %}
+
+        <a class="repository-card add-repository-card" href="{{ ROUTER.generate("repositories.create") }}">
+            <span class="add-circle">+</span>
+            <strong>Add another repository</strong>
+            <small>Internal disk or USB storage</small>
+        </a>
+    </section>
+
+    {% if pending_count > 0 %}
+        <div class="refresh-banner" data-auto-refresh><span class="spinner"></span> Repository initialization is running. Status will refresh automatically.</div>
+    {% endif %}
+{% endif %}
+{% endblock %}

@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#0b0f14">
+    <title>{% block title %}{{ APP.name }}{% endblock %}</title>
+    <link rel="stylesheet" href="/assets/css/app.css">
+</head>
+<body>
+<div class="app-shell">
+    <aside class="sidebar">
+        <a class="brand" href="{{ ROUTER.generate("dashboard") }}" aria-label="ZimaBackup dashboard">
+            <span class="brand-mark" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none"><path d="M7.5 8.5A4.5 4.5 0 0 1 12 4a4.5 4.5 0 0 1 4.5 4.5v1h.5a3 3 0 0 1 3 3v3.25A4.25 4.25 0 0 1 15.75 20h-7.5A4.25 4.25 0 0 1 4 15.75V12.5a3 3 0 0 1 3-3h.5v-1Z" stroke="currentColor" stroke-width="1.8"/><path d="m9.5 13 2.5 2.5 2.5-2.5M12 10.5v5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </span>
+            <span class="brand-copy">
+                <strong>{{ APP.name }}</strong>
+                <small>for ZimaOS</small>
+            </span>
+        </a>
+
+        <nav class="nav" aria-label="Primary navigation">
+            <a class="{{ CURRENT_PATH == "/" ? "active" : "" }}" href="{{ ROUTER.generate("dashboard") }}">
+                <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none"><path d="M4 13h6V4H4v9Zm0 7h6v-4H4v4Zm10 0h6v-9h-6v9Zm0-16v4h6V4h-6Z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg></span>
+                <span>Dashboard</span>
+            </a>
+            <a class="{{ CURRENT_PATH starts with "/backups" ? "active" : "" }}" href="{{ ROUTER.generate("backups") }}">
+                <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none"><path d="M5 8.5h14M7.5 4h9A2.5 2.5 0 0 1 19 6.5v11a2.5 2.5 0 0 1-2.5 2.5h-9A2.5 2.5 0 0 1 5 17.5v-11A2.5 2.5 0 0 1 7.5 4Z" stroke="currentColor" stroke-width="1.7"/><path d="M9 14.5 12 17l3-2.5M12 10v7" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+                <span>Backups</span>
+            </a>
+            <a class="{{ CURRENT_PATH starts with "/repositories" ? "active" : "" }}" href="{{ ROUTER.generate("repositories") }}">
+                <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none"><ellipse cx="12" cy="6.5" rx="7.5" ry="3" stroke="currentColor" stroke-width="1.7"/><path d="M4.5 6.5v5c0 1.66 3.36 3 7.5 3s7.5-1.34 7.5-3v-5M4.5 11.5v5c0 1.66 3.36 3 7.5 3s7.5-1.34 7.5-3v-5" stroke="currentColor" stroke-width="1.7"/></svg></span>
+                <span>Repositories</span>
+            </a>
+            <a class="{{ CURRENT_PATH starts with "/snapshots" ? "active" : "" }}" href="{{ ROUTER.generate("snapshots") }}">
+                <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none"><path d="M12 7v5l3 2M20 12a8 8 0 1 1-2.34-5.66L20 8.68M20 4v4.68h-4.68" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+                <span>Snapshots</span>
+            </a>
+        </nav>
+
+        <div class="sidebar-bottom">
+            <a class="nav settings-link {{ CURRENT_PATH starts with "/settings" ? "active" : "" }}" href="{{ ROUTER.generate("settings") }}">
+                <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.7"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06-2.83 2.83-.06-.06A1.7 1.7 0 0 0 15 19.4a1.7 1.7 0 0 0-1 .6 1.7 1.7 0 0 0-.4 1.1V21h-4v-.1A1.7 1.7 0 0 0 8.6 19.4a1.7 1.7 0 0 0-1.88.34l-.06.06-2.83-2.83.06-.06A1.7 1.7 0 0 0 4.2 15a1.7 1.7 0 0 0-.6-1 1.7 1.7 0 0 0-1.1-.4H2.4v-4h.1A1.7 1.7 0 0 0 4.2 8.6a1.7 1.7 0 0 0-.34-1.88l-.06-.06 2.83-2.83.06.06A1.7 1.7 0 0 0 8.6 4.2a1.7 1.7 0 0 0 1-.6 1.7 1.7 0 0 0 .4-1.1v-.1h4v.1a1.7 1.7 0 0 0 1 1.7 1.7 1.7 0 0 0 1.88-.34l.06-.06 2.83 2.83-.06.06A1.7 1.7 0 0 0 19.4 8.6c.16.39.37.73.6 1 .28.31.67.5 1.1.5h.1v4h-.1a1.7 1.7 0 0 0-1.7 1Z" stroke="currentColor" stroke-width="1.35" stroke-linecap="round"/></svg></span>
+                <span>Settings</span>
+            </a>
+            <div class="privacy-card">
+                <span class="privacy-dot"></span>
+                <div><strong>Local & encrypted</strong><small>Your backups stay yours.</small></div>
+            </div>
+        </div>
+    </aside>
+
+    <div class="workspace">
+        <div class="mobile-topbar">
+            <a class="mobile-brand" href="{{ ROUTER.generate("dashboard") }}"><span class="brand-mark">ZB</span><strong>{{ APP.name }}</strong></a>
+        </div>
+        <main class="content">
+            {% block content %}{% endblock %}
+        </main>
+    </div>
+</div>
+<script src="/assets/js/app.js" defer></script>
+</body>
+</html>
