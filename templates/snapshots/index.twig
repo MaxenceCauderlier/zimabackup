@@ -1,0 +1,38 @@
+{% extends "layout.twig" %}
+
+{% block title %}Snapshots - {{ APP.name }}{% endblock %}
+
+{% block content %}
+<header class="page-header">
+    <div>
+        <p class="eyebrow">Recovery points</p>
+        <h1>Snapshots</h1>
+        <p class="muted">Successful Restic snapshots created by ZimaBackup. Restore actions arrive in the next milestone.</p>
+    </div>
+</header>
+
+{% if snapshots is empty %}
+    <section class="panel module-placeholder">
+        <div class="placeholder-orb"><span>↺</span></div>
+        <h2>No snapshots yet</h2>
+        <p>Run a backup successfully and its encrypted recovery point will appear here.</p>
+        <a class="button" href="{{ ROUTER.generate("backups") }}">Open backups</a>
+    </section>
+{% else %}
+    <section class="snapshot-list">
+        {% for snapshot in snapshots %}
+            <article class="snapshot-row">
+                <div class="snapshot-icon {{ snapshot.status }}">{{ snapshot.status == "warning" ? "!" : "✓" }}</div>
+                <div class="snapshot-main">
+                    <strong>{{ snapshot.job_name }}</strong>
+                    <span>{{ snapshot.finished_at }} · {{ snapshot.repository_name }}</span>
+                </div>
+                <div class="snapshot-metric"><span>Processed</span><strong>{{ snapshot.bytes_processed|bytes }}</strong></div>
+                <div class="snapshot-metric"><span>Added</span><strong>{{ snapshot.bytes_added|bytes }}</strong></div>
+                <code>{{ snapshot.snapshot_id|slice(0, 12) }}</code>
+                <a class="ghost-link" href="{{ ROUTER.generate("backups.show", {uuid: snapshot.job_uuid}) }}">Open job →</a>
+            </article>
+        {% endfor %}
+    </section>
+{% endif %}
+{% endblock %}

@@ -14,7 +14,7 @@
             <span class="health-dot"></span>
             {{ restic_version ? "Backup engine ready" : "Restic unavailable" }}
         </span>
-        <a class="button" href="{{ ROUTER.generate("backups") }}">
+        <a class="button" href="{{ ROUTER.generate("backups.create") }}">
             <span class="button-icon">+</span> New backup
         </a>
     </div>

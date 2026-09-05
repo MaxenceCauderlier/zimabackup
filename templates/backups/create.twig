@@ -1,0 +1,82 @@
+{% extends "layout.twig" %}
+
+{% block title %}New backup - {{ APP.name }}{% endblock %}
+
+{% block content %}
+<a class="back-link" href="{{ ROUTER.generate("backups") }}">← Back to backups</a>
+<header class="page-header compact-header">
+    <div>
+        <p class="eyebrow">New protection plan</p>
+        <h1>Create backup</h1>
+        <p class="muted">Start simple: choose a ready repository and the folders you want Restic to snapshot.</p>
+    </div>
+</header>
+
+<div class="create-layout">
+    <section class="panel form-panel">
+        <form class="modern-form" method="post" action="{{ ROUTER.generate("backups.store") }}">
+            <input type="hidden" name="_csrf" value="{{ csrf_token }}">
+
+            {% if errors is not empty %}
+                <div class="alert alert-error"><strong>Unable to create backup</strong>{% for error in errors %}<div>{{ error }}</div>{% endfor %}</div>
+            {% endif %}
+
+            <div class="form-section-title">
+                <span>1</span>
+                <div><strong>Backup identity</strong><small>A clear name for this protection plan.</small></div>
+            </div>
+            <label class="field">
+                <span>Name</span>
+                <input type="text" name="name" value="{{ values.name }}" placeholder="Application data" maxlength="100" required>
+            </label>
+
+            <div class="form-divider"></div>
+            <div class="form-section-title">
+                <span>2</span>
+                <div><strong>Destination</strong><small>Choose a ready encrypted Restic repository.</small></div>
+            </div>
+            <label class="field">
+                <span>Repository</span>
+                <select name="repository_id" required>
+                    <option value="">Select a repository</option>
+                    {% for repository in repositories %}
+                        <option value="{{ repository.id }}" {{ values.repository_id == (repository.id ~ "") ? "selected" : "" }}>{{ repository.name }} — {{ repository.path }}</option>
+                    {% endfor %}
+                </select>
+            </label>
+
+            <div class="form-divider"></div>
+            <div class="form-section-title">
+                <span>3</span>
+                <div><strong>Sources</strong><small>Paths must live under /DATA or /media.</small></div>
+            </div>
+
+            <div class="source-list" data-source-list>
+                {% for source in values.sources %}
+                    <div class="source-row">
+                        <div class="path-input source-input"><span>/</span><input type="text" name="sources[]" value="{{ source }}" placeholder="/DATA/AppData/jellyfin" required></div>
+                        <button type="button" class="icon-button" data-remove-source aria-label="Remove source">×</button>
+                    </div>
+                {% endfor %}
+            </div>
+            <button type="button" class="button button-secondary small-button" data-add-source>+ Add another source</button>
+
+            <div class="safety-note">
+                <span>✓</span>
+                <div><strong>Recursive backup protection</strong><p>ZimaBackup will reject a source that contains the selected repository, or a repository located inside a source.</p></div>
+            </div>
+
+            <div class="form-actions">
+                <a class="button button-secondary" href="{{ ROUTER.generate("backups") }}">Cancel</a>
+                <button class="button" type="submit">Create backup</button>
+            </div>
+        </form>
+    </section>
+
+    <aside class="setup-help">
+        <article class="help-card"><span class="card-kicker">Examples</span><h3>Application config</h3><code>/DATA/AppData/jellyfin</code><p>Good for persistent container configuration.</p></article>
+        <article class="help-card subtle"><span class="card-kicker">Large libraries</span><h3>Be selective</h3><p>Media libraries can be added, but application configuration is usually the most important first backup.</p></article>
+        <article class="help-card subtle"><span class="card-kicker">Next milestone</span><h3>ZimaOS apps</h3><p>Automatic app/volume detection will later replace manual paths for installed applications.</p></article>
+    </aside>
+</div>
+{% endblock %}

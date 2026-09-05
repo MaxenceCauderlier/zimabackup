@@ -8,7 +8,9 @@ use AltoRouter;
 use RuntimeException;
 use Twig\Environment;
 use Twig\Loader\FilesystemLoader;
+use Twig\TwigFilter;
 use ZimaBackup\Security\Csrf;
+use ZimaBackup\Service\BackupService;
 use ZimaBackup\Service\PathService;
 use ZimaBackup\Service\RepositoryService;
 use ZimaBackup\Service\ResticService;
@@ -45,6 +47,20 @@ final class Application
         ]);
 
         $this->twig->addGlobal('APP', $this->config);
+        $this->twig->addFilter(new TwigFilter('bytes', static function (mixed $bytes): string {
+            if ($bytes === null || $bytes === '') {
+                return '—';
+            }
+            $value = max(0, (float) $bytes);
+            $units = ['B', 'KB', 'MB', 'GB', 'TB'];
+            $index = 0;
+            while ($value >= 1024 && $index < count($units) - 1) {
+                $value /= 1024;
+                $index++;
+            }
+            $precision = $index === 0 ? 0 : ($value >= 100 ? 0 : 1);
+            return number_format($value, $precision) . ' ' . $units[$index];
+        }));
         $this->twig->addGlobal('ROUTER', $this->router);
         $this->twig->addGlobal(
             'CURRENT_PATH',
@@ -66,6 +82,13 @@ final class Application
             Csrf::class => $csrf,
             TaskQueueService::class => $queue,
         ];
+
+        $this->services[BackupService::class] = new BackupService(
+            $this->database,
+            $pathService,
+            $resticService,
+            $queue
+        );
 
         $this->services[RepositoryService::class] = new RepositoryService(
             $this->database,

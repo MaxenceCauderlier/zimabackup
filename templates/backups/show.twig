@@ -1,0 +1,86 @@
+{% extends "layout.twig" %}
+
+{% block title %}{{ job.name }} - {{ APP.name }}{% endblock %}
+
+{% block content %}
+{% set latest = job.runs|first %}
+<a class="back-link" href="{{ ROUTER.generate("backups") }}">← Back to backups</a>
+<header class="page-header compact-header">
+    <div>
+        <p class="eyebrow">Backup job</p>
+        <h1>{{ job.name }}</h1>
+        <p class="muted">{{ job.sources|length }} source{{ job.sources|length == 1 ? "" : "s" }} protected in {{ job.repository_name }}.</p>
+    </div>
+    <div class="header-actions">
+        {% if latest and latest.status in ["pending", "running"] %}
+            <span class="health-badge"><span class="spinner"></span>{{ latest.status == "pending" ? "Queued" : "Backup running" }}</span>
+        {% endif %}
+        <form method="post" action="{{ ROUTER.generate("backups.run", {uuid: job.uuid}) }}">
+            <input type="hidden" name="_csrf" value="{{ csrf_token }}">
+            <button class="button" type="submit" {{ latest and latest.status in ["pending", "running"] ? "disabled" : "" }}>
+                <span class="button-icon">↻</span> Run now
+            </button>
+        </form>
+    </div>
+</header>
+
+{% if flash_success %}<div class="alert alert-success">{{ flash_success }}</div>{% endif %}
+{% if flash_error %}<div class="alert alert-error"><strong>Unable to start backup</strong><div>{{ flash_error }}</div></div>{% endif %}
+
+{% if latest and latest.status in ["pending", "running"] %}
+    <section class="panel live-backup" data-auto-refresh>
+        <div class="live-backup-head">
+            <div><span class="card-kicker">Live backup</span><h2>{{ latest.status == "pending" ? "Waiting for worker" : "Creating snapshot" }}</h2></div>
+            <strong>{{ latest.progress_percent|default(0)|number_format(0) }}%</strong>
+        </div>
+        <div class="progress-track"><span style="width: {{ latest.progress_percent|default(0) }}%"></span></div>
+        <div class="progress-stats">
+            <div><span>Files</span><strong>{{ latest.files_done|default(0) }} / {{ latest.total_files|default(0) }}</strong></div>
+            <div><span>Processed</span><strong>{{ latest.bytes_done|bytes }} / {{ latest.total_bytes|bytes }}</strong></div>
+            <div><span>Errors</span><strong>{{ latest.error_count|default(0) }}</strong></div>
+        </div>
+    </section>
+{% elseif latest and latest.status == "failed" %}
+    <section class="panel failure-panel"><span class="run-status failed"><span class="tiny-dot"></span>failed</span><h2>Last backup failed</h2><p>{{ latest.error }}</p></section>
+{% elseif latest and latest.status in ["success", "warning"] %}
+    <section class="panel success-panel">
+        <div class="success-mark">{{ latest.status == "warning" ? "!" : "✓" }}</div>
+        <div><span class="card-kicker">Latest snapshot</span><h2>{{ latest.status == "warning" ? "Backup completed with warnings" : "Backup completed" }}</h2><p>{{ latest.files_new }} new, {{ latest.files_changed }} changed, {{ latest.files_unmodified }} unchanged files.{% if latest.status == "warning" and latest.error %} {{ latest.error }}{% endif %}</p></div>
+        <div class="snapshot-stat"><span>Snapshot</span><code>{{ latest.snapshot_id ? latest.snapshot_id|slice(0, 12) : "—" }}</code><span>Added</span><strong>{{ latest.bytes_added|bytes }}</strong></div>
+    </section>
+{% endif %}
+
+<div class="job-detail-grid">
+    <section class="panel">
+        <div class="panel-header"><h2>Sources</h2><span class="run-status ready"><span class="tiny-dot"></span>{{ job.sources|length }}</span></div>
+        <div class="source-detail-list">
+            {% for source in job.sources %}
+                <div><span class="source-symbol">↳</span><div><strong>{{ source.label ?: source.path }}</strong><code>{{ source.path }}</code></div></div>
+            {% endfor %}
+        </div>
+    </section>
+
+    <section class="panel">
+        <div class="panel-header"><h2>Destination</h2><span class="run-status {{ job.repository_status }}"><span class="tiny-dot"></span>{{ job.repository_status }}</span></div>
+        <div class="destination-detail"><strong>{{ job.repository_name }}</strong><code>{{ job.repository_path }}</code><small>Encrypted Restic repository</small></div>
+    </section>
+</div>
+
+<section class="panel">
+    <div class="panel-header"><h2>Run history</h2><span class="muted history-count">{{ job.runs|length }} recent run{{ job.runs|length == 1 ? "" : "s" }}</span></div>
+    {% if job.runs is empty %}
+        <div class="history-empty">No snapshots yet. Press <strong>Run now</strong> to create the first one.</div>
+    {% else %}
+        <div class="run-history">
+            {% for run in job.runs %}
+                <div class="history-row">
+                    <span class="run-status {{ run.status }}"><span class="tiny-dot"></span>{{ run.status }}</span>
+                    <div><strong>{{ run.started_at }}</strong><small>{{ run.status == "success" ? (run.bytes_processed|bytes) ~ " processed" : (run.error ?: "") }}</small></div>
+                    <div class="history-files">{% if run.status in ["success", "warning"] %}{{ run.files_new }} new · {{ run.files_changed }} changed{% else %}—{% endif %}</div>
+                    <code>{{ run.snapshot_id ? run.snapshot_id|slice(0, 10) : "—" }}</code>
+                </div>
+            {% endfor %}
+        </div>
+    {% endif %}
+</section>
+{% endblock %}

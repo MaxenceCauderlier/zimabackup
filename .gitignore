@@ -9,7 +9,7 @@
 !/storage/cache/.gitkeep
 !/storage/logs/.gitkeep
 !/storage/secrets/.gitkeep
-!/storage/secrets/repositories/
+/storage/secrets/repositories/
 !/storage/secrets/repositories/.gitkeep
 /dev-data/*
 /dev-media/*

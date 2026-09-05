@@ -15,8 +15,8 @@ services:
       RESTIC_CACHE_DIR: /var/www/html/storage/cache/restic
     volumes:
       - ./storage:/var/www/html/storage
-      - "${ZIMABACKUP_DATA_PATH:-./dev-data}:/host/DATA"
-      - "${ZIMABACKUP_MEDIA_PATH:-./dev-media}:/host/media"
+      - "${ZIMABACKUP_DATA_PATH:-./dev-data}:/DATA:ro"
+      - "${ZIMABACKUP_MEDIA_PATH:-./dev-media}:/media:ro"
 
   worker:
     build:
@@ -32,5 +32,5 @@ services:
       WORKER_INTERVAL: "${WORKER_INTERVAL:-5}"
     volumes:
       - ./storage:/var/www/html/storage
-      - "${ZIMABACKUP_DATA_PATH:-./dev-data}:/host/DATA"
-      - "${ZIMABACKUP_MEDIA_PATH:-./dev-media}:/host/media"
+      - "${ZIMABACKUP_DATA_PATH:-./dev-data}:/DATA"
+      - "${ZIMABACKUP_MEDIA_PATH:-./dev-media}:/media"

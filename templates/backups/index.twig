@@ -1,0 +1,85 @@
+{% extends "layout.twig" %}
+
+{% block title %}Backups - {{ APP.name }}{% endblock %}
+
+{% block content %}
+{% set running_count = 0 %}
+{% set failed_count = 0 %}
+{% for job in jobs %}
+    {% if job.latest_status in ["pending", "running"] %}{% set running_count = running_count + 1 %}{% endif %}
+    {% if job.latest_status in ["failed", "warning"] %}{% set failed_count = failed_count + 1 %}{% endif %}
+{% endfor %}
+
+<header class="page-header">
+    <div>
+        <p class="eyebrow">Protection plans</p>
+        <h1>Backups</h1>
+        <p class="muted">Choose what to protect, where it goes, and run it through the isolated backup worker.</p>
+    </div>
+    {% if repositories is not empty %}
+        <a class="button" href="{{ ROUTER.generate("backups.create") }}"><span class="button-icon">+</span> New backup</a>
+    {% endif %}
+</header>
+
+<section class="repository-summary">
+    <div><span>Total jobs</span><strong>{{ jobs|length }}</strong></div>
+    <div><span class="summary-dot healthy"></span><span>Active</span><strong>{{ running_count }}</strong></div>
+    <div><span class="summary-dot danger"></span><span>Issues</span><strong>{{ failed_count }}</strong></div>
+</section>
+
+{% if repositories is empty %}
+    <section class="panel onboarding-empty">
+        <div class="onboarding-visual">
+            <div class="disk-stack"><span></span><span></span><span></span></div>
+            <div class="shield-check">1</div>
+        </div>
+        <div class="onboarding-copy">
+            <span class="card-kicker">Storage required</span>
+            <h2>Create a repository first</h2>
+            <p>A backup job needs a ready Restic repository before it can protect any ZimaOS data.</p>
+            <a class="button" href="{{ ROUTER.generate("repositories.create") }}">Create repository</a>
+        </div>
+    </section>
+{% elseif jobs is empty %}
+    <section class="panel onboarding-empty">
+        <div class="onboarding-visual backup-visual">
+            <div class="backup-source-stack"><span>/DATA</span><span>→</span><span>Restic</span></div>
+        </div>
+        <div class="onboarding-copy">
+            <span class="card-kicker">Ready to protect</span>
+            <h2>Create your first backup job</h2>
+            <p>Select one or more folders from <code>/DATA</code> or <code>/media</code>. The worker will create an encrypted Restic snapshot when you press Run now.</p>
+            <div class="feature-chips"><span>Real progress</span><span>Encrypted snapshots</span><span>Run history</span></div>
+            <a class="button" href="{{ ROUTER.generate("backups.create") }}">Create first backup</a>
+        </div>
+    </section>
+{% else %}
+    <section class="backup-grid">
+        {% for job in jobs %}
+            <a class="backup-job-card" href="{{ ROUTER.generate("backups.show", {uuid: job.uuid}) }}">
+                <div class="backup-job-head">
+                    <div class="backup-job-icon">
+                        <svg viewBox="0 0 24 24" fill="none"><path d="M5 8.5h14M7.5 4h9A2.5 2.5 0 0 1 19 6.5v11a2.5 2.5 0 0 1-2.5 2.5h-9A2.5 2.5 0 0 1 5 17.5v-11A2.5 2.5 0 0 1 7.5 4Z" stroke="currentColor" stroke-width="1.7"/><path d="M9 14.5 12 17l3-2.5M12 10v7" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                    </div>
+                    {% if job.latest_status %}
+                        <span class="run-status {{ job.latest_status }}"><span class="tiny-dot"></span>{{ job.latest_status }}</span>
+                    {% else %}
+                        <span class="run-status ready"><span class="tiny-dot"></span>ready</span>
+                    {% endif %}
+                </div>
+                <h2>{{ job.name }}</h2>
+                <p class="backup-target">{{ job.source_count }} source{{ job.source_count == 1 ? "" : "s" }} → {{ job.repository_name }}</p>
+                <div class="backup-job-meta">
+                    <div><span>Destination</span><code>{{ job.repository_path }}</code></div>
+                    <div><span>Last run</span><strong>{{ job.latest_started_at ?: "Never" }}</strong></div>
+                </div>
+                <div class="backup-card-footer"><span>Manual</span><span>Open job →</span></div>
+            </a>
+        {% endfor %}
+    </section>
+
+    {% if running_count > 0 %}
+        <div class="refresh-banner" data-auto-refresh><span class="spinner"></span> A backup is running. Status will refresh automatically.</div>
+    {% endif %}
+{% endif %}
+{% endblock %}

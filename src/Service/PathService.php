@@ -15,7 +15,7 @@ final class PathService
     /**
      * Convert a host path shown in the UI to the matching container path.
      *
-     * Example: /DATA/Documents -> /host/DATA/Documents
+     * Example: /DATA/Documents -> /DATA/Documents
      */
     public function toContainerPath(string $logicalPath): string
     {
@@ -50,7 +50,9 @@ final class PathService
             }
 
             if ($part === '..') {
-                array_pop($parts);
+                if ($parts !== []) {
+                    array_pop($parts);
+                }
                 continue;
             }
 
@@ -58,5 +60,20 @@ final class PathService
         }
 
         return '/' . implode('/', $parts);
+    }
+
+    /**
+     * Return true when either path contains the other. Backup sources and their
+     * destination repository must never overlap, otherwise the repository could
+     * end up backing itself up recursively.
+     */
+    public function overlaps(string $first, string $second): bool
+    {
+        $first = rtrim($this->normalizeLogicalPath($first), '/');
+        $second = rtrim($this->normalizeLogicalPath($second), '/');
+
+        return $first === $second
+            || str_starts_with($first . '/', $second . '/')
+            || str_starts_with($second . '/', $first . '/');
     }
 }
