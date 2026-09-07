@@ -9,7 +9,7 @@
     <div>
         <p class="eyebrow">Backup job</p>
         <h1>{{ job.name }}</h1>
-        <p class="muted">{{ job.sources|length }} source{{ job.sources|length == 1 ? "" : "s" }} protected in {{ job.repository_name }}.</p>
+        <p class="muted">{% if job.applications|length > 0 %}{{ job.applications|length }} application{{ job.applications|length == 1 ? "" : "s" }}{% if job.sources|length > 0 %} and {% endif %}{% endif %}{% if job.sources|length > 0 %}{{ job.sources|length }} data source{{ job.sources|length == 1 ? "" : "s" }}{% endif %} protected in {{ job.repository_name }}.</p>
     </div>
     <div class="header-actions">
         {% if latest and latest.status in ["pending", "running"] %}
@@ -48,6 +48,22 @@
         <div><span class="card-kicker">Latest snapshot</span><h2>{{ latest.status == "warning" ? "Backup completed with warnings" : "Backup completed" }}</h2><p>{{ latest.files_new }} new, {{ latest.files_changed }} changed, {{ latest.files_unmodified }} unchanged files.{% if latest.status == "warning" and latest.error %} {{ latest.error }}{% endif %}</p></div>
         <div class="snapshot-stat"><span>Snapshot</span><code>{{ latest.snapshot_id ? latest.snapshot_id|slice(0, 12) : "—" }}</code><span>Added</span><strong>{{ latest.bytes_added|bytes }}</strong></div>
     </section>
+{% endif %}
+
+{% if job.applications is not empty %}
+<section class="panel protected-apps-panel">
+    <div class="panel-header"><h2>Applications</h2><span class="run-status ready"><span class="tiny-dot"></span>{{ job.applications|length }}</span></div>
+    <div class="protected-app-list">
+        {% for application in job.applications %}
+            <div class="protected-app-row">
+                <div class="application-avatar small">{{ application.app_name|slice(0, 1)|upper }}</div>
+                <div class="protected-app-main"><strong>{{ application.app_name }}</strong><code>{{ application.app_key }}</code></div>
+                <div class="protected-app-meta"><span>Definition</span><strong>✓ encrypted manifest</strong><span>Data mounts</span><strong>{{ application.selected_mounts|length }}</strong></div>
+            </div>
+        {% endfor %}
+    </div>
+    <p class="manifest-hint">The exact Docker runtime manifest is generated fresh for every run, backed up inside the Restic snapshot, then deleted from local storage.</p>
+</section>
 {% endif %}
 
 <div class="job-detail-grid">

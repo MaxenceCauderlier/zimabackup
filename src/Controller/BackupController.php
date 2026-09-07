@@ -8,6 +8,7 @@ use InvalidArgumentException;
 use Throwable;
 use ZimaBackup\Core\Session;
 use ZimaBackup\Security\Csrf;
+use ZimaBackup\Service\ApplicationDiscoveryService;
 use ZimaBackup\Service\BackupService;
 
 final class BackupController extends AbstractController
@@ -27,13 +28,26 @@ final class BackupController extends AbstractController
     {
         /** @var BackupService $backups */
         $backups = $this->app->service(BackupService::class);
+        /** @var ApplicationDiscoveryService $applications */
+        $applications = $this->app->service(ApplicationDiscoveryService::class);
+
+        $apps = $applications->all();
+        $discovery = $applications->status();
+        if ($apps === [] && !in_array($discovery['status'], ['queued', 'scanning'], true)) {
+            $applications->enqueueRefresh();
+            $discovery = $applications->status();
+        }
 
         return $this->render('backups/create.twig', [
             'repositories' => $backups->readyRepositories(),
+            'applications' => $apps,
+            'discovery' => $discovery,
             'values' => [
                 'name' => '',
                 'repository_id' => '',
-                'sources' => ['/DATA/Documents'],
+                'sources' => [''],
+                'application_ids' => [],
+                'app_mounts' => [],
             ],
             'errors' => [],
         ]);
@@ -53,11 +67,43 @@ final class BackupController extends AbstractController
             $sources = [];
         }
 
+        $applicationIds = $_POST['application_ids'] ?? [];
+        if (!is_array($applicationIds)) {
+            $applicationIds = [];
+        }
+        $applicationIds = array_values(array_unique(array_filter(array_map('intval', $applicationIds), static fn (int $id): bool => $id > 0)));
+
+        $postedMounts = $_POST['app_mounts'] ?? [];
+        if (!is_array($postedMounts)) {
+            $postedMounts = [];
+        }
+
+        $appMounts = [];
+        $applicationSelections = [];
+        foreach ($applicationIds as $applicationId) {
+            $mountIds = $postedMounts[(string) $applicationId] ?? $postedMounts[$applicationId] ?? [];
+            if (!is_array($mountIds)) {
+                $mountIds = [];
+            }
+            $mountIds = array_values(array_unique(array_filter(array_map('intval', $mountIds), static fn (int $id): bool => $id > 0)));
+            $appMounts[(string) $applicationId] = $mountIds;
+            $applicationSelections[] = [
+                'application_id' => $applicationId,
+                'mount_ids' => $mountIds,
+            ];
+        }
+
         $values = [
             'name' => trim((string) ($_POST['name'] ?? '')),
             'repository_id' => (string) ($_POST['repository_id'] ?? ''),
             'sources' => array_values(array_map(static fn ($value): string => trim((string) $value), $sources)),
+            'application_ids' => $applicationIds,
+            'app_mounts' => $appMounts,
         ];
+
+        if ($values['sources'] === []) {
+            $values['sources'] = [''];
+        }
 
         try {
             /** @var BackupService $backups */
@@ -65,7 +111,8 @@ final class BackupController extends AbstractController
             $job = $backups->create(
                 $values['name'],
                 (int) $values['repository_id'],
-                $values['sources']
+                $values['sources'],
+                $applicationSelections
             );
 
             /** @var Session $session */
@@ -76,8 +123,12 @@ final class BackupController extends AbstractController
         } catch (InvalidArgumentException $exception) {
             /** @var BackupService $backups */
             $backups = $this->app->service(BackupService::class);
+            /** @var ApplicationDiscoveryService $applications */
+            $applications = $this->app->service(ApplicationDiscoveryService::class);
             return $this->render('backups/create.twig', [
                 'repositories' => $backups->readyRepositories(),
+                'applications' => $applications->all(),
+                'discovery' => $applications->status(),
                 'values' => $values,
                 'errors' => [$exception->getMessage()],
             ]);

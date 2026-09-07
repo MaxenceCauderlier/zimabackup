@@ -8,11 +8,11 @@
     <div>
         <p class="eyebrow">New protection plan</p>
         <h1>Create backup</h1>
-        <p class="muted">Start simple: choose a ready repository and the folders you want Restic to snapshot.</p>
+        <p class="muted">Protect complete applications, individual folders, or combine both in the same encrypted snapshot.</p>
     </div>
 </header>
 
-<div class="create-layout">
+<div class="create-layout wide-create-layout">
     <section class="panel form-panel">
         <form class="modern-form" method="post" action="{{ ROUTER.generate("backups.store") }}">
             <input type="hidden" name="_csrf" value="{{ csrf_token }}">
@@ -27,7 +27,7 @@
             </div>
             <label class="field">
                 <span>Name</span>
-                <input type="text" name="name" value="{{ values.name }}" placeholder="Application data" maxlength="100" required>
+                <input type="text" name="name" value="{{ values.name }}" placeholder="My applications" maxlength="100" required>
             </label>
 
             <div class="form-divider"></div>
@@ -46,24 +46,76 @@
             </label>
 
             <div class="form-divider"></div>
-            <div class="form-section-title">
+            <div class="form-section-title section-title-with-action">
                 <span>3</span>
-                <div><strong>Sources</strong><small>Paths must live under /DATA or /media.</small></div>
+                <div><strong>Applications</strong><small>Select an installed app. Its installation definition is always included.</small></div>
+                <a class="tiny-link" href="{{ ROUTER.generate("applications") }}">Manage discovery →</a>
+            </div>
+
+            {% if applications is empty %}
+                <div class="application-picker-empty" {{ discovery.status in ["queued", "scanning"] ? "data-auto-refresh" : "" }}>
+                    <span class="spinner"></span>
+                    <div><strong>{{ discovery.status in ["queued", "scanning"] ? "Discovering applications…" : "No applications detected" }}</strong><p>You can still create a folder backup below, or open Applications to retry Docker discovery.</p></div>
+                </div>
+            {% else %}
+                <div class="application-picker-list">
+                    {% for application in applications %}
+                        {% set selected = application.id in values.application_ids %}
+                        {% set selected_mount_ids = values.app_mounts[application.id]|default([]) %}
+                        <article class="application-picker" data-app-picker>
+                            <label class="application-picker-head">
+                                <input class="app-select-checkbox" type="checkbox" name="application_ids[]" value="{{ application.id }}" {{ selected ? "checked" : "" }}>
+                                <span class="app-check-ui"></span>
+                                <span class="application-avatar small">{{ application.name|slice(0, 1)|upper }}</span>
+                                <span class="application-picker-title"><strong>{{ application.name }}</strong><small>{{ application.image ?: application.app_key }}</small></span>
+                                <span class="run-status {{ application.status == "running" ? "ready" : "pending" }}"><span class="tiny-dot"></span>{{ application.status }}</span>
+                            </label>
+
+                            <div class="application-picker-body">
+                                <div class="definition-row">
+                                    <span class="definition-check">✓</span>
+                                    <div><strong>Application definition</strong><small>Image, environment, ports, networks, devices and Docker runtime metadata.</small></div>
+                                    <span class="always-tag">always</span>
+                                </div>
+
+                                <div class="app-mount-list">
+                                    {% for mount in application.mounts %}
+                                        {% set checked = mount.id in selected_mount_ids or (not selected and mount.recommended) %}
+                                        <label class="app-mount-row {{ not mount.eligible ? "disabled" : "" }}">
+                                            <input type="checkbox" name="app_mounts[{{ application.id }}][]" value="{{ mount.id }}" {{ checked and mount.eligible ? "checked" : "" }} {{ not mount.eligible ? "disabled" : "" }}>
+                                            <span class="mount-checkbox-ui"></span>
+                                            <span class="mount-paths"><strong>{{ mount.destination }}</strong><code>{{ mount.source }}</code></span>
+                                            {% if mount.recommended %}<span class="recommended-tag">recommended</span>{% elseif not mount.eligible %}<span class="unsupported-tag">{{ mount.mount_type }}</span>{% else %}<span class="data-tag">data</span>{% endif %}
+                                        </label>
+                                    {% else %}
+                                        <div class="mount-empty compact">No persistent volumes. The installation definition can still be backed up.</div>
+                                    {% endfor %}
+                                </div>
+                            </div>
+                        </article>
+                    {% endfor %}
+                </div>
+            {% endif %}
+
+            <div class="form-divider"></div>
+            <div class="form-section-title">
+                <span>4</span>
+                <div><strong>Additional folders</strong><small>Optional paths under /DATA or /media, independent of detected apps.</small></div>
             </div>
 
             <div class="source-list" data-source-list>
                 {% for source in values.sources %}
                     <div class="source-row">
-                        <div class="path-input source-input"><span>/</span><input type="text" name="sources[]" value="{{ source }}" placeholder="/DATA/AppData/jellyfin" required></div>
+                        <div class="path-input source-input"><span>/</span><input type="text" name="sources[]" value="{{ source }}" placeholder="/DATA/Documents"></div>
                         <button type="button" class="icon-button" data-remove-source aria-label="Remove source">×</button>
                     </div>
                 {% endfor %}
             </div>
-            <button type="button" class="button button-secondary small-button" data-add-source>+ Add another source</button>
+            <button type="button" class="button button-secondary small-button" data-add-source>+ Add another folder</button>
 
             <div class="safety-note">
                 <span>✓</span>
-                <div><strong>Recursive backup protection</strong><p>ZimaBackup will reject a source that contains the selected repository, or a repository located inside a source.</p></div>
+                <div><strong>Application-aware backup</strong><p>ZimaBackup rejects recursive source/repository overlaps. Application definitions with secrets are written only to a temporary 0600 file, encrypted by Restic, then removed.</p></div>
             </div>
 
             <div class="form-actions">
@@ -74,9 +126,9 @@
     </section>
 
     <aside class="setup-help">
-        <article class="help-card"><span class="card-kicker">Examples</span><h3>Application config</h3><code>/DATA/AppData/jellyfin</code><p>Good for persistent container configuration.</p></article>
-        <article class="help-card subtle"><span class="card-kicker">Large libraries</span><h3>Be selective</h3><p>Media libraries can be added, but application configuration is usually the most important first backup.</p></article>
-        <article class="help-card subtle"><span class="card-kicker">Next milestone</span><h3>ZimaOS apps</h3><p>Automatic app/volume detection will later replace manual paths for installed applications.</p></article>
+        <article class="help-card"><span class="card-kicker">Recommended</span><h3>Config first</h3><p>Volumes under <code>/DATA/AppData</code> are preselected unless they look like caches or transcoding directories.</p></article>
+        <article class="help-card subtle"><span class="card-kicker">Large libraries</span><h3>User data is optional</h3><p>Media/photo mounts remain available but are not selected automatically to avoid unexpectedly huge first backups.</p></article>
+        <article class="help-card subtle"><span class="card-kicker">Restore manifest</span><h3>Rebuild later</h3><p>Every selected application gets a full encrypted Docker runtime manifest alongside its data snapshot.</p></article>
     </aside>
 </div>
 {% endblock %}

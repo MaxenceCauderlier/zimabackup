@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use ZimaBackup\Controller\ApplicationController;
 use ZimaBackup\Controller\BackupController;
 use ZimaBackup\Controller\DashboardController;
 use ZimaBackup\Controller\PageController;
@@ -17,6 +18,9 @@ return static function (Application $app): void {
     ]);
 
     $router->map('GET', '/', [DashboardController::class, 'index'], 'dashboard');
+
+    $router->map('GET', '/applications', [ApplicationController::class, 'index'], 'applications');
+    $router->map('POST', '/applications/refresh', [ApplicationController::class, 'refresh'], 'applications.refresh');
 
     $router->map('GET', '/backups', [BackupController::class, 'index'], 'backups');
     $router->map('GET', '/backups/new', [BackupController::class, 'create'], 'backups.create');

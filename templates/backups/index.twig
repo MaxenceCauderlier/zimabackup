@@ -48,8 +48,8 @@
         <div class="onboarding-copy">
             <span class="card-kicker">Ready to protect</span>
             <h2>Create your first backup job</h2>
-            <p>Select one or more folders from <code>/DATA</code> or <code>/media</code>. The worker will create an encrypted Restic snapshot when you press Run now.</p>
-            <div class="feature-chips"><span>Real progress</span><span>Encrypted snapshots</span><span>Run history</span></div>
+            <p>Select installed applications, folders from <code>/DATA</code>/<code>/media</code>, or both. Application jobs also capture an encrypted restore manifest.</p>
+            <div class="feature-chips"><span>Application-aware</span><span>Encrypted snapshots</span><span>Run history</span></div>
             <a class="button" href="{{ ROUTER.generate("backups.create") }}">Create first backup</a>
         </div>
     </section>
@@ -68,7 +68,7 @@
                     {% endif %}
                 </div>
                 <h2>{{ job.name }}</h2>
-                <p class="backup-target">{{ job.source_count }} source{{ job.source_count == 1 ? "" : "s" }} → {{ job.repository_name }}</p>
+                <p class="backup-target">{% if job.app_count > 0 %}{{ job.app_count }} app{{ job.app_count == 1 ? "" : "s" }}{% if job.source_count > 0 %} · {% endif %}{% endif %}{% if job.source_count > 0 %}{{ job.source_count }} data source{{ job.source_count == 1 ? "" : "s" }}{% endif %} → {{ job.repository_name }}</p>
                 <div class="backup-job-meta">
                     <div><span>Destination</span><code>{{ job.repository_path }}</code></div>
                     <div><span>Last run</span><strong>{{ job.latest_started_at ?: "Never" }}</strong></div>

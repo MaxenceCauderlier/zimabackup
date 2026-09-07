@@ -5,9 +5,11 @@
 /storage/database.sqlite*
 /storage/cache/*
 /storage/logs/*
+/storage/manifests/*
 /storage/secrets/*
 !/storage/cache/.gitkeep
 !/storage/logs/.gitkeep
+!/storage/manifests/.gitkeep
 !/storage/secrets/.gitkeep
 /storage/secrets/repositories/
 !/storage/secrets/repositories/.gitkeep

@@ -1,0 +1,98 @@
+{% extends "layout.twig" %}
+
+{% block title %}Applications - {{ APP.name }}{% endblock %}
+
+{% block content %}
+<header class="page-header">
+    <div>
+        <p class="eyebrow">Docker / ZimaOS discovery</p>
+        <h1>Applications</h1>
+        <p class="muted">Installed Compose projects and their persistent volumes, discovered by the isolated worker.</p>
+    </div>
+    <form method="post" action="{{ ROUTER.generate("applications.refresh") }}">
+        <input type="hidden" name="_csrf" value="{{ csrf_token }}">
+        <button class="button button-secondary" type="submit" {{ discovery.status in ["queued", "scanning"] ? "disabled" : "" }}>
+            <span class="button-icon">↻</span> Refresh
+        </button>
+    </form>
+</header>
+
+{% if flash_success %}<div class="alert alert-success">{{ flash_success }}</div>{% endif %}
+{% if flash_error %}<div class="alert alert-error"><strong>Discovery error</strong><div>{{ flash_error }}</div></div>{% endif %}
+
+<section class="repository-summary">
+    <div><span>Detected apps</span><strong>{{ applications|length }}</strong></div>
+    <div><span class="summary-dot {{ discovery.status == "failed" ? "danger" : "healthy" }}"></span><span>Scanner</span><strong>{{ discovery.status|default("unknown") }}</strong></div>
+    <div><span>Last scan</span><strong>{{ discovery.last_scan ?: "Waiting…" }}</strong></div>
+</section>
+
+{% if discovery.status == "failed" %}
+    <div class="alert alert-error"><strong>Docker discovery is unavailable</strong><div>{{ discovery.error ?: "Check that the worker can access /var/run/docker.sock." }}</div></div>
+{% endif %}
+
+{% if applications is empty %}
+    <section class="panel module-placeholder" {{ discovery.status in ["queued", "scanning"] ? "data-auto-refresh" : "" }}>
+        <div class="placeholder-orb"><span>⬡</span></div>
+        <h2>{{ discovery.status in ["queued", "scanning"] ? "Scanning Docker…" : "No applications detected" }}</h2>
+        <p>The worker groups containers by their Docker Compose project and identifies bind mounts under <code>/DATA</code> and <code>/media</code>.</p>
+        {% if discovery.status not in ["queued", "scanning"] %}
+            <form method="post" action="{{ ROUTER.generate("applications.refresh") }}">
+                <input type="hidden" name="_csrf" value="{{ csrf_token }}">
+                <button class="button" type="submit">Scan applications</button>
+            </form>
+        {% endif %}
+    </section>
+{% else %}
+    <section class="application-grid" {{ discovery.status in ["queued", "scanning"] ? "data-auto-refresh" : "" }}>
+        {% for application in applications %}
+            {% set eligible_count = 0 %}
+            {% set recommended_count = 0 %}
+            {% for mount in application.mounts %}
+                {% if mount.eligible %}{% set eligible_count = eligible_count + 1 %}{% endif %}
+                {% if mount.recommended %}{% set recommended_count = recommended_count + 1 %}{% endif %}
+            {% endfor %}
+            <article class="application-card">
+                <div class="application-card-head">
+                    <div class="application-avatar">{{ application.name|slice(0, 1)|upper }}</div>
+                    <div class="application-title">
+                        <h2>{{ application.name }}</h2>
+                        <code>{{ application.project_name ?: application.app_key }}</code>
+                    </div>
+                    <span class="run-status {{ application.status == "running" ? "ready" : "pending" }}"><span class="tiny-dot"></span>{{ application.status }}</span>
+                </div>
+
+                <div class="application-meta">
+                    <div><span>Image</span><strong>{{ application.image ?: "—" }}</strong></div>
+                    <div><span>Containers</span><strong>{{ application.container_count }}</strong></div>
+                    <div><span>Backup-ready mounts</span><strong>{{ eligible_count }}</strong></div>
+                </div>
+
+                <div class="mount-preview-list">
+                    {% for mount in application.mounts|slice(0, 5) %}
+                        <div class="mount-preview {{ mount.eligible ? "eligible" : "unsupported" }}">
+                            <span class="mount-dot"></span>
+                            <div><code>{{ mount.destination }}</code><small>{{ mount.source }}</small></div>
+                            {% if mount.recommended %}<span class="recommended-tag">config</span>{% elseif not mount.eligible %}<span class="unsupported-tag">{{ mount.mount_type }}</span>{% endif %}
+                        </div>
+                    {% else %}
+                        <div class="mount-empty">No persistent mounts reported by Docker.</div>
+                    {% endfor %}
+                </div>
+
+                <div class="application-card-footer">
+                    <span>{{ recommended_count }} config mount{{ recommended_count == 1 ? "" : "s" }} recommended</span>
+                    <a class="ghost-link" href="{{ ROUTER.generate("backups.create") }}">Protect app →</a>
+                </div>
+            </article>
+        {% endfor %}
+    </section>
+{% endif %}
+
+<section class="panel discovery-note">
+    <div class="discovery-note-icon">i</div>
+    <div>
+        <strong>What v0.5 saves</strong>
+        <p>For selected applications, ZimaBackup snapshots the chosen bind mounts plus an encrypted runtime manifest containing image, ports, networks, devices and the exact environment needed for future reconstruction. The manifest is generated only during backup and deleted locally afterward.</p>
+    </div>
+</section>
+{% endblock %}

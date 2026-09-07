@@ -27,6 +27,7 @@ RUN mkdir -p \
         storage/cache \
         storage/logs \
         storage/secrets/repositories \
+        storage/manifests \
     && chown -R www-data:www-data storage
 
 COPY docker/entrypoint.sh /usr/local/bin/zimabackup-entrypoint

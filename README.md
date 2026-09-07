@@ -2,25 +2,25 @@
 
 ZimaBackup is a lightweight backup manager for ZimaOS, built with PHP 8.4, Twig, SQLite and Restic.
 
-## Current milestone — v0.4 manual backups
+## Current milestone — v0.5 application discovery
 
-v0.4 completes the first real end-to-end backup path:
+v0.5 keeps the manual backup path from v0.4 and adds application-aware backups:
 
-- create encrypted local Restic repositories;
-- create manual backup jobs;
-- select one or more `/DATA/...` or `/media/...` source folders;
-- reject recursive source/repository path layouts;
-- queue `backup.run` operations from the web UI;
-- execute Restic only in the isolated worker;
-- parse Restic JSON Lines status messages;
-- show live percentage, files and processed bytes;
-- prevent the same job from running twice concurrently;
-- store the snapshot ID and backup statistics;
-- retain partial Restic snapshots as `warning` when Restic exit code 3 is returned;
-- show recent run history;
-- list successful/warning snapshots in the Snapshots screen.
+- discover Docker containers through the local Docker Engine API;
+- group Compose services into one application;
+- keep the Docker socket isolated to the non-HTTP worker;
+- detect bind mounts and identify paths under `/DATA` and `/media`;
+- recommend persistent configuration under `/DATA/AppData/...`;
+- leave large media/user-data mounts opt-in by default;
+- create jobs that combine applications and arbitrary folders;
+- always include an application runtime definition when an app is selected;
+- capture image, environment, ports, networks, devices, mounts and Compose metadata;
+- keep secret environment values out of SQLite;
+- generate the complete restore manifest only during a backup as a mode `0600` temporary file;
+- snapshot that manifest with Restic, then delete the local plaintext copy;
+- tag application snapshots with `zimabackup-app=<app-key>`.
 
-Scheduling and restores are deliberately not enabled yet. They will reuse the exact same queue/worker architecture after the manual path has been validated on a real ZimaOS machine.
+The restore manifest is currently a normalized Docker runtime definition built from Docker inspect data. It is designed to become the input for the future restore/reinstall workflow. v0.5 does **not** yet recreate an application automatically and does not yet export the original ZimaOS App Management API Compose document.
 
 ## Development
 
@@ -42,54 +42,71 @@ Open:
 http://localhost:8090
 ```
 
-By default, development uses `./dev-data` and `./dev-media`. These directories are mounted as `/DATA` and `/media` inside the containers, so Restic snapshots keep native ZimaOS-style paths.
+By default, development uses `./dev-data` and `./dev-media`. These directories are mounted as `/DATA` and `/media` inside the containers.
 
-To test with real ZimaOS storage, change `.env`:
+ZimaBackup infers the host paths behind its own `/DATA` and `/media` mounts, so discovery also works with development mappings such as `./dev-data -> /DATA`; detected app paths are stored using portable ZimaOS-style paths.
+
+The worker also receives the Docker socket so it can discover applications:
+
+```text
+/var/run/docker.sock -> /var/run/docker.sock
+```
+
+If your Docker socket lives elsewhere, set:
+
+```dotenv
+DOCKER_SOCKET_PATH=/path/to/docker.sock
+```
+
+On a real ZimaOS host, set:
 
 ```dotenv
 ZIMABACKUP_DATA_PATH=/DATA
 ZIMABACKUP_MEDIA_PATH=/media
 ```
 
-## Test the first real backup
+## Test application discovery
 
-1. Create a repository, for example:
+After starting v0.5, open **Applications**. The worker scans Docker automatically every two minutes by default.
 
-```text
-Name: Test Backup
-Location: /media/TestBackup/ZimaBackup
-```
-
-2. Put a few files in a development source:
-
-```bash
-mkdir -p dev-data/Documents
-printf 'hello ZimaBackup\n' > dev-data/Documents/example.txt
-```
-
-3. In **Backups → New backup**, create:
-
-```text
-Name: Documents
-Repository: Test Backup
-Source: /DATA/Documents
-```
-
-4. Open the job and press **Run now**.
-
-5. Watch the worker if needed:
+You can also force a refresh from the UI or inspect the worker:
 
 ```bash
 docker compose logs -f worker
 ```
 
-The job page refreshes automatically while the run is queued/running. A successful run will show the Restic snapshot ID, processed size and file counts.
+A detected Compose app should show its image and persistent mounts. For example:
 
-## Upgrading from v0.3.1
+```text
+Jellyfin
+/config -> /DATA/AppData/jellyfin/config   recommended
+/media  -> /DATA/Media                     optional
+```
 
-Keep your existing `storage/` directory. v0.4 adds migration `003_backup_execution.sql`, which is applied automatically on startup.
+Then create **Backups → New backup**, select Jellyfin, keep `/config` checked, optionally select `/media`, choose a repository and run the job.
 
-The internal mounts changed from `/host/DATA` and `/host/media` to `/DATA` and `/media`. Your `.env` values do **not** change; existing repositories remain in the same host folders.
+Every selected app adds an encrypted restore manifest to the Restic snapshot. Exact environment values can contain credentials, so they are never cached in the discovery tables.
+
+## Manual folder backups still work
+
+You can continue to create jobs using only folders:
+
+```text
+/DATA/Documents
+/media/USB/Photos
+```
+
+Application and folder sources can also be combined in the same job.
+
+## Upgrading from v0.4
+
+Keep your existing `storage/` directory. v0.5 adds migration:
+
+```text
+004_application_discovery.sql
+```
+
+It is applied automatically on startup.
 
 Rebuild:
 
@@ -98,11 +115,43 @@ docker compose down
 docker compose up --build
 ```
 
-If status changes feel slow, use:
+The worker now needs access to the Docker socket. The web-facing `app` service does **not** receive it.
 
-```dotenv
-WORKER_INTERVAL=5
+## Security model
+
+The browser-facing Apache/PHP service:
+
+- has no Docker socket;
+- sees `/DATA` and `/media` read-only;
+- validates UI requests and queues operations.
+
+The worker:
+
+- exposes no HTTP port;
+- owns Restic execution;
+- can read/write `/DATA` and `/media`;
+- can query Docker through `/var/run/docker.sock`;
+- implements only GET requests in `DockerEngineClient`.
+
+Mounting a Docker socket is inherently privileged even when the bind mount is marked read-only. Keeping it out of the web container reduces exposure, but the worker itself must still be treated as a privileged component.
+
+## Storage
+
+Application state is stored in `storage/`:
+
+```text
+storage/
+├── database.sqlite
+├── cache/
+├── logs/
+├── manifests/          # temporary; full app manifests are deleted after backup
+└── secrets/
+    └── repositories/
 ```
+
+Repository recovery keys are mode `0600` files under `storage/secrets/repositories/` and are passed to Restic using `--password-file`.
+
+Save every displayed recovery key outside the ZimaOS machine.
 
 ## Useful commands
 
@@ -129,26 +178,3 @@ Inspect worker activity:
 ```bash
 docker compose logs -f worker
 ```
-
-## Storage
-
-Application state is stored in `storage/`:
-
-```text
-storage/
-├── database.sqlite
-├── cache/
-├── logs/
-└── secrets/
-    └── repositories/
-```
-
-Repository recovery keys are stored as mode `0600` files under `storage/secrets/repositories/` and passed to Restic with `--password-file`. The secret itself is not stored in SQLite.
-
-Save the displayed recovery key outside the ZimaOS machine. Losing both ZimaBackup's local state and the recovery key makes an encrypted Restic repository unrecoverable.
-
-## Privilege model
-
-The browser-facing Apache/PHP service only validates requests and writes jobs/operations to SQLite. `/DATA` and `/media` are mounted read-only there.
-
-The worker exposes no HTTP port. It receives read/write mounts and is the only service allowed to initialize repositories, create Restic snapshots and, later, restore data.

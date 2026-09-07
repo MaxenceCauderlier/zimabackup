@@ -17,6 +17,7 @@ final class BackupService
         private readonly PathService $paths,
         private readonly ResticService $restic,
         private readonly TaskQueueService $queue,
+        private readonly ApplicationDiscoveryService $applications,
     ) {
     }
 
@@ -25,6 +26,7 @@ final class BackupService
         return $this->database->fetchAll(
             'SELECT bj.*, r.name AS repository_name, r.path AS repository_path, r.status AS repository_status, ' .
             '(SELECT COUNT(*) FROM backup_sources bs WHERE bs.backup_job_id = bj.id) AS source_count, ' .
+            '(SELECT COUNT(*) FROM backup_applications ba WHERE ba.backup_job_id = bj.id) AS app_count, ' .
             '(SELECT br.status FROM backup_runs br WHERE br.backup_job_id = bj.id ORDER BY br.id DESC LIMIT 1) AS latest_status, ' .
             '(SELECT br.started_at FROM backup_runs br WHERE br.backup_job_id = bj.id ORDER BY br.id DESC LIMIT 1) AS latest_started_at, ' .
             '(SELECT br.finished_at FROM backup_runs br WHERE br.backup_job_id = bj.id ORDER BY br.id DESC LIMIT 1) AS latest_finished_at ' .
@@ -56,6 +58,15 @@ final class BackupService
             'SELECT * FROM backup_sources WHERE backup_job_id = :job_id ORDER BY id ASC',
             ['job_id' => $job['id']]
         );
+        $job['applications'] = $this->database->fetchAll(
+            'SELECT * FROM backup_applications WHERE backup_job_id = :job_id ORDER BY id ASC',
+            ['job_id' => $job['id']]
+        );
+        foreach ($job['applications'] as &$application) {
+            $application['selected_mounts'] = $this->decodeJsonList((string) $application['selected_mounts_json']);
+        }
+        unset($application);
+
         $job['runs'] = $this->database->fetchAll(
             'SELECT * FROM backup_runs WHERE backup_job_id = :job_id ORDER BY id DESC LIMIT 20',
             ['job_id' => $job['id']]
@@ -65,13 +76,12 @@ final class BackupService
     }
 
     /**
-     * Create a manual backup job. Scheduling will build on the same model in a
-     * later milestone; keeping the first end-to-end path manual makes failures
-     * observable before unattended execution is enabled.
+     * Create a backup job from manual paths, discovered applications, or both.
      *
      * @param list<string> $sources
+     * @param list<array{application_id:int,mount_ids:list<int>}> $applicationSelections
      */
-    public function create(string $name, int $repositoryId, array $sources): array
+    public function create(string $name, int $repositoryId, array $sources, array $applicationSelections = []): array
     {
         $name = trim($name);
         if ($name === '' || strlen($name) > 100) {
@@ -91,31 +101,55 @@ final class BackupService
             if (!is_string($source) || trim($source) === '') {
                 continue;
             }
-
-            $source = $this->paths->normalizeLogicalPath($source);
-            $this->paths->toContainerPath($source); // validates allowed roots
-
-            if (in_array($source, ['/DATA', '/media'], true)) {
-                throw new InvalidArgumentException(sprintf(
-                    'Choose a more specific source than %s. This avoids accidentally backing up unrelated disks or the backup repository itself.',
-                    $source
-                ));
-            }
-
-            if ($this->paths->overlaps($source, (string) $repository['path'])) {
-                throw new InvalidArgumentException(sprintf(
-                    'Source %s overlaps the repository at %s. Choose separate paths to prevent recursive backups.',
-                    $source,
-                    $repository['path']
-                ));
-            }
-
+            $source = $this->validateSource($source, (string) $repository['path']);
             $normalizedSources[$source] = $source;
         }
 
+        $selectedApps = [];
+        foreach ($applicationSelections as $selection) {
+            $applicationId = (int) ($selection['application_id'] ?? 0);
+            if ($applicationId <= 0) {
+                continue;
+            }
+
+            $application = $this->applications->findById($applicationId);
+            if ($application === null) {
+                throw new InvalidArgumentException('One of the selected applications is no longer available. Refresh Applications and try again.');
+            }
+
+            $requestedMountIds = array_values(array_unique(array_map('intval', $selection['mount_ids'] ?? [])));
+            $availableMounts = [];
+            foreach ($application['mounts'] as $mount) {
+                $availableMounts[(int) $mount['id']] = $mount;
+            }
+
+            $selectedMounts = [];
+            foreach ($requestedMountIds as $mountId) {
+                $mount = $availableMounts[$mountId] ?? null;
+                if ($mount === null || (int) $mount['eligible'] !== 1) {
+                    continue;
+                }
+
+                $source = $this->validateSource((string) $mount['source'], (string) $repository['path']);
+                $normalizedSources[$source] = $source;
+                $selectedMounts[] = [
+                    'source' => $source,
+                    'destination' => (string) $mount['destination'],
+                    'service' => $mount['service_name'],
+                ];
+            }
+
+            $selectedApps[$application['app_key']] = [
+                'app_key' => (string) $application['app_key'],
+                'app_name' => (string) $application['name'],
+                'selected_mounts' => $selectedMounts,
+            ];
+        }
+
         $normalizedSources = array_values($normalizedSources);
-        if ($normalizedSources === []) {
-            throw new InvalidArgumentException('Add at least one source folder.');
+        $selectedApps = array_values($selectedApps);
+        if ($normalizedSources === [] && $selectedApps === []) {
+            throw new InvalidArgumentException('Select at least one application or add one source folder.');
         }
 
         $pdo = $this->database->pdo();
@@ -146,6 +180,20 @@ final class BackupService
                         'job_id' => $jobId,
                         'path' => $source,
                         'label' => basename($source),
+                        'created_at' => $now,
+                    ]
+                );
+            }
+
+            foreach ($selectedApps as $application) {
+                $this->database->execute(
+                    'INSERT INTO backup_applications(backup_job_id, app_key, app_name, selected_mounts_json, created_at) ' .
+                    'VALUES (:job_id, :app_key, :app_name, :selected_mounts_json, :created_at)',
+                    [
+                        'job_id' => $jobId,
+                        'app_key' => $application['app_key'],
+                        'app_name' => $application['app_name'],
+                        'selected_mounts_json' => json_encode($application['selected_mounts'], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
                         'created_at' => $now,
                     ]
                 );
@@ -244,8 +292,12 @@ final class BackupService
             'SELECT path FROM backup_sources WHERE backup_job_id = :job_id ORDER BY id ASC',
             ['job_id' => $run['backup_job_id']]
         );
-        if ($sourceRows === []) {
-            throw new RuntimeException('Backup job has no sources.');
+        $applicationRows = $this->database->fetchAll(
+            'SELECT * FROM backup_applications WHERE backup_job_id = :job_id ORDER BY id ASC',
+            ['job_id' => $run['backup_job_id']]
+        );
+        if ($sourceRows === [] && $applicationRows === []) {
+            throw new RuntimeException('Backup job has no sources or applications.');
         }
 
         $repositoryLogicalPath = (string) $run['repository_path'];
@@ -257,64 +309,90 @@ final class BackupService
         }
 
         $containerSources = [];
-        foreach ($sourceRows as $sourceRow) {
-            $logicalPath = (string) $sourceRow['path'];
-            if ($this->paths->overlaps($logicalPath, $repositoryLogicalPath)) {
-                throw new RuntimeException(sprintf('Source %s overlaps the destination repository.', $logicalPath));
-            }
-
-            $containerPath = $this->paths->toContainerPath($logicalPath);
-            if (!file_exists($containerPath)) {
-                throw new RuntimeException(sprintf('Source does not exist: %s', $logicalPath));
-            }
-            if (!is_readable($containerPath)) {
-                throw new RuntimeException(sprintf('Source is not readable by the backup worker: %s', $logicalPath));
-            }
-
-            $containerSources[] = $containerPath;
-        }
-
-        $this->database->execute(
-            "UPDATE backup_runs SET status = 'running', started_at = :started_at, finished_at = NULL, error = NULL, progress_percent = 0 WHERE id = :id",
-            ['started_at' => date('c'), 'id' => $runId]
-        );
-
+        $applicationTags = [];
         $lastUpdateAt = 0.0;
-        $summary = $this->restic->backup(
-            $repositoryPath,
-            $passwordFile,
-            $containerSources,
-            (string) $run['job_uuid'],
-            function (array $message) use ($runId, &$lastUpdateAt): void {
-                if (($message['message_type'] ?? null) !== 'status') {
-                    return;
+
+        try {
+            foreach ($sourceRows as $sourceRow) {
+                $logicalPath = (string) $sourceRow['path'];
+                if ($this->paths->overlaps($logicalPath, $repositoryLogicalPath)) {
+                    throw new RuntimeException(sprintf('Source %s overlaps the destination repository.', $logicalPath));
                 }
 
-                $now = microtime(true);
-                $percent = max(0.0, min(100.0, ((float) ($message['percent_done'] ?? 0)) * 100));
-
-                // Restic can emit many status messages. Limit SQLite writes while
-                // still keeping the UI responsive enough for a 3-second refresh.
-                if ($percent < 100 && ($now - $lastUpdateAt) < 0.75) {
-                    return;
+                $containerPath = $this->paths->toContainerPath($logicalPath);
+                if (!file_exists($containerPath)) {
+                    throw new RuntimeException(sprintf('Source does not exist: %s', $logicalPath));
                 }
-                $lastUpdateAt = $now;
+                if (!is_readable($containerPath)) {
+                    throw new RuntimeException(sprintf('Source is not readable by the backup worker: %s', $logicalPath));
+                }
 
-                $this->database->execute(
-                    'UPDATE backup_runs SET progress_percent = :progress, total_files = :total_files, files_done = :files_done, ' .
-                    'total_bytes = :total_bytes, bytes_done = :bytes_done, error_count = :error_count WHERE id = :id',
-                    [
-                        'progress' => $percent,
-                        'total_files' => (int) ($message['total_files'] ?? 0),
-                        'files_done' => (int) ($message['files_done'] ?? 0),
-                        'total_bytes' => (int) ($message['total_bytes'] ?? 0),
-                        'bytes_done' => (int) ($message['bytes_done'] ?? 0),
-                        'error_count' => (int) ($message['error_count'] ?? 0),
-                        'id' => $runId,
-                    ]
-                );
+                $containerSources[$containerPath] = $containerPath;
             }
-        );
+
+            $appKeys = array_values(array_map(
+                static fn (array $application): string => (string) $application['app_key'],
+                $applicationRows
+            ));
+            $manifestPaths = $this->applications->createBackupManifests(
+                $appKeys,
+                (string) $run['job_uuid'],
+                $runId
+            );
+            foreach ($appKeys as $appKey) {
+                $manifestPath = $manifestPaths[$appKey] ?? null;
+                if ($manifestPath === null) {
+                    throw new RuntimeException(sprintf('Application manifest was not generated: %s', $appKey));
+                }
+                $containerSources[$manifestPath] = $manifestPath;
+                $applicationTags[] = 'zimabackup-app=' . $appKey;
+            }
+            $containerSources = array_values($containerSources);
+
+            $this->database->execute(
+                "UPDATE backup_runs SET status = 'running', started_at = :started_at, finished_at = NULL, error = NULL, progress_percent = 0 WHERE id = :id",
+                ['started_at' => date('c'), 'id' => $runId]
+            );
+
+            $summary = $this->restic->backup(
+                $repositoryPath,
+                $passwordFile,
+                $containerSources,
+                (string) $run['job_uuid'],
+                function (array $message) use ($runId, &$lastUpdateAt): void {
+                    if (($message['message_type'] ?? null) !== 'status') {
+                        return;
+                    }
+
+                    $now = microtime(true);
+                    $percent = max(0.0, min(100.0, ((float) ($message['percent_done'] ?? 0)) * 100));
+                    if ($percent < 100 && ($now - $lastUpdateAt) < 0.75) {
+                        return;
+                    }
+                    $lastUpdateAt = $now;
+
+                    $this->database->execute(
+                        'UPDATE backup_runs SET progress_percent = :progress, total_files = :total_files, files_done = :files_done, ' .
+                        'total_bytes = :total_bytes, bytes_done = :bytes_done, error_count = :error_count WHERE id = :id',
+                        [
+                            'progress' => $percent,
+                            'total_files' => (int) ($message['total_files'] ?? 0),
+                            'files_done' => (int) ($message['files_done'] ?? 0),
+                            'total_bytes' => (int) ($message['total_bytes'] ?? 0),
+                            'bytes_done' => (int) ($message['bytes_done'] ?? 0),
+                            'error_count' => (int) ($message['error_count'] ?? 0),
+                            'id' => $runId,
+                        ]
+                    );
+                },
+                $applicationTags
+            );
+        } finally {
+            // Full manifests can contain application credentials. They must not
+            // remain in ZimaBackup storage after Restic has consumed them, even
+            // when the backup itself fails.
+            $this->applications->cleanupBackupManifests((string) $run['job_uuid'], $runId);
+        }
 
         $partial = (bool) ($summary['_partial'] ?? false);
         $this->database->execute(
@@ -351,5 +429,34 @@ final class BackupService
                 'id' => $runId,
             ]
         );
+    }
+
+    private function validateSource(string $source, string $repositoryPath): string
+    {
+        $source = $this->paths->normalizeLogicalPath($source);
+        $this->paths->toContainerPath($source);
+
+        if (in_array($source, ['/DATA', '/media'], true)) {
+            throw new InvalidArgumentException(sprintf(
+                'Choose a more specific source than %s. This avoids accidentally backing up unrelated disks or the backup repository itself.',
+                $source
+            ));
+        }
+
+        if ($this->paths->overlaps($source, $repositoryPath)) {
+            throw new InvalidArgumentException(sprintf(
+                'Source %s overlaps the repository at %s. Choose separate paths to prevent recursive backups.',
+                $source,
+                $repositoryPath
+            ));
+        }
+
+        return $source;
+    }
+
+    private function decodeJsonList(string $json): array
+    {
+        $decoded = json_decode($json, true);
+        return is_array($decoded) ? array_values($decoded) : [];
     }
 }

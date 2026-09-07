@@ -31,8 +31,8 @@ if (document.querySelector('[data-auto-refresh]')) {
     setTimeout(() => window.location.reload(), 3000);
 }
 
-// Backup source inputs are intentionally simple paths in v0.4. ZimaOS app
-// discovery will later populate these rows automatically from application volumes.
+// Manual folder inputs remain available alongside application-aware sources.
+// Detected app volumes are rendered by Twig and validated again by the backend.
 const sourceList = document.querySelector('[data-source-list]');
 const addSourceButton = document.querySelector('[data-add-source]');
 
@@ -70,3 +70,17 @@ if (sourceList && addSourceButton) {
 
     refreshRemoveButtons();
 }
+
+// Application selection stays framework-free: selecting an app reveals its
+// detected volumes. Mount checkboxes are submitted only when the app itself is
+// selected; the backend independently validates every mount id and host path.
+document.querySelectorAll('[data-app-picker]').forEach((picker) => {
+    const checkbox = picker.querySelector('.app-select-checkbox');
+    if (!checkbox) {
+        return;
+    }
+
+    const refresh = () => picker.classList.toggle('selected', checkbox.checked);
+    checkbox.addEventListener('change', refresh);
+    refresh();
+});

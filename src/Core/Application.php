@@ -10,7 +10,9 @@ use Twig\Environment;
 use Twig\Loader\FilesystemLoader;
 use Twig\TwigFilter;
 use ZimaBackup\Security\Csrf;
+use ZimaBackup\Service\ApplicationDiscoveryService;
 use ZimaBackup\Service\BackupService;
+use ZimaBackup\Service\DockerEngineClient;
 use ZimaBackup\Service\PathService;
 use ZimaBackup\Service\RepositoryService;
 use ZimaBackup\Service\ResticService;
@@ -73,6 +75,14 @@ final class Application
         $session = new Session();
         $csrf = new Csrf($session);
         $queue = new TaskQueueService($this->database);
+        $docker = new DockerEngineClient(getenv('DOCKER_SOCKET') ?: '/var/run/docker.sock');
+        $appDiscovery = new ApplicationDiscoveryService(
+            $this->database,
+            $docker,
+            $queue,
+            $this->rootPath . '/storage/manifests',
+            getenv('ZIMABACKUP_COMPOSE_PROJECT') ?: 'zimabackup'
+        );
 
         $this->services = [
             Database::class => $this->database,
@@ -81,13 +91,16 @@ final class Application
             Session::class => $session,
             Csrf::class => $csrf,
             TaskQueueService::class => $queue,
+            DockerEngineClient::class => $docker,
+            ApplicationDiscoveryService::class => $appDiscovery,
         ];
 
         $this->services[BackupService::class] = new BackupService(
             $this->database,
             $pathService,
             $resticService,
-            $queue
+            $queue,
+            $appDiscovery
         );
 
         $this->services[RepositoryService::class] = new RepositoryService(

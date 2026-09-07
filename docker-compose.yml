@@ -6,6 +6,8 @@ services:
       context: .
       dockerfile: docker/Dockerfile
     restart: unless-stopped
+    labels:
+      org.zimabackup.internal: "true"
     ports:
       - "${APP_PORT:-8090}:80"
     environment:
@@ -23,6 +25,8 @@ services:
       context: .
       dockerfile: docker/Dockerfile
     restart: unless-stopped
+    labels:
+      org.zimabackup.internal: "true"
     command: ["php", "bin/worker.php"]
     environment:
       APP_ENV: "${APP_ENV:-dev}"
@@ -30,7 +34,11 @@ services:
       TZ: "${TZ:-Europe/Paris}"
       RESTIC_CACHE_DIR: /var/www/html/storage/cache/restic
       WORKER_INTERVAL: "${WORKER_INTERVAL:-5}"
+      APP_DISCOVERY_INTERVAL: "${APP_DISCOVERY_INTERVAL:-120}"
+      DOCKER_SOCKET: /var/run/docker.sock
+      ZIMABACKUP_COMPOSE_PROJECT: zimabackup
     volumes:
       - ./storage:/var/www/html/storage
       - "${ZIMABACKUP_DATA_PATH:-./dev-data}:/DATA"
       - "${ZIMABACKUP_MEDIA_PATH:-./dev-media}:/media"
+      - "${DOCKER_SOCKET_PATH:-/var/run/docker.sock}:/var/run/docker.sock:ro"

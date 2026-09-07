@@ -59,12 +59,13 @@ final class ResticService
         array $sources,
         string $jobUuid,
         ?callable $onMessage = null,
+        array $extraTags = [],
     ): array {
         if ($sources === []) {
             throw new RuntimeException('Restic backup requires at least one source.');
         }
 
-        $process = new Process([
+        $arguments = [
             $this->binary,
             'backup',
             '--repo', $repositoryPath,
@@ -72,8 +73,16 @@ final class ResticService
             '--json',
             '--host', 'zimabackup',
             '--tag', 'zimabackup-job=' . $jobUuid,
-            ...$sources,
-        ]);
+        ];
+        foreach ($extraTags as $tag) {
+            if (is_string($tag) && trim($tag) !== '') {
+                $arguments[] = '--tag';
+                $arguments[] = trim($tag);
+            }
+        }
+        $arguments = [...$arguments, ...$sources];
+
+        $process = new Process($arguments);
         $process->setTimeout(null);
 
         $buffer = '';

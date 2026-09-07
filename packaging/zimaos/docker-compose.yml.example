@@ -2,8 +2,10 @@ name: zimabackup
 
 services:
   zimabackup:
-    image: ghcr.io/CHANGE_ME/zimabackup:0.4.0
+    image: ghcr.io/CHANGE_ME/zimabackup:0.5.0
     restart: unless-stopped
+    labels:
+      org.zimabackup.internal: "true"
     ports:
       - target: 80
         published: "8090"
@@ -19,8 +21,10 @@ services:
       - /media:/media:ro
 
   worker:
-    image: ghcr.io/CHANGE_ME/zimabackup:0.4.0
+    image: ghcr.io/CHANGE_ME/zimabackup:0.5.0
     restart: unless-stopped
+    labels:
+      org.zimabackup.internal: "true"
     command: ["php", "bin/worker.php"]
     environment:
       APP_ENV: prod
@@ -28,10 +32,14 @@ services:
       TZ: Europe/Paris
       RESTIC_CACHE_DIR: /var/www/html/storage/cache/restic
       WORKER_INTERVAL: "5"
+      APP_DISCOVERY_INTERVAL: "120"
+      DOCKER_SOCKET: /var/run/docker.sock
+      ZIMABACKUP_COMPOSE_PROJECT: zimabackup
     volumes:
       - /DATA/AppData/zimabackup:/var/www/html/storage
       - /DATA:/DATA
       - /media:/media
+      - /var/run/docker.sock:/var/run/docker.sock:ro
 
 x-casaos:
   id: com.zimabackup.app
@@ -45,13 +53,13 @@ x-casaos:
   tagline:
     en_US: Simple Restic backups for ZimaOS
   description:
-    en_US: Create, run, verify and restore encrypted backups from a ZimaOS-friendly interface.
+    en_US: Discover applications and create encrypted Restic backups from a ZimaOS-friendly interface.
   author: CHANGE_ME
   developer: ZimaBackup
   category: Utilities
   architectures:
     - amd64
-  version: "0.4.0"
-  update_at: "2026-09-04"
+  version: "0.5.0"
+  update_at: "2026-09-05"
   release_notes:
-    en_US: Manual backup jobs, live Restic progress and run history.
+    en_US: Docker/ZimaOS application discovery, persistent-volume selection and encrypted restore manifests.
