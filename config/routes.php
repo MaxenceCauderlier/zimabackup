@@ -7,6 +7,7 @@ use ZimaBackup\Controller\BackupController;
 use ZimaBackup\Controller\DashboardController;
 use ZimaBackup\Controller\PageController;
 use ZimaBackup\Controller\RepositoryController;
+use ZimaBackup\Controller\RestoreController;
 use ZimaBackup\Controller\SnapshotController;
 use ZimaBackup\Core\Application;
 
@@ -34,5 +35,10 @@ return static function (Application $app): void {
     $router->map('GET', '/repositories/[uuid:uuid]/recovery-key', [RepositoryController::class, 'recovery'], 'repositories.recovery');
 
     $router->map('GET', '/snapshots', [SnapshotController::class, 'index'], 'snapshots');
+
+    $router->map('GET', '/restores', [RestoreController::class, 'index'], 'restores');
+    $router->map('GET', '/restores/from/[i:runId]', [RestoreController::class, 'create'], 'restores.create');
+    $router->map('POST', '/restores/from/[i:runId]', [RestoreController::class, 'store'], 'restores.store');
+    $router->map('GET', '/restores/[uuid:uuid]', [RestoreController::class, 'show'], 'restores.show');
     $router->map('GET', '/settings', [PageController::class, 'settings'], 'settings');
 };

@@ -6,6 +6,7 @@ use ZimaBackup\Core\Application;
 use ZimaBackup\Service\ApplicationDiscoveryService;
 use ZimaBackup\Service\BackupService;
 use ZimaBackup\Service\RepositoryService;
+use ZimaBackup\Service\RestoreService;
 use ZimaBackup\Service\SchedulerService;
 use ZimaBackup\Service\TaskQueueService;
 
@@ -19,6 +20,8 @@ $queue = $app->service(TaskQueueService::class);
 $repositories = $app->service(RepositoryService::class);
 /** @var BackupService $backups */
 $backups = $app->service(BackupService::class);
+/** @var RestoreService $restores */
+$restores = $app->service(RestoreService::class);
 /** @var ApplicationDiscoveryService $applications */
 $applications = $app->service(ApplicationDiscoveryService::class);
 /** @var SchedulerService $scheduler */
@@ -72,6 +75,22 @@ while (true) {
                     $queue->complete((int) $operation['id'], ['run_id' => $runId]);
                     break;
 
+                case 'restore.run':
+                    $restoreRunId = (int) ($operation['payload']['restore_run_id'] ?? 0);
+                    if ($restoreRunId <= 0) {
+                        throw new RuntimeException('restore.run task has no valid restore_run_id.');
+                    }
+
+                    try {
+                        $restores->execute($restoreRunId);
+                    } catch (Throwable $exception) {
+                        $restores->markFailed($restoreRunId, $exception->getMessage());
+                        throw $exception;
+                    }
+
+                    $queue->complete((int) $operation['id'], ['restore_run_id' => $restoreRunId]);
+                    break;
+
                 case 'apps.discover':
                     $count = $applications->refresh();
                     $lastDiscovery = time();
@@ -103,7 +122,7 @@ while (true) {
     // same queue + worker path that scheduled runs will use in a later milestone.
     $dueJobs = $scheduler->dueJobs();
     if ($dueJobs !== []) {
-        echo sprintf("%s - %d scheduled backup job(s) are due but scheduling is not enabled in v0.5.\n", date('c'), count($dueJobs));
+        echo sprintf("%s - %d scheduled backup job(s) are due but scheduling is not enabled yet.\n", date('c'), count($dueJobs));
     }
 
     sleep($interval);

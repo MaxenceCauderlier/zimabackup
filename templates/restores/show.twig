@@ -1,0 +1,80 @@
+{% extends "layout.twig" %}
+
+{% block title %}Restore - {{ APP.name }}{% endblock %}
+
+{% block content %}
+<header class="page-header compact-header">
+    <div>
+        <a class="back-link" href="{{ ROUTER.generate('restores') }}">← Restores</a>
+        <p class="eyebrow">Restore operation</p>
+        <h1>{{ restore.job_name }}</h1>
+        <p class="muted">Snapshot <strong>{{ restore.snapshot_id|slice(0, 12) }}</strong> → {{ restore.target_path }}</p>
+    </div>
+    <div class="header-actions">
+        <span class="status-pill {{ restore.status == 'success' ? 'ok' : (restore.status in ['pending', 'running'] ? 'warning' : 'error') }}"><span class="status-dot"></span>{{ restore.status }}</span>
+    </div>
+</header>
+
+<section class="summary-cards four-summary-cards">
+    <article class="summary-card"><span>Repository</span><strong>{{ restore.repository_name }}</strong></article>
+    <article class="summary-card"><span>Target</span><strong>{{ restore.target_path }}</strong></article>
+    <article class="summary-card"><span>Snapshot</span><strong>{{ restore.snapshot_id|slice(0, 12) }}</strong></article>
+    <article class="summary-card"><span>Overwrite mode</span><strong>{{ restore.overwrite_mode }}</strong></article>
+</section>
+
+{% if restore.status in ['pending', 'running'] %}
+    <section class="panel live-panel" data-auto-refresh>
+        <div class="live-panel-head">
+            <div>
+                <span class="card-kicker">Current restore</span>
+                <h2>{{ restore.status == 'pending' ? 'Waiting for worker' : 'Recovering files' }}</h2>
+            </div>
+            <strong>{{ restore.progress_percent|default(0)|number_format(0) }}%</strong>
+        </div>
+        <div class="progress-track large-track"><span style="width: {{ restore.progress_percent|default(0) }}%"></span></div>
+        <div class="summary-cards three-summary-cards compact-summary-cards">
+            <article class="summary-card"><span>Files restored</span><strong>{{ restore.files_restored|default(0) }} / {{ restore.total_files|default(0) }}</strong></article>
+            <article class="summary-card"><span>Data restored</span><strong>{{ restore.bytes_restored|bytes }} / {{ restore.total_bytes|bytes }}</strong></article>
+            <article class="summary-card"><span>Skipped</span><strong>{{ restore.files_skipped|default(0) }}</strong></article>
+        </div>
+    </section>
+{% elseif restore.status == 'failed' %}
+    <section class="panel attention-panel">
+        <span class="status-pill error"><span class="status-dot"></span>Restore failed</span>
+        <h2>Nothing was written over the original data</h2>
+        <p>{{ restore.error }}</p>
+    </section>
+{% elseif restore.status == 'success' %}
+    <section class="panel success-panel-v2">
+        <div>
+            <span class="status-pill ok"><span class="status-dot"></span>Restore complete</span>
+            <h2>Recovery files are ready to inspect</h2>
+            <p>The snapshot was restored under <code>{{ restore.target_path }}</code>. Your original source data was not modified.</p>
+        </div>
+        <div class="summary-cards three-summary-cards compact-summary-cards">
+            <article class="summary-card"><span>Files restored</span><strong>{{ restore.files_restored|default(0) }}</strong></article>
+            <article class="summary-card"><span>Data restored</span><strong>{{ restore.bytes_restored|bytes }}</strong></article>
+            <article class="summary-card"><span>Finished</span><strong>{{ restore.finished_at }}</strong></article>
+        </div>
+    </section>
+{% endif %}
+
+<section class="panel">
+    <div class="panel-heading">
+        <div><span class="card-kicker">Recovery location</span><h2>Where to look</h2></div>
+    </div>
+    <div class="detail-stack">
+        <div class="detail-row-card wide-row-card">
+            <div>
+                <strong>Restored root</strong>
+                <small>{{ restore.target_path }}</small>
+            </div>
+            <span class="mini-tag eligible">safe target</span>
+        </div>
+        <div class="empty-inline">
+            <strong>Path layout</strong>
+            <p>Restic preserves the absolute source tree beneath the target. A source such as <code>/DATA/Documents</code> is therefore available below <code>{{ restore.target_path }}/DATA/Documents</code>.</p>
+        </div>
+    </div>
+</section>
+{% endblock %}

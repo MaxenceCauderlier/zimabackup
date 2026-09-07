@@ -698,3 +698,19 @@ input[type="text"]:focus, select:focus {
     .repo-option .status-pill, .app-picker-header .status-pill, .mount-check-row .mini-tag { grid-column: 2; justify-self: start; }
     .detail-row-card, .detail-row-card.wide-row-card { grid-template-columns: 1fr; }
 }
+
+/* v0.7 restore workflow */
+.compact-button { min-height: 38px; padding: 0 14px; border-radius: 13px; font-size: 13px; }
+.snapshot-actions {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+    margin-top: 16px;
+}
+.snapshot-actions > div { display: flex; gap: 8px; }
+.recovery-actions { justify-content: flex-end; }
+@media (max-width: 640px) {
+    .snapshot-actions { align-items: stretch; flex-direction: column; }
+    .snapshot-actions > div { display: grid; grid-template-columns: 1fr 1fr; }
+}

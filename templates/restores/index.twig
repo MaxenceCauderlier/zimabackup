@@ -1,0 +1,63 @@
+{% extends "layout.twig" %}
+
+{% block title %}Restores - {{ APP.name }}{% endblock %}
+
+{% block content %}
+{% set running_count = 0 %}
+{% set failed_count = 0 %}
+{% for restore in restores %}
+    {% if restore.status in ['pending', 'running'] %}{% set running_count = running_count + 1 %}{% endif %}
+    {% if restore.status == 'failed' %}{% set failed_count = failed_count + 1 %}{% endif %}
+{% endfor %}
+
+<header class="page-header hero-header">
+    <div>
+        <p class="eyebrow">Recovery operations</p>
+        <h1>Restores</h1>
+        <p class="muted">Safe restores are written to a new folder so your current ZimaOS data remains untouched.</p>
+    </div>
+    <div class="header-actions">
+        <span class="status-pill {{ failed_count > 0 ? 'warning' : 'ok' }}"><span class="status-dot"></span>{{ running_count }} active</span>
+        <a class="button" href="{{ ROUTER.generate('snapshots') }}">Choose snapshot</a>
+    </div>
+</header>
+
+<section class="stats-grid slim-stats">
+    <article class="panel stat-card"><span class="stat-title">Restore jobs</span><strong>{{ restores|length }}</strong><small>Recent operations</small></article>
+    <article class="panel stat-card"><span class="stat-title">Active</span><strong>{{ running_count }}</strong><small>Pending or running</small></article>
+    <article class="panel stat-card {{ failed_count > 0 ? 'warning-card' : '' }}"><span class="stat-title">Failed</span><strong>{{ failed_count }}</strong><small>{{ failed_count > 0 ? 'Need attention' : 'No active issues' }}</small></article>
+</section>
+
+{% if restores is empty %}
+    <section class="panel empty-state large-empty-state">
+        <div class="empty-illustration"><span>↺</span></div>
+        <h2>No restore has been started yet</h2>
+        <p>Open a snapshot and choose a safe destination folder to test recovery without modifying the original data.</p>
+        <a class="button" href="{{ ROUTER.generate('snapshots') }}">Browse snapshots</a>
+    </section>
+{% else %}
+    <section class="snapshot-list-v2">
+        {% for restore in restores %}
+            <a class="panel snapshot-card-v2" href="{{ ROUTER.generate('restores.show', {uuid: restore.uuid}) }}">
+                <div class="card-topline">
+                    <div>
+                        <span class="card-kicker">{{ restore.repository_name }}</span>
+                        <h2>{{ restore.job_name }}</h2>
+                    </div>
+                    <span class="status-pill compact {{ restore.status == 'success' ? 'ok' : (restore.status in ['pending', 'running'] ? 'warning' : 'error') }}"><span class="status-dot"></span>{{ restore.status }}</span>
+                </div>
+                <div class="summary-cards mini-summary-cards">
+                    <article class="summary-card"><span>Snapshot</span><strong>{{ restore.snapshot_id|slice(0, 12) }}</strong></article>
+                    <article class="summary-card"><span>Target</span><strong>{{ restore.target_path }}</strong></article>
+                    <article class="summary-card"><span>Created</span><strong>{{ restore.created_at }}</strong></article>
+                </div>
+                <div class="backup-footer-line"><span>{{ restore.progress_percent|default(0)|number_format(0) }}% complete</span><span>Open →</span></div>
+            </a>
+        {% endfor %}
+    </section>
+
+    {% if running_count > 0 %}
+        <div class="refresh-banner" data-auto-refresh><span class="spinner"></span> A restore is active. This page will refresh automatically.</div>
+    {% endif %}
+{% endif %}
+{% endblock %}

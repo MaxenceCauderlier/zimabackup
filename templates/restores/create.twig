@@ -1,0 +1,73 @@
+{% extends "layout.twig" %}
+
+{% block title %}Restore snapshot - {{ APP.name }}{% endblock %}
+
+{% block content %}
+<header class="page-header compact-header">
+    <div>
+        <a class="back-link" href="{{ ROUTER.generate('snapshots') }}">← Snapshots</a>
+        <p class="eyebrow">Safe recovery</p>
+        <h1>Restore {{ snapshot.job_name }}</h1>
+        <p class="muted">This mode restores the snapshot into a new directory and never overwrites your current source files.</p>
+    </div>
+</header>
+
+{% if errors %}
+    <div class="alert alert-error">
+        <strong>We couldn't start this restore.</strong>
+        {% for error in errors %}<div>{{ error }}</div>{% endfor %}
+    </div>
+{% endif %}
+
+<div class="form-shell two-col-form-shell">
+    <section class="panel form-panel-v2">
+        <form method="post" action="{{ ROUTER.generate('restores.store', {runId: snapshot.id}) }}" class="stack-form">
+            <input type="hidden" name="_csrf" value="{{ csrf_token }}">
+
+            <div class="form-section-block">
+                <div class="section-label"><span>1</span><div><strong>Snapshot</strong><small>The recovery point that will be read from Restic.</small></div></div>
+                <div class="summary-cards three-summary-cards">
+                    <article class="summary-card"><span>Backup</span><strong>{{ snapshot.job_name }}</strong></article>
+                    <article class="summary-card"><span>Snapshot</span><strong>{{ snapshot.snapshot_id|slice(0, 12) }}</strong></article>
+                    <article class="summary-card"><span>Repository</span><strong>{{ snapshot.repository_name }}</strong></article>
+                </div>
+            </div>
+
+            <div class="form-section-block">
+                <div class="section-label"><span>2</span><div><strong>Destination</strong><small>Choose a new or empty folder under /DATA or /media.</small></div></div>
+                <label class="field">
+                    <span>Restore target</span>
+                    <input type="text" name="target_path" required spellcheck="false" autocomplete="off" value="{{ values.target_path }}" placeholder="/DATA/ZimaBackup/Restores/my-backup">
+                    <small>The original paths are preserved below this directory. For example, <code>/DATA/Documents</code> becomes <code>{{ values.target_path }}/DATA/Documents</code>.</small>
+                </label>
+            </div>
+
+            <div class="info-strip">
+                <strong>Safe restore mode</strong>
+                <p>ZimaBackup requires the target directory to be empty and tells Restic never to overwrite existing files. In-place restore is intentionally disabled in this milestone.</p>
+            </div>
+
+            <div class="form-actions">
+                <a class="button button-secondary" href="{{ ROUTER.generate('snapshots') }}">Cancel</a>
+                <button class="button" type="submit">Start restore</button>
+            </div>
+        </form>
+    </section>
+
+    <aside class="help-column">
+        <article class="panel side-note-card">
+            <span class="card-kicker">Why this is safe</span>
+            <h3>Current data stays untouched</h3>
+            <p>The restored tree is written beneath a separate target path so you can inspect it before replacing anything.</p>
+        </article>
+        <article class="panel side-note-card soft-note">
+            <span class="card-kicker">After restore</span>
+            <ul class="simple-list">
+                <li>Inspect recovered files</li>
+                <li>Compare with current data</li>
+                <li>Copy back only what you need</li>
+            </ul>
+        </article>
+    </aside>
+</div>
+{% endblock %}

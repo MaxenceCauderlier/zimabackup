@@ -41,6 +41,10 @@
                 <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none"><path d="M12 7v5l3 2M20 12a8 8 0 1 1-2.34-5.66L20 8.68M20 4v4.68h-4.68" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
                 <span><strong>Snapshots</strong><small>Recovery points</small></span>
             </a>
+            <a class="nav-link {{ CURRENT_PATH starts with '/restores' ? 'active' : '' }}" href="{{ ROUTER.generate('restores') }}">
+                <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none"><path d="M8.5 8H4V3.5M4.4 8.2A8 8 0 1 1 4.8 17" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/><path d="M12 8v5h4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+                <span><strong>Restores</strong><small>Recovery jobs</small></span>
+            </a>
             <a class="nav-link {{ CURRENT_PATH starts with '/settings' ? 'active' : '' }}" href="{{ ROUTER.generate('settings') }}">
                 <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.7"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06-2.83 2.83-.06-.06A1.7 1.7 0 0 0 15 19.4a1.7 1.7 0 0 0-1 .6 1.7 1.7 0 0 0-.4 1.1V21h-4v-.1A1.7 1.7 0 0 0 8.6 19.4a1.7 1.7 0 0 0-1.88.34l-.06.06-2.83-2.83.06-.06A1.7 1.7 0 0 0 4.2 15a1.7 1.7 0 0 0-.6-1 1.7 1.7 0 0 0-1.1-.4H2.4v-4h.1A1.7 1.7 0 0 0 4.2 8.6a1.7 1.7 0 0 0-.34-1.88l-.06-.06 2.83-2.83.06.06A1.7 1.7 0 0 0 8.6 4.2a1.7 1.7 0 0 0 1-.6 1.7 1.7 0 0 0 .4-1.1v-.1h4v.1a1.7 1.7 0 0 0 1 1.7 1.7 1.7 0 0 0 1.88-.34l.06-.06 2.83 2.83-.06.06A1.7 1.7 0 0 0 19.4 8.6c.16.39.37.73.6 1 .28.31.67.5 1.1.5h.1v4h-.1a1.7 1.7 0 0 0-1.7 1Z" stroke="currentColor" stroke-width="1.35" stroke-linecap="round"/></svg></span>
                 <span><strong>Settings</strong><small>Configuration</small></span>

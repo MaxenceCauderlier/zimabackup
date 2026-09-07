@@ -15,6 +15,7 @@ use ZimaBackup\Service\BackupService;
 use ZimaBackup\Service\DockerEngineClient;
 use ZimaBackup\Service\PathService;
 use ZimaBackup\Service\RepositoryService;
+use ZimaBackup\Service\RestoreService;
 use ZimaBackup\Service\ResticService;
 use ZimaBackup\Service\SchedulerService;
 use ZimaBackup\Service\TaskQueueService;
@@ -109,6 +110,12 @@ final class Application
             $resticService,
             $queue,
             $this->rootPath . '/storage/secrets/repositories'
+        );
+        $this->services[RestoreService::class] = new RestoreService(
+            $this->database,
+            $pathService,
+            $resticService,
+            $queue
         );
         $this->services[SchedulerService::class] = new SchedulerService($this->database);
     }
