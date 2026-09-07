@@ -25,14 +25,10 @@ document.addEventListener('click', async (event) => {
     }, 1600);
 });
 
-// Repository initialization is handled by the isolated worker. A short page
-// refresh keeps the UI useful without adding a frontend framework or polling API.
 if (document.querySelector('[data-auto-refresh]')) {
     setTimeout(() => window.location.reload(), 3000);
 }
 
-// Manual folder inputs remain available alongside application-aware sources.
-// Detected app volumes are rendered by Twig and validated again by the backend.
 const sourceList = document.querySelector('[data-source-list]');
 const addSourceButton = document.querySelector('[data-add-source]');
 
@@ -48,10 +44,7 @@ if (sourceList && addSourceButton) {
         const row = document.createElement('div');
         row.className = 'source-row';
         row.innerHTML = `
-            <div class="path-input source-input">
-                <span>/</span>
-                <input type="text" name="sources[]" value="" placeholder="/DATA/AppData/example" required>
-            </div>
+            <input type="text" name="sources[]" value="" placeholder="/DATA/Documents">
             <button type="button" class="icon-button" data-remove-source aria-label="Remove source">×</button>
         `;
         sourceList.appendChild(row);
@@ -71,9 +64,6 @@ if (sourceList && addSourceButton) {
     refreshRemoveButtons();
 }
 
-// Application selection stays framework-free: selecting an app reveals its
-// detected volumes. Mount checkboxes are submitted only when the app itself is
-// selected; the backend independently validates every mount id and host path.
 document.querySelectorAll('[data-app-picker]').forEach((picker) => {
     const checkbox = picker.querySelector('.app-select-checkbox');
     if (!checkbox) {
@@ -82,5 +72,22 @@ document.querySelectorAll('[data-app-picker]').forEach((picker) => {
 
     const refresh = () => picker.classList.toggle('selected', checkbox.checked);
     checkbox.addEventListener('change', refresh);
+    refresh();
+});
+
+document.querySelectorAll('.repo-option').forEach((option) => {
+    const radio = option.querySelector('input[type="radio"]');
+    if (!radio) {
+        return;
+    }
+
+    const refresh = () => {
+        document.querySelectorAll('.repo-option').forEach((item) => {
+            const itemRadio = item.querySelector('input[type="radio"]');
+            item.classList.toggle('selected', !!itemRadio && itemRadio.checked);
+        });
+    };
+
+    radio.addEventListener('change', refresh);
     refresh();
 });

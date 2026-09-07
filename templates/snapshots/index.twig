@@ -3,34 +3,38 @@
 {% block title %}Snapshots - {{ APP.name }}{% endblock %}
 
 {% block content %}
-<header class="page-header">
+<header class="page-header hero-header">
     <div>
         <p class="eyebrow">Recovery points</p>
         <h1>Snapshots</h1>
-        <p class="muted">Successful Restic snapshots created by ZimaBackup. Restore actions arrive in the next milestone.</p>
+        <p class="muted">Successful or partial Restic snapshots created by ZimaBackup.</p>
     </div>
 </header>
 
 {% if snapshots is empty %}
-    <section class="panel module-placeholder">
-        <div class="placeholder-orb"><span>↺</span></div>
+    <section class="panel empty-state large-empty-state">
+        <div class="empty-illustration"><span>↺</span></div>
         <h2>No snapshots yet</h2>
-        <p>Run a backup successfully and its encrypted recovery point will appear here.</p>
-        <a class="button" href="{{ ROUTER.generate("backups") }}">Open backups</a>
+        <p>Launch a backup successfully and the resulting recovery points will appear here.</p>
+        <a class="button" href="{{ ROUTER.generate('backups') }}">Open backups</a>
     </section>
 {% else %}
-    <section class="snapshot-list">
+    <section class="snapshot-list-v2">
         {% for snapshot in snapshots %}
-            <article class="snapshot-row">
-                <div class="snapshot-icon {{ snapshot.status }}">{{ snapshot.status == "warning" ? "!" : "✓" }}</div>
-                <div class="snapshot-main">
-                    <strong>{{ snapshot.job_name }}</strong>
-                    <span>{{ snapshot.finished_at }} · {{ snapshot.repository_name }}</span>
+            <article class="panel snapshot-card-v2">
+                <div class="card-topline">
+                    <div>
+                        <span class="card-kicker">{{ snapshot.repository_name }}</span>
+                        <h2>{{ snapshot.job_name }}</h2>
+                    </div>
+                    <span class="status-pill compact {{ snapshot.status == 'warning' ? 'warning' : 'ok' }}"><span class="status-dot"></span>{{ snapshot.status }}</span>
                 </div>
-                <div class="snapshot-metric"><span>Processed</span><strong>{{ snapshot.bytes_processed|bytes }}</strong></div>
-                <div class="snapshot-metric"><span>Added</span><strong>{{ snapshot.bytes_added|bytes }}</strong></div>
-                <code>{{ snapshot.snapshot_id|slice(0, 12) }}</code>
-                <a class="ghost-link" href="{{ ROUTER.generate("backups.show", {uuid: snapshot.job_uuid}) }}">Open job →</a>
+                <div class="summary-cards mini-summary-cards">
+                    <article class="summary-card"><span>Finished</span><strong>{{ snapshot.finished_at }}</strong></article>
+                    <article class="summary-card"><span>Processed</span><strong>{{ snapshot.bytes_processed|bytes }}</strong></article>
+                    <article class="summary-card"><span>Added</span><strong>{{ snapshot.bytes_added|bytes }}</strong></article>
+                </div>
+                <div class="backup-footer-line"><code>{{ snapshot.snapshot_id|slice(0, 12) }}</code><a class="text-link" href="{{ ROUTER.generate('backups.show', {uuid: snapshot.job_uuid}) }}">Open job →</a></div>
             </article>
         {% endfor %}
     </section>

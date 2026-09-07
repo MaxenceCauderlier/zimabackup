@@ -5,15 +5,15 @@
 {% block content %}
 <header class="page-header compact-header">
     <div>
-        <a class="back-link" href="{{ ROUTER.generate("repositories") }}">← Repositories</a>
-        <p class="eyebrow">New backup destination</p>
-        <h1>Create repository</h1>
-        <p class="muted">Set up an encrypted location for your future backup snapshots.</p>
+        <a class="back-link" href="{{ ROUTER.generate('repositories') }}">← Repositories</a>
+        <p class="eyebrow">Create destination</p>
+        <h1>Set up an encrypted repository</h1>
+        <p class="muted">This is where all future snapshots will be stored.</p>
     </div>
 </header>
 
-<div class="create-layout">
-    <section class="panel form-panel modern-form">
+<div class="form-shell two-col-form-shell">
+    <section class="panel form-panel-v2">
         {% if errors %}
             <div class="alert alert-error">
                 <strong>We couldn't create this repository.</strong>
@@ -21,55 +21,57 @@
             </div>
         {% endif %}
 
-        <form method="post" action="{{ ROUTER.generate("repositories.store") }}">
+        <form method="post" action="{{ ROUTER.generate('repositories.store') }}" class="stack-form">
             <input type="hidden" name="_csrf" value="{{ csrf_token }}">
 
-            <div class="form-section-title"><span>1</span><div><strong>Name your repository</strong><small>Only used inside ZimaBackup.</small></div></div>
-            <label class="field">
-                <span>Repository name</span>
-                <input type="text" name="name" maxlength="100" required autocomplete="off"
-                       value="{{ values.name }}" placeholder="USB Backup">
-            </label>
+            <div class="form-section-block">
+                <div class="section-label"><span>1</span><div><strong>Name</strong><small>Friendly label for the interface.</small></div></div>
+                <label class="field">
+                    <span>Repository name</span>
+                    <input type="text" name="name" maxlength="100" required autocomplete="off" value="{{ values.name }}" placeholder="USB Backup">
+                </label>
+            </div>
 
-            <div class="form-divider"></div>
+            <div class="form-section-block">
+                <div class="section-label"><span>2</span><div><strong>Location</strong><small>A dedicated folder on ZimaOS or on a USB disk.</small></div></div>
+                <label class="field">
+                    <span>Path</span>
+                    <input type="text" name="path" required spellcheck="false" autocomplete="off" value="{{ values.path }}" placeholder="/media/Backup/ZimaBackup">
+                    <small>Allowed roots: <code>/DATA</code> and <code>/media</code>.</small>
+                </label>
+            </div>
 
-            <div class="form-section-title"><span>2</span><div><strong>Choose its location</strong><small>Use a dedicated folder on ZimaOS or USB storage.</small></div></div>
-            <label class="field">
-                <span>Path</span>
-                <div class="path-input"><span>/</span><input type="text" name="path" required spellcheck="false" autocomplete="off"
-                       value="{{ values.path }}" placeholder="/media/Backup/ZimaBackup"></div>
-                <small>Allowed roots: <code>/DATA</code> and <code>/media</code>.</small>
-            </label>
-
-            <div class="encryption-note">
-                <div class="lock-icon"><svg viewBox="0 0 24 24" fill="none"><rect x="5" y="10" width="14" height="10" rx="3" stroke="currentColor" stroke-width="1.7"/><path d="M8 10V7a4 4 0 0 1 8 0v3" stroke="currentColor" stroke-width="1.7"/><circle cx="12" cy="15" r="1.2" fill="currentColor"/></svg></div>
-                <div><strong>Encryption is always enabled</strong><p>ZimaBackup creates a strong Restic recovery key. You'll see it once on the next screen.</p></div>
+            <div class="info-strip">
+                <strong>Always encrypted</strong>
+                <p>ZimaBackup generates a Restic recovery key automatically and shows it once after creation.</p>
             </div>
 
             <div class="form-actions">
-                <a class="button button-secondary" href="{{ ROUTER.generate("repositories") }}">Cancel</a>
-                <button class="button" type="submit">Create repository <span>→</span></button>
+                <a class="button button-secondary" href="{{ ROUTER.generate('repositories') }}">Cancel</a>
+                <button class="button" type="submit">Create repository</button>
             </div>
         </form>
     </section>
 
-    <aside class="setup-help">
-        <div class="help-card">
+    <aside class="help-column">
+        <article class="panel side-note-card">
             <span class="card-kicker">Recommended</span>
-            <h3>Use a separate disk</h3>
-            <p>For real protection, keep backups away from the ZimaOS system disk and ideally on removable or remote storage.</p>
-        </div>
-        <div class="help-card subtle">
-            <h3>Example</h3>
+            <h3>Use separate storage</h3>
+            <p>For better disaster recovery, avoid saving backups only on the main system disk.</p>
+        </article>
+        <article class="panel side-note-card soft-note">
+            <span class="card-kicker">Example</span>
             <code>/media/MyUSB/ZimaBackup</code>
-            <p>ZimaBackup creates the folder if needed and initializes Restic inside it.</p>
-        </div>
-        <div class="help-card subtle help-list">
-            <h3>What happens next</h3>
-            <div><span>1</span>Recovery key generated</div>
-            <div><span>2</span>Repository initialized</div>
-            <div><span>3</span>Integrity checked</div>
-        </div>
+            <p>The worker can create the folder and initialize Restic inside it.</p>
+        </article>
+        <article class="panel side-note-card soft-note">
+            <span class="card-kicker">Next</span>
+            <ul class="simple-list">
+                <li>Recovery key generated</li>
+                <li>Repository initialized</li>
+                <li>Integrity checked</li>
+            </ul>
+        </article>
     </aside>
 </div>
 {% endblock %}

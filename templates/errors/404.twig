@@ -1,13 +1,12 @@
 {% extends "layout.twig" %}
 
-{% block title %}Not found - {{ APP.name }}{% endblock %}
+{% block title %}404 - {{ APP.name }}{% endblock %}
 
 {% block content %}
-<section class="panel">
-    <div class="empty-state">
-        <strong>404 - Page not found</strong>
-        <p>The requested page does not exist.</p>
-        <a class="button" href="{{ ROUTER.generate("dashboard") }}">Back to dashboard</a>
-    </div>
+<section class="panel empty-state large-empty-state top-gap">
+    <div class="empty-illustration"><span>404</span></div>
+    <h1>Page not found</h1>
+    <p>The requested page does not exist.</p>
+    <a class="button" href="{{ ROUTER.generate('dashboard') }}">Back to dashboard</a>
 </section>
 {% endblock %}

@@ -3,132 +3,115 @@
 {% block title %}New backup - {{ APP.name }}{% endblock %}
 
 {% block content %}
-<a class="back-link" href="{{ ROUTER.generate("backups") }}">← Back to backups</a>
 <header class="page-header compact-header">
     <div>
-        <p class="eyebrow">New protection plan</p>
-        <h1>Create backup</h1>
-        <p class="muted">Protect complete applications, individual folders, or combine both in the same encrypted snapshot.</p>
+        <a class="back-link" href="{{ ROUTER.generate('backups') }}">← Backups</a>
+        <p class="eyebrow">New backup plan</p>
+        <h1>Create a backup job</h1>
+        <p class="muted">Select a destination, then choose applications, folders, or both.</p>
     </div>
 </header>
 
-<div class="create-layout wide-create-layout">
-    <section class="panel form-panel">
-        <form class="modern-form" method="post" action="{{ ROUTER.generate("backups.store") }}">
-            <input type="hidden" name="_csrf" value="{{ csrf_token }}">
+{% if errors %}
+    <div class="alert alert-error">
+        <strong>We couldn't create this backup.</strong>
+        {% for error in errors %}<div>{{ error }}</div>{% endfor %}
+    </div>
+{% endif %}
 
-            {% if errors is not empty %}
-                <div class="alert alert-error"><strong>Unable to create backup</strong>{% for error in errors %}<div>{{ error }}</div>{% endfor %}</div>
-            {% endif %}
+<form method="post" action="{{ ROUTER.generate('backups.store') }}" class="wizard-form">
+    <input type="hidden" name="_csrf" value="{{ csrf_token }}">
 
-            <div class="form-section-title">
-                <span>1</span>
-                <div><strong>Backup identity</strong><small>A clear name for this protection plan.</small></div>
-            </div>
+    <div class="wizard-grid">
+        <section class="panel form-panel-v2 form-stage">
+            <div class="section-label"><span>1</span><div><strong>General</strong><small>Name and destination repository.</small></div></div>
             <label class="field">
-                <span>Name</span>
-                <input type="text" name="name" value="{{ values.name }}" placeholder="My applications" maxlength="100" required>
+                <span>Backup name</span>
+                <input type="text" name="name" maxlength="120" required value="{{ values.name }}" placeholder="Apps and Documents">
             </label>
 
-            <div class="form-divider"></div>
-            <div class="form-section-title">
-                <span>2</span>
-                <div><strong>Destination</strong><small>Choose a ready encrypted Restic repository.</small></div>
+            <div class="repo-option-grid">
+                {% for repository in repositories %}
+                    <label class="repo-option {{ values.repository_id == (repository.id ~ '') ? 'selected' : '' }}">
+                        <input type="radio" name="repository_id" value="{{ repository.id }}" {{ values.repository_id == (repository.id ~ '') ? 'checked' : '' }} required>
+                        <div>
+                            <strong>{{ repository.name }}</strong>
+                            <small>{{ repository.path }}</small>
+                        </div>
+                        <span class="status-pill compact {{ repository.status == 'ready' ? 'ok' : 'warning' }}"><span class="status-dot"></span>{{ repository.status }}</span>
+                    </label>
+                {% endfor %}
             </div>
-            <label class="field">
-                <span>Repository</span>
-                <select name="repository_id" required>
-                    <option value="">Select a repository</option>
-                    {% for repository in repositories %}
-                        <option value="{{ repository.id }}" {{ values.repository_id == (repository.id ~ "") ? "selected" : "" }}>{{ repository.name }} — {{ repository.path }}</option>
-                    {% endfor %}
-                </select>
-            </label>
+        </section>
 
-            <div class="form-divider"></div>
-            <div class="form-section-title section-title-with-action">
-                <span>3</span>
-                <div><strong>Applications</strong><small>Select an installed app. Its installation definition is always included.</small></div>
-                <a class="tiny-link" href="{{ ROUTER.generate("applications") }}">Manage discovery →</a>
-            </div>
-
+        <section class="panel form-panel-v2 form-stage">
+            <div class="section-label"><span>2</span><div><strong>Applications</strong><small>Select detected applications and the volumes you want to include.</small></div></div>
             {% if applications is empty %}
-                <div class="application-picker-empty" {{ discovery.status in ["queued", "scanning"] ? "data-auto-refresh" : "" }}>
-                    <span class="spinner"></span>
-                    <div><strong>{{ discovery.status in ["queued", "scanning"] ? "Discovering applications…" : "No applications detected" }}</strong><p>You can still create a folder backup below, or open Applications to retry Docker discovery.</p></div>
+                <div class="empty-inline">
+                    <strong>No applications discovered yet</strong>
+                    <p>Use the Applications page to refresh discovery, or continue with folder-only backup sources below.</p>
                 </div>
             {% else %}
-                <div class="application-picker-list">
+                <div class="app-picker-grid">
                     {% for application in applications %}
-                        {% set selected = application.id in values.application_ids %}
-                        {% set selected_mount_ids = values.app_mounts[application.id]|default([]) %}
-                        <article class="application-picker" data-app-picker>
-                            <label class="application-picker-head">
-                                <input class="app-select-checkbox" type="checkbox" name="application_ids[]" value="{{ application.id }}" {{ selected ? "checked" : "" }}>
-                                <span class="app-check-ui"></span>
-                                <span class="application-avatar small">{{ application.name|slice(0, 1)|upper }}</span>
-                                <span class="application-picker-title"><strong>{{ application.name }}</strong><small>{{ application.image ?: application.app_key }}</small></span>
-                                <span class="run-status {{ application.status == "running" ? "ready" : "pending" }}"><span class="tiny-dot"></span>{{ application.status }}</span>
-                            </label>
-
-                            <div class="application-picker-body">
-                                <div class="definition-row">
-                                    <span class="definition-check">✓</span>
-                                    <div><strong>Application definition</strong><small>Image, environment, ports, networks, devices and Docker runtime metadata.</small></div>
-                                    <span class="always-tag">always</span>
+                        <label class="app-picker-card" data-app-picker>
+                            <div class="app-picker-header">
+                                <input class="app-select-checkbox" type="checkbox" name="application_ids[]" value="{{ application.id }}" {{ application.id in values.application_ids ? 'checked' : '' }}>
+                                <div>
+                                    <strong>{{ application.name }}</strong>
+                                    <small>{{ application.image }}</small>
                                 </div>
-
-                                <div class="app-mount-list">
-                                    {% for mount in application.mounts %}
-                                        {% set checked = mount.id in selected_mount_ids or (not selected and mount.recommended) %}
-                                        <label class="app-mount-row {{ not mount.eligible ? "disabled" : "" }}">
-                                            <input type="checkbox" name="app_mounts[{{ application.id }}][]" value="{{ mount.id }}" {{ checked and mount.eligible ? "checked" : "" }} {{ not mount.eligible ? "disabled" : "" }}>
-                                            <span class="mount-checkbox-ui"></span>
-                                            <span class="mount-paths"><strong>{{ mount.destination }}</strong><code>{{ mount.source }}</code></span>
-                                            {% if mount.recommended %}<span class="recommended-tag">recommended</span>{% elseif not mount.eligible %}<span class="unsupported-tag">{{ mount.mount_type }}</span>{% else %}<span class="data-tag">data</span>{% endif %}
-                                        </label>
-                                    {% else %}
-                                        <div class="mount-empty compact">No persistent volumes. The installation definition can still be backed up.</div>
-                                    {% endfor %}
-                                </div>
+                                <span class="status-pill compact {{ application.status == 'running' ? 'ok' : 'warning' }}"><span class="status-dot"></span>{{ application.status }}</span>
                             </div>
-                        </article>
+                            <div class="mount-checklist">
+                                {% for mount in application.mounts %}
+                                    <label class="mount-check-row {{ not mount.eligible ? 'mount-disabled' : '' }}">
+                                        <input type="checkbox" name="app_mounts[{{ application.id }}][]" value="{{ mount.id }}" {{ mount.id in (values.app_mounts[application.id ~ '']|default([])) ? 'checked' : (mount.recommended ? 'checked' : '') }} {{ not mount.eligible ? 'disabled' : '' }}>
+                                        <div>
+                                            <strong>{{ mount.destination }}</strong>
+                                            <small>{{ mount.source }}</small>
+                                        </div>
+                                        <span class="mini-tag {{ mount.eligible ? (mount.recommended ? 'recommended' : 'eligible') : 'ignored' }}">{{ mount.eligible ? (mount.recommended ? 'recommended' : 'eligible') : 'ignored' }}</span>
+                                    </label>
+                                {% endfor %}
+                            </div>
+                        </label>
                     {% endfor %}
                 </div>
             {% endif %}
+        </section>
 
-            <div class="form-divider"></div>
-            <div class="form-section-title">
-                <span>4</span>
-                <div><strong>Additional folders</strong><small>Optional paths under /DATA or /media, independent of detected apps.</small></div>
-            </div>
-
+        <section class="panel form-panel-v2 form-stage form-stage-wide">
+            <div class="section-label"><span>3</span><div><strong>Folders</strong><small>Add any extra folders to protect alongside the selected applications.</small></div></div>
             <div class="source-list" data-source-list>
                 {% for source in values.sources %}
                     <div class="source-row">
-                        <div class="path-input source-input"><span>/</span><input type="text" name="sources[]" value="{{ source }}" placeholder="/DATA/Documents"></div>
+                        <input type="text" name="sources[]" value="{{ source }}" placeholder="/DATA/Documents">
                         <button type="button" class="icon-button" data-remove-source aria-label="Remove source">×</button>
                     </div>
                 {% endfor %}
             </div>
-            <button type="button" class="button button-secondary small-button" data-add-source>+ Add another folder</button>
-
-            <div class="safety-note">
-                <span>✓</span>
-                <div><strong>Application-aware backup</strong><p>ZimaBackup rejects recursive source/repository overlaps. Application definitions with secrets are written only to a temporary 0600 file, encrypted by Restic, then removed.</p></div>
+            <button type="button" class="button button-secondary" data-add-source>Add folder source</button>
+            <div class="info-strip compact-strip">
+                <strong>Allowed roots</strong>
+                <p>Use logical ZimaOS paths such as <code>/DATA/Documents</code> or <code>/media/MyUSB/Photos</code>.</p>
             </div>
+        </section>
 
-            <div class="form-actions">
-                <a class="button button-secondary" href="{{ ROUTER.generate("backups") }}">Cancel</a>
+        <aside class="panel side-summary-panel">
+            <span class="card-kicker">Summary</span>
+            <h2>What this job will do</h2>
+            <ul class="simple-list">
+                <li>Store snapshots in one encrypted repository</li>
+                <li>Include selected applications and their runtime manifest</li>
+                <li>Optionally include extra folders</li>
+                <li>Run through the isolated worker</li>
+            </ul>
+            <div class="form-actions sticky-actions">
+                <a class="button button-secondary" href="{{ ROUTER.generate('backups') }}">Cancel</a>
                 <button class="button" type="submit">Create backup</button>
             </div>
-        </form>
-    </section>
-
-    <aside class="setup-help">
-        <article class="help-card"><span class="card-kicker">Recommended</span><h3>Config first</h3><p>Volumes under <code>/DATA/AppData</code> are preselected unless they look like caches or transcoding directories.</p></article>
-        <article class="help-card subtle"><span class="card-kicker">Large libraries</span><h3>User data is optional</h3><p>Media/photo mounts remain available but are not selected automatically to avoid unexpectedly huge first backups.</p></article>
-        <article class="help-card subtle"><span class="card-kicker">Restore manifest</span><h3>Rebuild later</h3><p>Every selected application gets a full encrypted Docker runtime manifest alongside its data snapshot.</p></article>
-    </aside>
-</div>
+        </aside>
+    </div>
+</form>
 {% endblock %}

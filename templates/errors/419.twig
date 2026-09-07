@@ -3,11 +3,10 @@
 {% block title %}Session expired - {{ APP.name }}{% endblock %}
 
 {% block content %}
-<section class="panel">
-    <div class="empty-state">
-        <strong>419 - Invalid or expired form token</strong>
-        <p>Reload the form and try again.</p>
-        <a class="button" href="{{ ROUTER.generate("repositories.create") }}">Back to repository form</a>
-    </div>
+<section class="panel empty-state large-empty-state top-gap">
+    <div class="empty-illustration"><span>419</span></div>
+    <h1>Session expired</h1>
+    <p>Please go back and try your action again.</p>
+    <a class="button" href="{{ ROUTER.generate('dashboard') }}">Back to dashboard</a>
 </section>
 {% endblock %}

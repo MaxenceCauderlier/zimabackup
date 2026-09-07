@@ -4,83 +4,63 @@
 
 {% block content %}
 {% set ready_count = 0 %}
-{% set pending_count = 0 %}
 {% set failed_count = 0 %}
 {% for repository in repositories %}
-    {% if repository.status == "ready" %}{% set ready_count = ready_count + 1 %}{% endif %}
-    {% if repository.status in ["pending", "initializing"] %}{% set pending_count = pending_count + 1 %}{% endif %}
-    {% if repository.status == "failed" %}{% set failed_count = failed_count + 1 %}{% endif %}
+    {% if repository.status == 'ready' %}{% set ready_count = ready_count + 1 %}{% endif %}
+    {% if repository.status == 'failed' %}{% set failed_count = failed_count + 1 %}{% endif %}
 {% endfor %}
 
-<header class="page-header">
+<header class="page-header hero-header">
     <div>
-        <p class="eyebrow">Backup storage</p>
+        <p class="eyebrow">Storage destinations</p>
         <h1>Repositories</h1>
-        <p class="muted">Encrypted destinations where your snapshots are safely stored.</p>
+        <p class="muted">Each repository is an encrypted Restic destination where snapshots are written and verified.</p>
     </div>
-    <a class="button" href="{{ ROUTER.generate("repositories.create") }}"><span class="button-icon">+</span> New repository</a>
+    <div class="header-actions">
+        <span class="status-pill {{ failed_count > 0 ? 'warning' : 'ok' }}"><span class="status-dot"></span>{{ ready_count }} ready / {{ repositories|length }} total</span>
+        <a class="button" href="{{ ROUTER.generate('repositories.create') }}">New repository</a>
+    </div>
 </header>
 
-<section class="repository-summary">
-    <div><span>Total</span><strong>{{ repositories|length }}</strong></div>
-    <div><span class="summary-dot healthy"></span><span>Ready</span><strong>{{ ready_count }}</strong></div>
-    <div><span class="summary-dot pending"></span><span>Initializing</span><strong>{{ pending_count }}</strong></div>
-    <div><span class="summary-dot danger"></span><span>Issues</span><strong>{{ failed_count }}</strong></div>
+<section class="stats-grid slim-stats">
+    <article class="panel stat-card"><span class="stat-title">Total repositories</span><strong>{{ repositories|length }}</strong><small>All configured destinations</small></article>
+    <article class="panel stat-card"><span class="stat-title">Ready</span><strong>{{ ready_count }}</strong><small>Ready for backups</small></article>
+    <article class="panel stat-card {{ failed_count > 0 ? 'warning-card' : '' }}"><span class="stat-title">Errors</span><strong>{{ failed_count }}</strong><small>{{ failed_count > 0 ? 'Need review' : 'None reported' }}</small></article>
 </section>
 
 {% if repositories is empty %}
-    <section class="panel onboarding-empty">
-        <div class="onboarding-visual">
-            <div class="disk-stack"><span></span><span></span><span></span></div>
-            <div class="shield-check">✓</div>
-        </div>
-        <div class="onboarding-copy">
-            <span class="card-kicker">First step</span>
-            <h2>Choose where your backups will live</h2>
-            <p>Create an encrypted Restic repository on an internal ZimaOS disk or an external USB drive. Your recovery key stays under your control.</p>
-            <div class="feature-chips"><span>End-to-end encrypted</span><span>Deduplicated</span><span>Integrity checks</span></div>
-            <a class="button" href="{{ ROUTER.generate("repositories.create") }}">Create first repository</a>
-        </div>
+    <section class="panel empty-state large-empty-state">
+        <div class="empty-illustration"><span>⛁</span></div>
+        <h2>Create your first repository</h2>
+        <p>Pick a folder under <code>/DATA</code> or <code>/media</code>. ZimaBackup will initialize and verify the encrypted Restic repository for you.</p>
+        <a class="button" href="{{ ROUTER.generate('repositories.create') }}">Create repository</a>
     </section>
 {% else %}
-    <section class="repository-grid">
+    <section class="card-grid repository-grid-v2">
         {% for repository in repositories %}
-            <article class="repository-card {{ repository.status }}">
-                <div class="repository-card-top">
-                    <div class="repository-symbol">
-                        <svg viewBox="0 0 24 24" fill="none"><ellipse cx="12" cy="6.5" rx="7" ry="2.8" stroke="currentColor" stroke-width="1.6"/><path d="M5 6.5v5c0 1.55 3.13 2.8 7 2.8s7-1.25 7-2.8v-5M5 11.5v5c0 1.55 3.13 2.8 7 2.8s7-1.25 7-2.8v-5" stroke="currentColor" stroke-width="1.6"/></svg>
+            <article class="panel repository-card-v2">
+                <div class="card-topline">
+                    <div>
+                        <span class="card-kicker">{{ repository.type|upper }}</span>
+                        <h2>{{ repository.name }}</h2>
                     </div>
-                    <span class="run-status {{ repository.status }}"><span class="tiny-dot"></span>{{ repository.status }}</span>
+                    <span class="status-pill compact {{ repository.status == 'ready' ? 'ok' : (repository.status in ['pending', 'initializing'] ? 'warning' : 'error') }}"><span class="status-dot"></span>{{ repository.status }}</span>
                 </div>
-
-                <div class="repository-title">
-                    <h2>{{ repository.name }}</h2>
-                    <span>{{ repository.type|capitalize }} repository</span>
+                <div class="storage-meter">
+                    <div class="meter-bar"><span style="width: {{ repository.status == 'ready' ? 86 : (repository.status == 'initializing' ? 45 : 18) }}%"></span></div>
+                    <div class="meter-labels"><span>{{ repository.status == 'ready' ? 'Ready for backups' : (repository.status == 'initializing' ? 'Initializing' : 'Needs attention') }}</span><span>{{ repository.running_operations }} op</span></div>
                 </div>
-
-                <div class="repository-path"><span>Location</span><code>{{ repository.path }}</code></div>
-
+                <dl class="detail-list">
+                    <div><dt>Path</dt><dd><code>{{ repository.path }}</code></dd></div>
+                    <div><dt>Password file</dt><dd><code>{{ repository.password_file|split('/')|last }}</code></dd></div>
+                    <div><dt>Created</dt><dd>{{ repository.created_at }}</dd></div>
+                </dl>
                 {% if repository.error %}
-                    <div class="repository-error"><strong>Initialization failed</strong><span>{{ repository.error }}</span></div>
+                    <div class="inline-error">{{ repository.error }}</div>
                 {% endif %}
-
-                <div class="repository-card-footer">
-                    <span>Updated {{ repository.updated_at }}</span>
-                    {% if repository.status == "ready" %}<span class="verified-label">✓ Verified</span>{% endif %}
-                    {% if repository.status in ["pending", "initializing"] %}<span class="working-label">Working…</span>{% endif %}
-                </div>
+                <div class="card-footer-note">Recovery key is shown once at creation and stored securely for worker access.</div>
             </article>
         {% endfor %}
-
-        <a class="repository-card add-repository-card" href="{{ ROUTER.generate("repositories.create") }}">
-            <span class="add-circle">+</span>
-            <strong>Add another repository</strong>
-            <small>Internal disk or USB storage</small>
-        </a>
     </section>
-
-    {% if pending_count > 0 %}
-        <div class="refresh-banner" data-auto-refresh><span class="spinner"></span> Repository initialization is running. Status will refresh automatically.</div>
-    {% endif %}
 {% endif %}
 {% endblock %}

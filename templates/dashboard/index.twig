@@ -3,150 +3,132 @@
 {% block title %}Dashboard - {{ APP.name }}{% endblock %}
 
 {% block content %}
-<header class="page-header dashboard-header">
+{% set score = 1 %}
+{% if stats.repositories > 0 %}{% set score = score + 1 %}{% endif %}
+{% if stats.jobs > 0 %}{% set score = score + 1 %}{% endif %}
+{% if stats.successful_runs > 0 %}{% set score = score + 1 %}{% endif %}
+{% set protection_percent = score * 25 %}
+
+<header class="page-header hero-header">
     <div>
-        <p class="eyebrow">Protection overview</p>
-        <h1>Protection at a glance.</h1>
-        <p class="muted">Everything you need to protect your ZimaOS data, in one place.</p>
+        <p class="eyebrow">Backup Center</p>
+        <h1>Keep your ZimaOS data recoverable.</h1>
+        <p class="muted">A cleaner, application-aware view of repositories, backup jobs and encrypted snapshots.</p>
     </div>
     <div class="header-actions">
-        <span class="health-badge {{ restic_version ? "healthy" : "danger" }}">
-            <span class="health-dot"></span>
-            {{ restic_version ? "Backup engine ready" : "Restic unavailable" }}
-        </span>
-        <a class="button" href="{{ ROUTER.generate("backups.create") }}">
-            <span class="button-icon">+</span> New backup
-        </a>
+        <span class="status-pill {{ restic_version ? 'ok' : 'error' }}"><span class="status-dot"></span>{{ restic_version ? 'Restic ready' : 'Restic unavailable' }}</span>
+        <a class="button" href="{{ ROUTER.generate('backups.create') }}">New backup</a>
     </div>
 </header>
 
-<section class="hero-grid">
-    <article class="protection-card">
-        <div class="protection-top">
-            <div>
-                <span class="card-kicker">Protection status</span>
-                {% if stats.failed_runs > 0 %}
-                    <h2>Attention needed</h2>
-                    <p>{{ stats.failed_runs }} backup {{ stats.failed_runs == 1 ? "run has" : "runs have" }} failed.</p>
-                {% elseif stats.repositories == 0 %}
-                    <h2>Ready to get protected</h2>
-                    <p>Create your first encrypted repository to start safeguarding ZimaOS.</p>
+<section class="hero-grid dashboard-hero-grid">
+    <article class="panel hero-overview-panel">
+        <div class="hero-overview-copy">
+            <span class="card-kicker">Protection level</span>
+            <h2>{{ protection_percent }}% ready</h2>
+            <p>
+                {% if stats.jobs == 0 %}
+                    Create a repository, then define your first job to start protecting ZimaOS applications and folders.
+                {% elseif stats.failed_runs > 0 %}
+                    You have {{ stats.failed_runs }} failed run{{ stats.failed_runs == 1 ? '' : 's' }} to review.
                 {% else %}
-                    <h2>Your backup foundation is ready</h2>
-                    <p>{{ stats.repositories }} encrypted {{ stats.repositories == 1 ? "repository is" : "repositories are" }} configured.</p>
+                    Your backup stack is set up. Run jobs regularly and keep your recovery key somewhere safe.
                 {% endif %}
-            </div>
-            <div class="protection-ring {{ stats.repositories > 0 ? "complete" : "" }}">
-                <span>{{ stats.repositories > 0 ? "✓" : "1" }}</span>
+            </p>
+        </div>
+        <div class="hero-progress-block">
+            <div class="hero-progress-number">{{ protection_percent }}%</div>
+            <div class="progress-track large-track"><span style="width: {{ protection_percent }}%"></span></div>
+            <div class="hero-progress-labels">
+                <span>App configured</span>
+                <span>{{ score }}/4 steps</span>
             </div>
         </div>
-
-        <div class="setup-track">
-            <div class="setup-step done">
-                <span>1</span>
-                <div><strong>Install</strong><small>ZimaBackup is running</small></div>
-            </div>
-            <div class="setup-line {{ stats.repositories > 0 ? "done" : "" }}"></div>
-            <div class="setup-step {{ stats.repositories > 0 ? "done" : "current" }}">
-                <span>2</span>
-                <div><strong>Storage</strong><small>{{ stats.repositories > 0 ? "Repository configured" : "Create a repository" }}</small></div>
-            </div>
-            <div class="setup-line {{ stats.jobs > 0 ? "done" : "" }}"></div>
-            <div class="setup-step {{ stats.jobs > 0 ? "done" : "" }}">
-                <span>3</span>
-                <div><strong>Backup</strong><small>{{ stats.jobs > 0 ? "Job configured" : "Create your first job" }}</small></div>
-            </div>
+        <div class="stepper-row">
+            <div class="step-tile {{ score >= 1 ? 'done' : '' }}"><strong>1</strong><span>Engine</span><small>{{ restic_version ? 'Online' : 'Check container' }}</small></div>
+            <div class="step-tile {{ score >= 2 ? 'done' : '' }}"><strong>2</strong><span>Repository</span><small>{{ stats.repositories > 0 ? stats.repositories ~ ' ready' : 'Create one' }}</small></div>
+            <div class="step-tile {{ score >= 3 ? 'done' : '' }}"><strong>3</strong><span>Jobs</span><small>{{ stats.jobs > 0 ? stats.jobs ~ ' configured' : 'Add a plan' }}</small></div>
+            <div class="step-tile {{ score >= 4 ? 'done' : '' }}"><strong>4</strong><span>Snapshots</span><small>{{ stats.successful_runs > 0 ? stats.successful_runs ~ ' successful' : 'Run backup' }}</small></div>
         </div>
-
-        {% if stats.repositories == 0 %}
-            <a class="text-action" href="{{ ROUTER.generate("repositories.create") }}">Set up storage <span>→</span></a>
-        {% endif %}
     </article>
 
-    <article class="engine-card">
-        <div class="engine-visual">
-            <span class="engine-orbit orbit-one"></span>
-            <span class="engine-orbit orbit-two"></span>
-            <div class="engine-core">
-                <svg viewBox="0 0 24 24" fill="none"><path d="M7.5 8.5A4.5 4.5 0 0 1 12 4a4.5 4.5 0 0 1 4.5 4.5v1h.5a3 3 0 0 1 3 3v3.25A4.25 4.25 0 0 1 15.75 20h-7.5A4.25 4.25 0 0 1 4 15.75V12.5a3 3 0 0 1 3-3h.5v-1Z" stroke="currentColor" stroke-width="1.6"/><path d="m9.5 13 2.5 2.5 2.5-2.5M12 10.5v5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
-            </div>
-        </div>
-        <div class="engine-copy">
-            <span class="card-kicker">Backup engine</span>
-            <strong>{{ restic_version ? "Online" : "Unavailable" }}</strong>
-            <small>{{ restic_version ?: "Restic was not detected" }}</small>
+    <article class="panel quick-actions-panel">
+        <span class="card-kicker">Quick actions</span>
+        <h2>Start from here</h2>
+        <div class="action-stack">
+            <a class="action-row" href="{{ ROUTER.generate('repositories.create') }}"><strong>Create repository</strong><small>Encrypted backup destination</small><span>→</span></a>
+            <a class="action-row" href="{{ ROUTER.generate('backups.create') }}"><strong>Create backup job</strong><small>Applications and folders</small><span>→</span></a>
+            <a class="action-row" href="{{ ROUTER.generate('applications') }}"><strong>Browse applications</strong><small>Detected Docker projects</small><span>→</span></a>
+            <a class="action-row" href="{{ ROUTER.generate('snapshots') }}"><strong>Review snapshots</strong><small>Recent recovery points</small><span>→</span></a>
         </div>
     </article>
 </section>
 
-<section class="metric-grid">
-    <article class="metric-card">
-        <span class="metric-icon repositories-icon"><svg viewBox="0 0 24 24" fill="none"><ellipse cx="12" cy="6.5" rx="7" ry="2.8" stroke="currentColor" stroke-width="1.6"/><path d="M5 6.5v5c0 1.55 3.13 2.8 7 2.8s7-1.25 7-2.8v-5M5 11.5v5c0 1.55 3.13 2.8 7 2.8s7-1.25 7-2.8v-5" stroke="currentColor" stroke-width="1.6"/></svg></span>
-        <div><span>Repositories</span><strong>{{ stats.repositories }}</strong></div>
+<section class="stats-grid">
+    <article class="panel stat-card">
+        <span class="stat-title">Repositories</span>
+        <strong>{{ stats.repositories }}</strong>
         <small>Encrypted destinations</small>
     </article>
-    <article class="metric-card">
-        <span class="metric-icon jobs-icon"><svg viewBox="0 0 24 24" fill="none"><rect x="4" y="5" width="16" height="14" rx="3" stroke="currentColor" stroke-width="1.6"/><path d="M8 10h8M8 14h5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></span>
-        <div><span>Backup jobs</span><strong>{{ stats.jobs }}</strong></div>
-        <small>Automated protection plans</small>
+    <article class="panel stat-card">
+        <span class="stat-title">Jobs</span>
+        <strong>{{ stats.jobs }}</strong>
+        <small>Configured plans</small>
     </article>
-    <article class="metric-card">
-        <span class="metric-icon success-icon"><svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="8" stroke="currentColor" stroke-width="1.6"/><path d="m8.5 12 2.25 2.25L15.8 9.2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
-        <div><span>Successful runs</span><strong>{{ stats.successful_runs }}</strong></div>
-        <small>Completed without errors</small>
+    <article class="panel stat-card">
+        <span class="stat-title">Successful runs</span>
+        <strong>{{ stats.successful_runs }}</strong>
+        <small>Healthy snapshots</small>
     </article>
-    <article class="metric-card">
-        <span class="metric-icon failed-icon"><svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="8" stroke="currentColor" stroke-width="1.6"/><path d="m9 9 6 6m0-6-6 6" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg></span>
-        <div><span>Failed runs</span><strong>{{ stats.failed_runs }}</strong></div>
-        <small>{{ stats.failed_runs == 0 ? "Nothing needs attention" : "Review recent activity" }}</small>
+    <article class="panel stat-card {{ stats.failed_runs > 0 ? 'warning-card' : '' }}">
+        <span class="stat-title">Attention needed</span>
+        <strong>{{ stats.failed_runs }}</strong>
+        <small>{{ stats.failed_runs > 0 ? 'Failed runs' : 'No known issues' }}</small>
     </article>
 </section>
 
-<section class="dashboard-lower">
-    <article class="panel activity-panel">
-        <div class="panel-header">
+<section class="content-grid two-col-grid">
+    <article class="panel">
+        <div class="panel-heading">
             <div>
-                <span class="card-kicker">History</span>
-                <h2>Recent activity</h2>
+                <span class="card-kicker">Recent activity</span>
+                <h2>Latest runs</h2>
             </div>
-            <a class="ghost-link" href="{{ ROUTER.generate("snapshots") }}">View snapshots →</a>
         </div>
-
         {% if recent_runs is empty %}
-            <div class="friendly-empty">
-                <div class="empty-illustration">
-                    <span></span><span></span><span></span>
-                </div>
-                <div>
-                    <strong>No backup activity yet</strong>
-                    <p>Your completed and failed backup runs will appear here.</p>
-                </div>
-                <a class="button button-secondary" href="{{ ROUTER.generate("repositories") }}">Prepare storage</a>
+            <div class="empty-inline">
+                <strong>No backup history yet</strong>
+                <p>Your latest backup runs will appear here as soon as you launch the first job.</p>
             </div>
         {% else %}
             <div class="activity-list">
                 {% for run in recent_runs %}
                     <div class="activity-row">
-                        <span class="activity-state {{ run.status }}"></span>
-                        <div class="activity-main"><strong>{{ run.job_name }}</strong><small>{{ run.started_at }}</small></div>
-                        <span class="run-status {{ run.status }}">{{ run.status }}</span>
-                        <span class="activity-finished">{{ run.finished_at ?: "In progress" }}</span>
+                        <span class="status-pill compact {{ run.status in ['success'] ? 'ok' : (run.status in ['warning', 'pending', 'running'] ? 'warning' : 'error') }}"><span class="status-dot"></span>{{ run.status }}</span>
+                        <div class="activity-main">
+                            <strong>{{ run.job_name }}</strong>
+                            <small>{{ run.started_at }}</small>
+                        </div>
+                        <small class="activity-meta">{{ run.finished_at ?: 'In progress' }}</small>
                     </div>
                 {% endfor %}
             </div>
         {% endif %}
     </article>
 
-    <article class="panel system-panel">
-        <div class="panel-header">
-            <div><span class="card-kicker">System</span><h2>Environment</h2></div>
+    <article class="panel tips-panel">
+        <div class="panel-heading">
+            <div>
+                <span class="card-kicker">Good practice</span>
+                <h2>Recovery checklist</h2>
+            </div>
         </div>
-        <div class="system-list">
-            <div><span>PHP runtime</span><strong>{{ constant("PHP_VERSION") }}</strong></div>
-            <div><span>Application mode</span><strong>{{ APP.env|capitalize }}</strong></div>
-            <div><span>Restic</span><strong>{{ restic_version ? "Ready" : "Missing" }}</strong></div>
+        <div class="check-list">
+            <div><span>1</span><div><strong>Save the repository recovery key</strong><small>Outside the ZimaOS machine.</small></div></div>
+            <div><span>2</span><div><strong>Use a separate disk or USB target</strong><small>Keep backups independent from the system disk.</small></div></div>
+            <div><span>3</span><div><strong>Protect app definitions and AppData</strong><small>Not just user folders.</small></div></div>
+            <div><span>4</span><div><strong>Test recovery periodically</strong><small>Backups matter only if restores work.</small></div></div>
         </div>
-        <div class="system-footer"><span class="privacy-dot"></span> Worker isolated from the web process</div>
     </article>
 </section>
 {% endblock %}

@@ -3,47 +3,48 @@
 {% block title %}Applications - {{ APP.name }}{% endblock %}
 
 {% block content %}
-<header class="page-header">
+{% set running_count = 0 %}
+{% for application in applications %}
+    {% if application.status == 'running' %}{% set running_count = running_count + 1 %}{% endif %}
+{% endfor %}
+
+<header class="page-header hero-header">
     <div>
-        <p class="eyebrow">Docker / ZimaOS discovery</p>
+        <p class="eyebrow">Detected Docker applications</p>
         <h1>Applications</h1>
-        <p class="muted">Installed Compose projects and their persistent volumes, discovered by the isolated worker.</p>
+        <p class="muted">ZimaBackup groups containers by Docker Compose project so you can protect app definitions and selected volumes.</p>
     </div>
-    <form method="post" action="{{ ROUTER.generate("applications.refresh") }}">
-        <input type="hidden" name="_csrf" value="{{ csrf_token }}">
-        <button class="button button-secondary" type="submit" {{ discovery.status in ["queued", "scanning"] ? "disabled" : "" }}>
-            <span class="button-icon">↻</span> Refresh
-        </button>
-    </form>
+    <div class="header-actions header-actions-stacked">
+        <span class="status-pill {{ discovery.status in ['ready'] ? 'ok' : (discovery.status in ['queued', 'scanning'] ? 'warning' : 'error') }}"><span class="status-dot"></span>{{ discovery.status }}</span>
+        <form method="post" action="{{ ROUTER.generate('applications.refresh') }}">
+            <input type="hidden" name="_csrf" value="{{ csrf_token }}">
+            <button class="button" type="submit">Refresh</button>
+        </form>
+    </div>
 </header>
 
 {% if flash_success %}<div class="alert alert-success">{{ flash_success }}</div>{% endif %}
-{% if flash_error %}<div class="alert alert-error"><strong>Discovery error</strong><div>{{ flash_error }}</div></div>{% endif %}
+{% if flash_error %}<div class="alert alert-error"><strong>Scan failed</strong><div>{{ flash_error }}</div></div>{% endif %}
+{% if discovery.error %}<div class="alert alert-error"><strong>Discovery error</strong><div>{{ discovery.error }}</div></div>{% endif %}
 
-<section class="repository-summary">
-    <div><span>Detected apps</span><strong>{{ applications|length }}</strong></div>
-    <div><span class="summary-dot {{ discovery.status == "failed" ? "danger" : "healthy" }}"></span><span>Scanner</span><strong>{{ discovery.status|default("unknown") }}</strong></div>
-    <div><span>Last scan</span><strong>{{ discovery.last_scan ?: "Waiting…" }}</strong></div>
+<section class="stats-grid slim-stats">
+    <article class="panel stat-card"><span class="stat-title">Applications</span><strong>{{ applications|length }}</strong><small>Detected projects</small></article>
+    <article class="panel stat-card"><span class="stat-title">Running</span><strong>{{ running_count }}</strong><small>Healthy containers</small></article>
+    <article class="panel stat-card"><span class="stat-title">Last scan</span><strong>{{ discovery.last_scan ?: 'Never' }}</strong><small>Background refresh status</small></article>
 </section>
 
-{% if discovery.status == "failed" %}
-    <div class="alert alert-error"><strong>Docker discovery is unavailable</strong><div>{{ discovery.error ?: "Check that the worker can access /var/run/docker.sock." }}</div></div>
-{% endif %}
-
 {% if applications is empty %}
-    <section class="panel module-placeholder" {{ discovery.status in ["queued", "scanning"] ? "data-auto-refresh" : "" }}>
-        <div class="placeholder-orb"><span>⬡</span></div>
-        <h2>{{ discovery.status in ["queued", "scanning"] ? "Scanning Docker…" : "No applications detected" }}</h2>
-        <p>The worker groups containers by their Docker Compose project and identifies bind mounts under <code>/DATA</code> and <code>/media</code>.</p>
-        {% if discovery.status not in ["queued", "scanning"] %}
-            <form method="post" action="{{ ROUTER.generate("applications.refresh") }}">
-                <input type="hidden" name="_csrf" value="{{ csrf_token }}">
-                <button class="button" type="submit">Scan applications</button>
-            </form>
-        {% endif %}
+    <section class="panel empty-state large-empty-state">
+        <div class="empty-illustration"><span>▣</span></div>
+        <h2>No applications discovered yet</h2>
+        <p>Make sure the worker can access the Docker socket, then refresh application discovery.</p>
+        <form method="post" action="{{ ROUTER.generate('applications.refresh') }}">
+            <input type="hidden" name="_csrf" value="{{ csrf_token }}">
+            <button class="button" type="submit">Scan applications</button>
+        </form>
     </section>
 {% else %}
-    <section class="application-grid" {{ discovery.status in ["queued", "scanning"] ? "data-auto-refresh" : "" }}>
+    <section class="card-grid app-card-grid">
         {% for application in applications %}
             {% set eligible_count = 0 %}
             {% set recommended_count = 0 %}
@@ -51,48 +52,48 @@
                 {% if mount.eligible %}{% set eligible_count = eligible_count + 1 %}{% endif %}
                 {% if mount.recommended %}{% set recommended_count = recommended_count + 1 %}{% endif %}
             {% endfor %}
-            <article class="application-card">
-                <div class="application-card-head">
-                    <div class="application-avatar">{{ application.name|slice(0, 1)|upper }}</div>
-                    <div class="application-title">
+            <article class="panel app-card-v2">
+                <div class="card-topline">
+                    <div>
+                        <span class="card-kicker">{{ application.project_name }}</span>
                         <h2>{{ application.name }}</h2>
-                        <code>{{ application.project_name ?: application.app_key }}</code>
                     </div>
-                    <span class="run-status {{ application.status == "running" ? "ready" : "pending" }}"><span class="tiny-dot"></span>{{ application.status }}</span>
+                    <span class="status-pill compact {{ application.status == 'running' ? 'ok' : (application.status in ['created', 'paused', 'restarting'] ? 'warning' : 'error') }}"><span class="status-dot"></span>{{ application.status }}</span>
                 </div>
 
-                <div class="application-meta">
-                    <div><span>Image</span><strong>{{ application.image ?: "—" }}</strong></div>
-                    <div><span>Containers</span><strong>{{ application.container_count }}</strong></div>
-                    <div><span>Backup-ready mounts</span><strong>{{ eligible_count }}</strong></div>
+                <div class="app-meta-row">
+                    <span>{{ application.image }}</span>
+                    <span>{{ application.container_count }} container{{ application.container_count == 1 ? '' : 's' }}</span>
                 </div>
 
-                <div class="mount-preview-list">
-                    {% for mount in application.mounts|slice(0, 5) %}
-                        <div class="mount-preview {{ mount.eligible ? "eligible" : "unsupported" }}">
-                            <span class="mount-dot"></span>
-                            <div><code>{{ mount.destination }}</code><small>{{ mount.source }}</small></div>
-                            {% if mount.recommended %}<span class="recommended-tag">config</span>{% elseif not mount.eligible %}<span class="unsupported-tag">{{ mount.mount_type }}</span>{% endif %}
+                <div class="summary-cards mini-summary-cards">
+                    <article class="summary-card"><span>Recommended</span><strong>{{ recommended_count }}</strong></article>
+                    <article class="summary-card"><span>Eligible</span><strong>{{ eligible_count }}</strong></article>
+                    <article class="summary-card"><span>Mounts</span><strong>{{ application.mounts|length }}</strong></article>
+                </div>
+
+                <div class="mount-list">
+                    {% for mount in application.mounts|slice(0, 4) %}
+                        <div class="mount-row">
+                            <div>
+                                <strong>{{ mount.destination }}</strong>
+                                <small>{{ mount.source }}</small>
+                            </div>
+                            <span class="mini-tag {{ mount.eligible ? (mount.recommended ? 'recommended' : 'eligible') : 'ignored' }}">
+                                {{ mount.eligible ? (mount.recommended ? 'recommended' : 'eligible') : 'ignored' }}
+                            </span>
                         </div>
-                    {% else %}
-                        <div class="mount-empty">No persistent mounts reported by Docker.</div>
                     {% endfor %}
-                </div>
-
-                <div class="application-card-footer">
-                    <span>{{ recommended_count }} config mount{{ recommended_count == 1 ? "" : "s" }} recommended</span>
-                    <a class="ghost-link" href="{{ ROUTER.generate("backups.create") }}">Protect app →</a>
+                    {% if application.mounts|length > 4 %}
+                        <div class="more-mounts">+ {{ application.mounts|length - 4 }} more mount{{ application.mounts|length - 4 == 1 ? '' : 's' }}</div>
+                    {% endif %}
                 </div>
             </article>
         {% endfor %}
     </section>
 {% endif %}
 
-<section class="panel discovery-note">
-    <div class="discovery-note-icon">i</div>
-    <div>
-        <strong>What v0.5 saves</strong>
-        <p>For selected applications, ZimaBackup snapshots the chosen bind mounts plus an encrypted runtime manifest containing image, ports, networks, devices and the exact environment needed for future reconstruction. The manifest is generated only during backup and deleted locally afterward.</p>
-    </div>
-</section>
+{% if discovery.status in ['queued', 'scanning'] %}
+    <div class="refresh-banner" data-auto-refresh><span class="spinner"></span> Application discovery is running. This page will refresh automatically.</div>
+{% endif %}
 {% endblock %}
