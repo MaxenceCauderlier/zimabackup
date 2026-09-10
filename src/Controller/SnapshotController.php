@@ -14,7 +14,9 @@ final class SnapshotController extends AbstractController
         $database = $this->app->service(Database::class);
 
         $snapshots = $database->fetchAll(
-            "SELECT br.*, bj.uuid AS job_uuid, bj.name AS job_name, r.name AS repository_name " .
+            "SELECT br.*, bj.uuid AS job_uuid, bj.name AS job_name, r.name AS repository_name, " .
+            "(SELECT COUNT(*) FROM backup_applications ba WHERE ba.backup_job_id = bj.id) AS app_count, " .
+            "(SELECT status FROM snapshot_application_scans sas WHERE sas.backup_run_id = br.id) AS app_scan_status " .
             "FROM backup_runs br " .
             "JOIN backup_jobs bj ON bj.id = br.backup_job_id " .
             "JOIN repositories r ON r.id = bj.repository_id " .

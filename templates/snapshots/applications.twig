@@ -1,0 +1,99 @@
+{% extends "layout.twig" %}
+
+{% block title %}Applications in snapshot - {{ APP.name }}{% endblock %}
+
+{% block content %}
+<header class="page-header compact-header">
+    <div>
+        <a class="back-link" href="{{ ROUTER.generate('snapshots') }}">← Snapshots</a>
+        <p class="eyebrow">Application restore preview</p>
+        <h1>{{ snapshot.job_name }}</h1>
+        <p class="muted">Snapshot <strong>{{ snapshot.snapshot_id|slice(0, 12) }}</strong> · {{ snapshot.repository_name }}</p>
+    </div>
+    <div class="header-actions">
+        {% if scan %}
+            <span class="status-pill {{ scan.status == 'ready' ? 'ok' : (scan.status in ['queued', 'scanning'] ? 'warning' : 'error') }}"><span class="status-dot"></span>{{ scan.status }}</span>
+        {% endif %}
+        <form method="post" action="{{ ROUTER.generate('snapshots.applications.inspect', {runId: snapshot.id}) }}">
+            <input type="hidden" name="_csrf" value="{{ csrf_token }}">
+            <button class="button button-secondary" type="submit">Inspect again</button>
+        </form>
+    </div>
+</header>
+
+{% if flash_success %}<div class="alert alert-success">{{ flash_success }}</div>{% endif %}
+{% if flash_error %}<div class="alert alert-error"><strong>Inspection failed</strong><div>{{ flash_error }}</div></div>{% endif %}
+{% if scan and scan.error %}<div class="alert alert-error"><strong>Snapshot inspection failed</strong><div>{{ scan.error }}</div></div>{% endif %}
+
+<section class="summary-cards four-summary-cards">
+    <article class="summary-card"><span>Configured apps</span><strong>{{ snapshot.configured_app_count }}</strong></article>
+    <article class="summary-card"><span>Found in snapshot</span><strong>{{ scan ? scan.application_count : 0 }}</strong></article>
+    <article class="summary-card"><span>Snapshot</span><strong>{{ snapshot.snapshot_id|slice(0, 12) }}</strong></article>
+    <article class="summary-card"><span>Finished</span><strong>{{ snapshot.finished_at }}</strong></article>
+</section>
+
+{% if not scan or scan.status in ['queued', 'scanning'] %}
+    <section class="panel inspect-progress" data-auto-refresh>
+        <div class="spinner large-spinner"></div>
+        <div>
+            <span class="card-kicker">Worker inspection</span>
+            <h2>{{ scan and scan.status == 'scanning' ? 'Reading encrypted application manifests' : 'Waiting for the worker' }}</h2>
+            <p>The web interface never opens the Restic repository directly. The worker decrypts manifests, removes secrets, then stores only this safe preview.</p>
+        </div>
+    </section>
+{% elseif scan.status == 'ready' and applications is empty %}
+    <section class="panel empty-state large-empty-state">
+        <div class="empty-illustration"><span>∅</span></div>
+        <h2>No application manifest found</h2>
+        <p>This snapshot may come from a folder-only backup or from a ZimaBackup version created before application manifests were included.</p>
+    </section>
+{% elseif applications is not empty %}
+    <div class="application-preview-stack">
+        {% for application in applications %}
+            <section class="panel application-preview-card">
+                <div class="card-topline">
+                    <div>
+                        <span class="card-kicker">{{ application.project_name ?: application.app_key }}</span>
+                        <h2>{{ application.name }}</h2>
+                        <p class="muted">{{ application.image ?: 'Image is defined per service below' }}</p>
+                    </div>
+                    <span class="status-pill ok"><span class="status-dot"></span>{{ application.container_count }} service{{ application.container_count == 1 ? '' : 's' }}</span>
+                </div>
+
+                <div class="preview-grid">
+                    <div class="compose-preview-panel">
+                        <div class="preview-panel-heading">
+                            <div><span class="card-kicker">Reconstructed definition</span><h3>Docker Compose preview</h3></div>
+                            <span class="mini-tag eligible">secrets masked</span>
+                        </div>
+                        <pre class="code-preview"><code>{{ application.compose_preview }}</code></pre>
+                    </div>
+
+                    <aside class="preview-warnings-panel">
+                        <span class="card-kicker">Review before install</span>
+                        <h3>Compatibility notes</h3>
+                        {% if application.warnings is empty %}
+                            <div class="empty-inline"><strong>No warning generated</strong><p>The reconstructed runtime definition looks straightforward.</p></div>
+                        {% else %}
+                            <div class="warning-list">
+                                {% for warning in application.warnings %}
+                                    <div><span>!</span><p>{{ warning }}</p></div>
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+                        <div class="info-strip compact-strip">
+                            <strong>Preview only</strong>
+                            <p>v0.8 does not pull images, create containers, overwrite AppData or execute this Compose file.</p>
+                        </div>
+                    </aside>
+                </div>
+
+                <div class="manifest-source-line">
+                    <span>Manifest inside snapshot</span>
+                    <code>{{ application.manifest_path }}</code>
+                </div>
+            </section>
+        {% endfor %}
+    </div>
+{% endif %}
+{% endblock %}

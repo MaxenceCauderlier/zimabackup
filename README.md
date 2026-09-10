@@ -2,23 +2,21 @@
 
 ZimaBackup is a lightweight, application-aware backup manager for ZimaOS, built with PHP 8.4, Twig, SQLite and Restic.
 
-## Current milestone — v0.7 safe restore
+## Current milestone — v0.8 application restore preview
 
-v0.7 keeps the v0.6 ZimaOS-inspired interface and adds the first real restore workflow:
+v0.8 keeps the safe file restore workflow and adds non-destructive application inspection:
 
-- list successful Restic snapshots;
-- choose a snapshot from the UI;
-- restore the complete snapshot to a new directory under `/DATA` or `/media`;
-- keep original ZimaOS files untouched;
-- require an empty restore target;
-- use Restic `--overwrite never` for this safe workflow;
-- run the restore only in the isolated worker;
-- track restore progress using Restic JSON output;
-- show files restored, bytes restored and final status;
-- retain restore history in SQLite;
-- prevent the restore target from overlapping its own repository.
+- inspect application manifests stored inside an encrypted Restic snapshot;
+- do all repository reading in the isolated worker, never in the web process;
+- stream `restic ls --json` and retain only ZimaBackup manifest files;
+- decrypt each application manifest on demand with `restic dump`;
+- mask environment values and sensitive fields before anything is persisted in SQLite;
+- reconstruct a reviewable Docker Compose runtime definition;
+- show images, services, ports, bind mounts, restart policy, networks and common runtime settings;
+- warn about ambiguous items such as named Docker volumes, GPU/device requests and missing ZimaOS `x-casaos` metadata;
+- never pull an image, create a container, overwrite AppData or execute the reconstructed Compose in v0.8.
 
-v0.7 deliberately does **not** restore in place yet. It also does not automatically recreate a Docker/ZimaOS application from the encrypted application manifest. Those are the next restore milestones.
+The goal of this milestone is reviewability: ZimaBackup shows exactly what it *could* recreate before application installation is enabled in a later version.
 
 ## Application-aware backups
 
@@ -84,7 +82,19 @@ or select one of the detected applications.
 
 Run the backup and wait for a successful snapshot.
 
-## Test a restore
+## Test an application restore preview
+
+Create or use a snapshot from a backup job that includes at least one detected application. Open **Snapshots** and choose **Applications**.
+
+The first visit automatically queues a worker inspection. After a short refresh, ZimaBackup shows a sanitized Docker Compose preview and compatibility warnings. Environment values are intentionally displayed as `***`.
+
+Watch the worker with:
+
+```bash
+docker compose logs -f worker
+```
+
+## Test a file restore
 
 Open **Snapshots** and choose **Restore** on a successful snapshot.
 
@@ -108,7 +118,7 @@ will be restored under:
 
 This is intentional: Restic preserves the original absolute path tree below the restore target.
 
-The target directory must be new or empty. Existing source data is never overwritten by the v0.7 safe restore workflow.
+The target directory must be new or empty. Existing source data is never overwritten by the safe restore workflow.
 
 Watch progress with:
 
@@ -120,11 +130,13 @@ docker compose logs -f worker
 
 Keep your existing `storage/` directory.
 
-v0.7 adds:
+v0.8 adds:
 
 ```text
-005_restore_runs.sql
+006_snapshot_application_preview.sql
 ```
+
+The existing `005_restore_runs.sql` migration from v0.7 is still retained.
 
 It is applied automatically on startup.
 

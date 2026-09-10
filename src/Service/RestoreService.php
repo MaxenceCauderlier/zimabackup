@@ -70,7 +70,7 @@ final class RestoreService
 
     /**
      * Queue a safe restore into a dedicated target directory.
-     * v0.7 deliberately does not restore in-place: the existing source data is
+     * The current safe-restore workflow deliberately does not restore in-place: the existing source data is
      * never modified by this workflow.
      */
     public function enqueue(int $backupRunId, string $targetPath): array

@@ -38,7 +38,8 @@
                     <code>{{ snapshot.snapshot_id|slice(0, 12) }}</code>
                     <div>
                         <a class="button button-secondary compact-button" href="{{ ROUTER.generate('backups.show', {uuid: snapshot.job_uuid}) }}">Open job</a>
-                        <a class="button compact-button" href="{{ ROUTER.generate('restores.create', {runId: snapshot.id}) }}">Restore</a>
+                        {% if snapshot.app_count > 0 %}<a class="button button-secondary compact-button" href="{{ ROUTER.generate('snapshots.applications', {runId: snapshot.id}) }}">Applications</a>{% endif %}
+                        <a class="button compact-button" href="{{ ROUTER.generate('restores.create', {runId: snapshot.id}) }}">Restore files</a>
                     </div>
                 </div>
             </article>

@@ -11,6 +11,7 @@ use Twig\Loader\FilesystemLoader;
 use Twig\TwigFilter;
 use ZimaBackup\Security\Csrf;
 use ZimaBackup\Service\ApplicationDiscoveryService;
+use ZimaBackup\Service\ComposePreviewService;
 use ZimaBackup\Service\BackupService;
 use ZimaBackup\Service\DockerEngineClient;
 use ZimaBackup\Service\PathService;
@@ -18,6 +19,7 @@ use ZimaBackup\Service\RepositoryService;
 use ZimaBackup\Service\RestoreService;
 use ZimaBackup\Service\ResticService;
 use ZimaBackup\Service\SchedulerService;
+use ZimaBackup\Service\SnapshotApplicationService;
 use ZimaBackup\Service\TaskQueueService;
 
 final class Application
@@ -77,6 +79,7 @@ final class Application
         $csrf = new Csrf($session);
         $queue = new TaskQueueService($this->database);
         $docker = new DockerEngineClient(getenv('DOCKER_SOCKET') ?: '/var/run/docker.sock');
+        $composePreview = new ComposePreviewService();
         $appDiscovery = new ApplicationDiscoveryService(
             $this->database,
             $docker,
@@ -94,6 +97,7 @@ final class Application
             TaskQueueService::class => $queue,
             DockerEngineClient::class => $docker,
             ApplicationDiscoveryService::class => $appDiscovery,
+            ComposePreviewService::class => $composePreview,
         ];
 
         $this->services[BackupService::class] = new BackupService(
@@ -116,6 +120,13 @@ final class Application
             $pathService,
             $resticService,
             $queue
+        );
+        $this->services[SnapshotApplicationService::class] = new SnapshotApplicationService(
+            $this->database,
+            $pathService,
+            $resticService,
+            $queue,
+            $composePreview
         );
         $this->services[SchedulerService::class] = new SchedulerService($this->database);
     }

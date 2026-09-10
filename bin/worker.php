@@ -8,6 +8,7 @@ use ZimaBackup\Service\BackupService;
 use ZimaBackup\Service\RepositoryService;
 use ZimaBackup\Service\RestoreService;
 use ZimaBackup\Service\SchedulerService;
+use ZimaBackup\Service\SnapshotApplicationService;
 use ZimaBackup\Service\TaskQueueService;
 
 require dirname(__DIR__) . '/vendor/autoload.php';
@@ -26,6 +27,8 @@ $restores = $app->service(RestoreService::class);
 $applications = $app->service(ApplicationDiscoveryService::class);
 /** @var SchedulerService $scheduler */
 $scheduler = $app->service(SchedulerService::class);
+/** @var SnapshotApplicationService $snapshotApplications */
+$snapshotApplications = $app->service(SnapshotApplicationService::class);
 
 $interval = max(2, (int) (getenv('WORKER_INTERVAL') ?: 10));
 $discoveryInterval = max(30, (int) (getenv('APP_DISCOVERY_INTERVAL') ?: 120));
@@ -95,6 +98,22 @@ while (true) {
                     $count = $applications->refresh();
                     $lastDiscovery = time();
                     $queue->complete((int) $operation['id'], ['application_count' => $count]);
+                    break;
+
+                case 'snapshot.apps.inspect':
+                    $backupRunId = (int) ($operation['payload']['backup_run_id'] ?? 0);
+                    if ($backupRunId <= 0) {
+                        throw new RuntimeException('snapshot.apps.inspect task has no valid backup_run_id.');
+                    }
+
+                    try {
+                        $count = $snapshotApplications->inspect($backupRunId);
+                    } catch (Throwable $exception) {
+                        $snapshotApplications->markFailed($backupRunId, $exception->getMessage());
+                        throw $exception;
+                    }
+
+                    $queue->complete((int) $operation['id'], ['backup_run_id' => $backupRunId, 'application_count' => $count]);
                     break;
 
                 default:

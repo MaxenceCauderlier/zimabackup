@@ -313,6 +313,104 @@ final class ResticService
     }
 
     /**
+     * Stream Restic's JSON-lines file listing and retain only matching files.
+     * This avoids loading a complete multi-million-file snapshot in memory.
+     *
+     * @return list<array<string, mixed>>
+     */
+    public function findSnapshotFiles(
+        string $repositoryPath,
+        string $passwordFile,
+        string $snapshotId,
+        string $pathFragment,
+        string $suffix = '',
+    ): array {
+        $process = new Process([
+            $this->binary,
+            'ls',
+            '--repo', $repositoryPath,
+            '--password-file', $passwordFile,
+            '--json',
+            $snapshotId,
+        ]);
+        $process->setTimeout(300);
+
+        $buffer = '';
+        $matches = [];
+        $consume = static function (string $line) use (&$matches, $pathFragment, $suffix): void {
+            $line = trim($line);
+            if ($line === '') {
+                return;
+            }
+            try {
+                $message = json_decode($line, true, 512, JSON_THROW_ON_ERROR);
+            } catch (JsonException) {
+                return;
+            }
+            if (!is_array($message)) {
+                return;
+            }
+            $messageType = $message['message_type'] ?? $message['struct_type'] ?? null;
+            $path = (string) ($message['path'] ?? '');
+            if ($messageType !== 'node' || ($message['type'] ?? null) !== 'file' || $path === '') {
+                return;
+            }
+            if ($pathFragment !== '' && !str_contains($path, $pathFragment)) {
+                return;
+            }
+            if ($suffix !== '' && !str_ends_with(strtolower($path), strtolower($suffix))) {
+                return;
+            }
+            $matches[] = $message;
+        };
+
+        $exitCode = $process->run(function (string $type, string $data) use (&$buffer, $consume): void {
+            if ($type === Process::ERR) {
+                return;
+            }
+            $buffer .= $data;
+            while (($position = strpos($buffer, "\n")) !== false) {
+                $line = substr($buffer, 0, $position);
+                $buffer = substr($buffer, $position + 1);
+                $consume($line);
+            }
+        });
+        if (trim($buffer) !== '') {
+            $consume($buffer);
+        }
+        if ($exitCode !== 0) {
+            $message = trim($process->getErrorOutput());
+            throw new RuntimeException($message !== '' ? $message : sprintf('Restic ls failed with exit code %d.', $exitCode));
+        }
+
+        return $matches;
+    }
+
+    /** Decrypt one file from a snapshot directly to memory. */
+    public function dumpSnapshotFile(
+        string $repositoryPath,
+        string $passwordFile,
+        string $snapshotId,
+        string $path,
+    ): string {
+        $process = new Process([
+            $this->binary,
+            'dump',
+            '--repo', $repositoryPath,
+            '--password-file', $passwordFile,
+            $snapshotId,
+            $path,
+        ]);
+        $process->setTimeout(120);
+        $process->mustRun();
+        $output = $process->getOutput();
+        if (strlen($output) > 5 * 1024 * 1024) {
+            throw new RuntimeException('Snapshot manifest is unexpectedly large.');
+        }
+        return $output;
+    }
+
+    /**
      * Execute Restic without constructing a shell command string.
      * Arguments are passed as a list so paths and user-controlled values never
      * need shell escaping. Passwords are provided through --password-file.
