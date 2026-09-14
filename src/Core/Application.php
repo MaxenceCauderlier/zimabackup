@@ -187,7 +187,7 @@ final class Application
         } elseif (is_array($target) && count($target) === 2 && is_string($target[0])) {
             [$controllerClass, $method] = $target;
             $controller = new $controllerClass($this);
-            $response = $controller->{$method}(...array_values($params));
+            $response = $controller->{$method}(...$this->coerceControllerRouteParams($controllerClass, $method, $params));
         } else {
             throw new RuntimeException('Invalid route target.');
         }
@@ -196,4 +196,42 @@ final class Application
             echo $response;
         }
     }
+    /**
+     * AltoRouter validates route placeholders such as [i:id], but captured
+     * values are still returned as strings. With strict_types enabled, passing
+     * those strings directly to controller methods typed as int triggers a
+     * TypeError. Coerce builtin controller parameter types centrally so route
+     * declarations and PHP method signatures can stay explicit and safe.
+     */
+    private function coerceControllerRouteParams(string $controllerClass, string $method, array $params): array
+    {
+        $values = array_values($params);
+        $reflection = new \ReflectionMethod($controllerClass, $method);
+
+        foreach ($reflection->getParameters() as $index => $parameter) {
+            if (!array_key_exists($index, $values)) {
+                continue;
+            }
+
+            $type = $parameter->getType();
+            if (!$type instanceof \ReflectionNamedType || !$type->isBuiltin()) {
+                continue;
+            }
+
+            if ($values[$index] === null && $type->allowsNull()) {
+                continue;
+            }
+
+            $values[$index] = match ($type->getName()) {
+                'int' => (int) $values[$index],
+                'float' => (float) $values[$index],
+                'bool' => filter_var($values[$index], FILTER_VALIDATE_BOOL),
+                'string' => (string) $values[$index],
+                default => $values[$index],
+            };
+        }
+
+        return $values;
+    }
+
 }
