@@ -1,0 +1,86 @@
+{% extends "layout.twig" %}
+
+{% block title %}Restore {{ restore.app_name }} - {{ APP.name }}{% endblock %}
+
+{% block content %}
+<header class="page-header compact-header">
+    <div>
+        <a class="back-link" href="{{ ROUTER.generate('restores') }}">← Restores</a>
+        <p class="eyebrow">Application restore</p>
+        <h1>{{ restore.app_name }}</h1>
+        <p class="muted">{{ restore.mode == 'original' ? 'Original paths mode' : 'Safe staging mode' }} · {{ restore.repository_name }}</p>
+    </div>
+    <span class="status-pill {{ restore.status == 'success' ? 'ok' : (restore.status in ['pending', 'running'] ? 'warning' : 'error') }}"><span class="status-dot"></span>{{ restore.status }}</span>
+</header>
+
+<section class="summary-cards four-summary-cards">
+    <article class="summary-card"><span>Snapshot</span><strong>{{ restore.backup_run_id }}</strong></article>
+    <article class="summary-card"><span>Mode</span><strong>{{ restore.mode }}</strong></article>
+    <article class="summary-card"><span>Files restored</span><strong>{{ restore.files_restored|default(0) }}</strong></article>
+    <article class="summary-card"><span>Data restored</span><strong>{{ restore.bytes_restored|bytes }}</strong></article>
+</section>
+
+{% if restore.status in ['pending', 'running'] %}
+    <section class="panel live-panel" data-auto-refresh>
+        <div class="live-panel-head">
+            <div><span class="card-kicker">Worker operation</span><h2>{{ restore.status == 'pending' ? 'Waiting for worker' : 'Restoring selected application data' }}</h2></div>
+            <strong>{{ restore.progress_percent|default(0)|number_format(0) }}%</strong>
+        </div>
+        <div class="progress-track large-track"><span style="width: {{ restore.progress_percent|default(0) }}%"></span></div>
+        <div class="summary-cards three-summary-cards compact-summary-cards">
+            <article class="summary-card"><span>Files</span><strong>{{ restore.files_restored|default(0) }} / {{ restore.total_files|default(0) }}</strong></article>
+            <article class="summary-card"><span>Data</span><strong>{{ restore.bytes_restored|bytes }} / {{ restore.total_bytes|bytes }}</strong></article>
+            <article class="summary-card"><span>Errors</span><strong>{{ restore.error_count|default(0) }}</strong></article>
+        </div>
+    </section>
+{% elseif restore.status == 'failed' %}
+    <section class="panel attention-panel">
+        <span class="status-pill error"><span class="status-dot"></span>Restore failed safely</span>
+        <h2>No existing data was intentionally overwritten</h2>
+        <p>{{ restore.error }}</p>
+        <p class="muted">The staging directory may contain partial recovered data for inspection: <code>{{ restore.staging_path }}</code></p>
+    </section>
+{% elseif restore.status == 'success' %}
+    <section class="panel success-panel-v2">
+        <div>
+            <span class="status-pill ok"><span class="status-dot"></span>Restore complete</span>
+            <h2>{{ restore.mode == 'original' ? 'Application data returned to original paths' : 'Application staged safely' }}</h2>
+            <p>The selected snapshot data was restored and a Docker Compose definition was reconstructed. No container has been started.</p>
+        </div>
+    </section>
+{% endif %}
+
+<div class="content-grid two-col-grid">
+    <section class="panel">
+        <div class="panel-heading"><div><span class="card-kicker">Recovered workspace</span><h2>Staging</h2></div></div>
+        <div class="detail-stack">
+            <div class="detail-row-card wide-row-card"><div><strong>Staging path</strong><small>{{ restore.staging_path }}</small></div><span class="mini-tag eligible">worker only</span></div>
+            <div class="detail-row-card wide-row-card"><div><strong>Compose file</strong><small>{{ restore.compose_path ?: 'Generated after data restore' }}</small></div><span class="mini-tag recommended">0600</span></div>
+        </div>
+        <div class="info-strip compact-strip">
+            <strong>Contains secrets</strong>
+            <p>The generated Compose file can contain original environment values. ZimaBackup does not render it in the browser.</p>
+        </div>
+    </section>
+
+    <section class="panel">
+        <div class="panel-heading"><div><span class="card-kicker">Original application data</span><h2>Paths</h2></div></div>
+        <div class="detail-stack">
+            {% for mount in restore.selected_mounts %}
+                <div class="detail-row-card wide-row-card">
+                    <div><strong>{{ mount.destination ?: 'Container mount' }}</strong><small>{{ mount.source }}</small></div>
+                    {% if mount.source in restore.applied_paths %}<span class="mini-tag recommended">restored</span>{% else %}<span class="mini-tag eligible">staged</span>{% endif %}
+                </div>
+            {% else %}
+                <div class="empty-inline"><strong>No selected data mount</strong><p>This application restore contains the reconstructed definition only.</p></div>
+            {% endfor %}
+        </div>
+    </section>
+</div>
+
+<section class="panel">
+    <span class="card-kicker">Next step</span>
+    <h2>Installation remains manual in v0.9</h2>
+    <p class="muted">Review the sanitized Compose preview from the snapshot inspection before using the generated file. Automatic Docker/ZimaOS installation will be added only after this recovery flow has been validated.</p>
+</section>
+{% endblock %}

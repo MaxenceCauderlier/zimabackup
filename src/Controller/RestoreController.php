@@ -9,6 +9,7 @@ use Throwable;
 use ZimaBackup\Core\Session;
 use ZimaBackup\Security\Csrf;
 use ZimaBackup\Service\RestoreService;
+use ZimaBackup\Service\ApplicationRestoreService;
 
 final class RestoreController extends AbstractController
 {
@@ -16,9 +17,12 @@ final class RestoreController extends AbstractController
     {
         /** @var RestoreService $restores */
         $restores = $this->app->service(RestoreService::class);
+        /** @var ApplicationRestoreService $applicationRestores */
+        $applicationRestores = $this->app->service(ApplicationRestoreService::class);
 
         return $this->render('restores/index.twig', [
             'restores' => $restores->all(),
+            'application_restores' => $applicationRestores->all(),
         ]);
     }
 

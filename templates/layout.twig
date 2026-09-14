@@ -41,7 +41,7 @@
                 <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none"><path d="M12 7v5l3 2M20 12a8 8 0 1 1-2.34-5.66L20 8.68M20 4v4.68h-4.68" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
                 <span><strong>Snapshots</strong><small>Recovery points</small></span>
             </a>
-            <a class="nav-link {{ CURRENT_PATH starts with '/restores' ? 'active' : '' }}" href="{{ ROUTER.generate('restores') }}">
+            <a class="nav-link {{ (CURRENT_PATH starts with '/restores' or CURRENT_PATH starts with '/application-restores') ? 'active' : '' }}" href="{{ ROUTER.generate('restores') }}">
                 <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none"><path d="M8.5 8H4V3.5M4.4 8.2A8 8 0 1 1 4.8 17" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/><path d="M12 8v5h4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
                 <span><strong>Restores</strong><small>Recovery jobs</small></span>
             </a>

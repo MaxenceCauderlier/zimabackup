@@ -1,0 +1,24 @@
+name: zima-demo
+
+services:
+  web:
+    image: nginx:alpine
+    restart: unless-stopped
+    ports:
+      - "${SIM_WEB_PORT:-8095}:80"
+    environment:
+      DEMO_MODE: "zima-simulator"
+      DEMO_PASSWORD: "this-must-never-appear-in-the-web-preview"
+    volumes:
+      - "${SIM_ROOT}/DATA/AppData/zima-demo/nginx:/usr/share/nginx/html"
+    depends_on:
+      - cache
+
+  cache:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    environment:
+      DEMO_TOKEN: "restore-test-token"
+    volumes:
+      - "${SIM_ROOT}/DATA/AppData/zima-demo/redis:/data"

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use ZimaBackup\Core\Application;
 use ZimaBackup\Service\ApplicationDiscoveryService;
+use ZimaBackup\Service\ApplicationRestoreService;
 use ZimaBackup\Service\BackupService;
 use ZimaBackup\Service\RepositoryService;
 use ZimaBackup\Service\RestoreService;
@@ -29,6 +30,8 @@ $applications = $app->service(ApplicationDiscoveryService::class);
 $scheduler = $app->service(SchedulerService::class);
 /** @var SnapshotApplicationService $snapshotApplications */
 $snapshotApplications = $app->service(SnapshotApplicationService::class);
+/** @var ApplicationRestoreService $applicationRestores */
+$applicationRestores = $app->service(ApplicationRestoreService::class);
 
 $interval = max(2, (int) (getenv('WORKER_INTERVAL') ?: 10));
 $discoveryInterval = max(30, (int) (getenv('APP_DISCOVERY_INTERVAL') ?: 120));
@@ -114,6 +117,22 @@ while (true) {
                     }
 
                     $queue->complete((int) $operation['id'], ['backup_run_id' => $backupRunId, 'application_count' => $count]);
+                    break;
+
+                case 'application.restore':
+                    $applicationRestoreRunId = (int) ($operation['payload']['application_restore_run_id'] ?? 0);
+                    if ($applicationRestoreRunId <= 0) {
+                        throw new RuntimeException('application.restore task has no valid application_restore_run_id.');
+                    }
+
+                    try {
+                        $applicationRestores->execute($applicationRestoreRunId);
+                    } catch (Throwable $exception) {
+                        $applicationRestores->markFailed($applicationRestoreRunId, $exception->getMessage());
+                        throw $exception;
+                    }
+
+                    $queue->complete((int) $operation['id'], ['application_restore_run_id' => $applicationRestoreRunId]);
                     break;
 
                 default:

@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use ZimaBackup\Controller\ApplicationController;
+use ZimaBackup\Controller\ApplicationRestoreController;
 use ZimaBackup\Controller\BackupController;
 use ZimaBackup\Controller\DashboardController;
 use ZimaBackup\Controller\PageController;
@@ -38,6 +39,10 @@ return static function (Application $app): void {
     $router->map('GET', '/snapshots', [SnapshotController::class, 'index'], 'snapshots');
     $router->map('GET', '/snapshots/[i:runId]/applications', [SnapshotApplicationController::class, 'index'], 'snapshots.applications');
     $router->map('POST', '/snapshots/[i:runId]/applications/inspect', [SnapshotApplicationController::class, 'inspect'], 'snapshots.applications.inspect');
+
+    $router->map('GET', '/snapshot-applications/[i:applicationId]/restore', [ApplicationRestoreController::class, 'create'], 'application-restores.create');
+    $router->map('POST', '/snapshot-applications/[i:applicationId]/restore', [ApplicationRestoreController::class, 'store'], 'application-restores.store');
+    $router->map('GET', '/application-restores/[uuid:uuid]', [ApplicationRestoreController::class, 'show'], 'application-restores.show');
 
     $router->map('GET', '/restores', [RestoreController::class, 'index'], 'restores');
     $router->map('GET', '/restores/from/[i:runId]', [RestoreController::class, 'create'], 'restores.create');

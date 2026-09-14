@@ -89,8 +89,11 @@
                 </div>
 
                 <div class="manifest-source-line">
-                    <span>Manifest inside snapshot</span>
-                    <code>{{ application.manifest_path }}</code>
+                    <div>
+                        <span>Manifest inside snapshot</span>
+                        <code>{{ application.manifest_path }}</code>
+                    </div>
+                    <a class="button" href="{{ ROUTER.generate('application-restores.create', {applicationId: application.id}) }}">Restore application</a>
                 </div>
             </section>
         {% endfor %}

@@ -91,3 +91,19 @@ document.querySelectorAll('.repo-option').forEach((option) => {
     radio.addEventListener('change', refresh);
     refresh();
 });
+
+// v0.9: original-path application restore requires a visible confirmation field.
+document.querySelectorAll('[data-restore-mode-form]').forEach((form) => {
+    const radios = form.querySelectorAll('input[name="mode"]');
+    const confirmField = form.querySelector('.restore-confirm-field');
+    const refresh = () => {
+        const selected = form.querySelector('input[name="mode"]:checked')?.value || 'staging';
+        form.querySelectorAll('.restore-mode-card').forEach((card) => {
+            const radio = card.querySelector('input[name="mode"]');
+            card.classList.toggle('selected', !!radio && radio.checked);
+        });
+        confirmField?.classList.toggle('visible', selected === 'original');
+    };
+    radios.forEach((radio) => radio.addEventListener('change', refresh));
+    refresh();
+});

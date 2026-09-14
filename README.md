@@ -1,39 +1,27 @@
 # ZimaBackup
 
-ZimaBackup is a lightweight, application-aware backup manager for ZimaOS, built with PHP 8.4, Twig, SQLite and Restic.
+ZimaBackup is a lightweight, application-aware backup and recovery manager for ZimaOS, built with PHP 8.4, Twig, SQLite and Restic.
 
-## Current milestone — v0.8 application restore preview
+## Current milestone — v0.9 controlled application restore
 
-v0.8 keeps the safe file restore workflow and adds non-destructive application inspection:
+v0.9 keeps every previous backup, snapshot, application-discovery and safe file-restore feature, and adds controlled recovery of one application from a snapshot.
 
-- inspect application manifests stored inside an encrypted Restic snapshot;
-- do all repository reading in the isolated worker, never in the web process;
-- stream `restic ls --json` and retain only ZimaBackup manifest files;
-- decrypt each application manifest on demand with `restic dump`;
-- mask environment values and sensitive fields before anything is persisted in SQLite;
-- reconstruct a reviewable Docker Compose runtime definition;
-- show images, services, ports, bind mounts, restart policy, networks and common runtime settings;
-- warn about ambiguous items such as named Docker volumes, GPU/device requests and missing ZimaOS `x-casaos` metadata;
-- never pull an image, create a container, overwrite AppData or execute the reconstructed Compose in v0.8.
+The application recovery workflow can now:
 
-The goal of this milestone is reviewability: ZimaBackup shows exactly what it *could* recreate before application installation is enabled in a later version.
+- inspect application manifests inside an encrypted snapshot;
+- show a sanitized Docker Compose preview before recovery;
+- restore only the bind-mounted paths that were selected when the backup job was created;
+- use Restic `restore --include` so unrelated snapshot data is not restored;
+- restore first into `/DATA/ZimaBackup/ApplicationRestores/...`;
+- rebuild a complete `docker-compose.yml` from the encrypted manifest;
+- keep that generated Compose file mode `0600` because it can contain original environment values;
+- optionally copy staged application data back to its original `/DATA` or `/media` paths;
+- refuse original-path recovery while the application is still detected by Docker;
+- refuse non-empty original destinations and symbolic-link targets;
+- never overwrite existing application files;
+- never start Docker containers automatically in v0.9.
 
-## Application-aware backups
-
-Application discovery from v0.5 is still included:
-
-- discover Docker containers through the local Docker Engine API;
-- group Compose services into one application;
-- keep the Docker socket isolated to the non-HTTP worker;
-- detect bind mounts and identify paths under `/DATA` and `/media`;
-- recommend persistent configuration under `/DATA/AppData/...`;
-- leave large media/user-data mounts opt-in by default;
-- create jobs that combine applications and arbitrary folders;
-- include a normalized application runtime manifest when an app is selected;
-- capture image, environment, ports, networks, devices, mounts and Compose metadata;
-- keep secret environment values out of SQLite;
-- generate the complete restore manifest only during a backup as a mode `0600` temporary file;
-- snapshot that manifest with Restic, then delete the local plaintext copy.
+The default mode is **Safe staging**. The more invasive **Original paths** mode requires typing `RESTORE` and is designed for disaster-recovery tests where the original application has disappeared.
 
 ## Development
 
@@ -64,81 +52,106 @@ ZIMABACKUP_DATA_PATH=/DATA
 ZIMABACKUP_MEDIA_PATH=/media
 ```
 
-The worker also receives the Docker socket so it can discover applications. If the socket is elsewhere, set:
+The worker receives the Docker socket so it can discover applications. If the socket is elsewhere, set:
 
 ```dotenv
 DOCKER_SOCKET_PATH=/path/to/docker.sock
 ```
 
-## Test a backup
+## Integration simulator (no ZimaOS required)
 
-Create a repository, then create a backup using a folder such as:
+v0.9 includes a reproducible Docker integration environment under:
 
 ```text
-/DATA/Documents
+tests/integration/zima-simulator/
 ```
 
-or select one of the detected applications.
-
-Run the backup and wait for a successful snapshot.
-
-## Test an application restore preview
-
-Create or use a snapshot from a backup job that includes at least one detected application. Open **Snapshots** and choose **Applications**.
-
-The first visit automatically queues a worker inspection. After a short refresh, ZimaBackup shows a sanitized Docker Compose preview and compatibility warnings. Environment values are intentionally displayed as `***`.
-
-Watch the worker with:
+Start it:
 
 ```bash
-docker compose logs -f worker
+./tests/integration/zima-simulator/setup.sh
 ```
 
-## Test a file restore
+The script prints the exact `ZIMABACKUP_DATA_PATH` and `ZIMABACKUP_MEDIA_PATH` values to copy into the root `.env` file.
 
-Open **Snapshots** and choose **Restore** on a successful snapshot.
+The simulator creates a Docker Compose application named `zima-demo` with Nginx + Redis and persistent bind mounts under a fake `DATA/AppData` tree.
 
-The default destination looks like:
+See:
 
 ```text
-/DATA/ZimaBackup/Restores/documents-a1b2c3d4
+tests/integration/zima-simulator/README.md
 ```
 
-A source that was backed up as:
+for the full backup → destroy → restore → restart disaster-recovery test.
+
+## Test an application backup
+
+1. Open **Applications** and refresh discovery.
+2. Create a repository, for example `/media/Backup/ZimaBackup`.
+3. Create a backup containing a detected application and selected AppData mounts.
+4. Run the backup.
+5. Open **Snapshots → Applications**.
+6. Verify that the reconstructed Compose preview appears and environment values are masked.
+
+## Test application recovery
+
+From **Snapshots → Applications**, select **Restore application**.
+
+### Safe staging
+
+This restores only the selected application paths underneath:
 
 ```text
-/DATA/Documents
+/DATA/ZimaBackup/ApplicationRestores/...
 ```
 
-will be restored under:
+and generates:
 
 ```text
-/DATA/ZimaBackup/Restores/documents-a1b2c3d4/DATA/Documents
+docker-compose.yml
 ```
 
-This is intentional: Restic preserves the original absolute path tree below the restore target.
+inside that staging folder. Existing application paths are untouched.
 
-The target directory must be new or empty. Existing source data is never overwritten by the safe restore workflow.
+### Original paths
 
-Watch progress with:
+Use this only after the application has disappeared from Docker and its original data directories have been removed or emptied.
 
-```bash
-docker compose logs -f worker
+Select **Restore original paths**, type:
+
+```text
+RESTORE
 ```
+
+and launch the operation.
+
+ZimaBackup still restores to staging first. It then copies the selected application data to the original logical paths only if those targets are absent or empty. Existing files and symbolic-link destinations are refused.
+
+v0.9 deliberately does **not** run `docker compose up`. Automatic controlled deployment is a later milestone.
+
+## Test a normal file restore
+
+Open **Snapshots** and choose **Restore files** on a successful snapshot.
+
+The default target is under:
+
+```text
+/DATA/ZimaBackup/Restores/...
+```
+
+and must be new or empty.
 
 ## Upgrading
 
 Keep your existing `storage/` directory.
 
-v0.8 adds:
+v0.9 adds:
 
 ```text
-006_snapshot_application_preview.sql
+007_application_restore_runs.sql
 ```
 
-The existing `005_restore_runs.sql` migration from v0.7 is still retained.
-
-It is applied automatically on startup.
+All migrations are applied automatically on startup.
 
 Rebuild:
 
@@ -153,8 +166,8 @@ The browser-facing Apache/PHP service:
 
 - has no Docker socket;
 - sees `/DATA` and `/media` read-only;
-- never executes Restic directly;
-- validates UI requests and queues privileged operations.
+- never executes Restic or Docker directly;
+- queues privileged operations for the worker.
 
 The worker:
 
@@ -162,7 +175,8 @@ The worker:
 - owns backup and restore execution;
 - can read/write `/DATA` and `/media`;
 - can query Docker through `/var/run/docker.sock`;
-- receives repository recovery-key files through `--password-file`.
+- receives repository recovery-key files through `--password-file`;
+- reconstructs secret-bearing Compose files only in worker-controlled storage with mode `0600`.
 
 Repository recovery keys remain under:
 

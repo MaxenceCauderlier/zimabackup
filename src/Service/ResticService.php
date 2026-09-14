@@ -211,6 +211,7 @@ final class ResticService
         string $targetPath,
         string $overwriteMode = 'never',
         ?callable $onMessage = null,
+        array $includes = [],
     ): array {
         $allowedOverwriteModes = ['always', 'if-changed', 'if-newer', 'never'];
         if (!in_array($overwriteMode, $allowedOverwriteModes, true)) {
@@ -225,8 +226,18 @@ final class ResticService
             '--target', $targetPath,
             '--overwrite', $overwriteMode,
             '--json',
-            $snapshotId,
         ];
+
+        foreach ($includes as $include) {
+            $include = trim((string) $include);
+            if ($include === '' || $include[0] !== '/') {
+                throw new RuntimeException('Restic restore include paths must be absolute snapshot paths.');
+            }
+            $arguments[] = '--include';
+            $arguments[] = $include;
+        }
+
+        $arguments[] = $snapshotId;
 
         $process = new Process($arguments);
         $process->setTimeout(null);
