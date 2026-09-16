@@ -60,6 +60,6 @@ x-casaos:
   architectures:
     - amd64
   version: "0.9.1"
-  update_at: "2026-09-07"
+  update_at: "2026-09-14"
   release_notes:
-    en_US: Safe snapshot restore workflow with worker-side Restic progress, restore history and non-destructive target validation.
+    en_US: Restore & Install workflow with controlled Docker recreation, image pulls, network/container creation, startup verification and rollback of newly created Docker objects on failure.

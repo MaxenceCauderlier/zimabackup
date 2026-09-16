@@ -1,27 +1,37 @@
 # ZimaBackup
 
-ZimaBackup is a lightweight, application-aware backup and recovery manager for ZimaOS, built with PHP 8.4, Twig, SQLite and Restic.
+ZimaBackup is a lightweight, application-aware backup and disaster-recovery manager for ZimaOS, built with PHP 8.4, Twig, SQLite and Restic.
 
-## Current milestone — v0.9 controlled application restore
+## Current milestone — v0.9.1 Restore & Install
 
-v0.9 keeps every previous backup, snapshot, application-discovery and safe file-restore feature, and adds controlled recovery of one application from a snapshot.
+v0.9.1 completes the first end-to-end application disaster-recovery workflow:
 
-The application recovery workflow can now:
+1. discover a Docker/ZimaOS application;
+2. back up selected AppData and an encrypted runtime manifest;
+3. inspect the application inside a Restic snapshot;
+4. restore selected application data safely;
+5. restore data to original paths only when destinations are absent or empty;
+6. reconstruct the secret-bearing Docker definition;
+7. pull missing images;
+8. recreate required Docker networks;
+9. recreate and start the backed-up containers;
+10. verify that the recreated containers remain running.
 
-- inspect application manifests inside an encrypted snapshot;
-- show a sanitized Docker Compose preview before recovery;
-- restore only the bind-mounted paths that were selected when the backup job was created;
-- use Restic `restore --include` so unrelated snapshot data is not restored;
-- restore first into `/DATA/ZimaBackup/ApplicationRestores/...`;
-- rebuild a complete `docker-compose.yml` from the encrypted manifest;
-- keep that generated Compose file mode `0600` because it can contain original environment values;
-- optionally copy staged application data back to its original `/DATA` or `/media` paths;
-- refuse original-path recovery while the application is still detected by Docker;
-- refuse non-empty original destinations and symbolic-link targets;
-- never overwrite existing application files;
-- never start Docker containers automatically in v0.9.
+Automatic installation is a **separate confirmed step** after an Original paths restore. The user must type `INSTALL` before the worker can create Docker objects.
 
-The default mode is **Safe staging**. The more invasive **Original paths** mode requires typing `RESTORE` and is designed for disaster-recovery tests where the original application has disappeared.
+### Restore & Install safety rules
+
+ZimaBackup refuses automatic installation when:
+
+- the application is already present in Docker;
+- the restore was staging-only;
+- selected application data has not been applied to original paths;
+- a required bind source is missing;
+- a bind mount points outside `/DATA` or `/media` (except a very small read-only system whitelist);
+- a named Docker volume is required, because named-volume contents are not backed up yet;
+- an existing container name would be replaced.
+
+If container creation or startup fails, ZimaBackup removes Docker containers and networks created by that installation attempt where possible. Restored user/application data is **not deleted**.
 
 ## Development
 
@@ -52,15 +62,11 @@ ZIMABACKUP_DATA_PATH=/DATA
 ZIMABACKUP_MEDIA_PATH=/media
 ```
 
-The worker receives the Docker socket so it can discover applications. If the socket is elsewhere, set:
-
-```dotenv
-DOCKER_SOCKET_PATH=/path/to/docker.sock
-```
+The isolated worker receives the Docker socket. The browser-facing `app` container never receives it.
 
 ## Integration simulator (no ZimaOS required)
 
-v0.9 includes a reproducible Docker integration environment under:
+A reproducible Docker integration environment is included under:
 
 ```text
 tests/integration/zima-simulator/
@@ -72,88 +78,57 @@ Start it:
 ./tests/integration/zima-simulator/setup.sh
 ```
 
-The script prints the exact `ZIMABACKUP_DATA_PATH` and `ZIMABACKUP_MEDIA_PATH` values to copy into the root `.env` file.
+Copy the two paths printed by the script into the root `.env`, then restart ZimaBackup.
 
-The simulator creates a Docker Compose application named `zima-demo` with Nginx + Redis and persistent bind mounts under a fake `DATA/AppData` tree.
+The simulator creates the Compose project `zima-demo` with Nginx + Redis and bind-mounted data under a fake `/DATA/AppData` tree.
 
-See:
+### Complete v1.0 disaster-recovery test
 
-```text
-tests/integration/zima-simulator/README.md
+1. **Applications → Refresh** and confirm `Zima Demo` is detected.
+2. Create repository `/media/Backup/ZimaBackup`.
+3. Create a backup containing `Zima Demo` and its selected Nginx/Redis mounts.
+4. Run the backup successfully.
+5. Inspect **Snapshots → Applications** and confirm the sanitized preview.
+6. Destroy the simulated app:
+
+```bash
+./tests/integration/zima-simulator/destroy-app.sh
+./tests/integration/zima-simulator/check-disaster-state.sh
 ```
 
-for the full backup → destroy → restore → restart disaster-recovery test.
+7. Refresh Applications so `Zima Demo` disappears.
+8. Restore the application with **Original paths**, typing `RESTORE`.
+9. When the restore succeeds, use **Restore & Install**, type `INSTALL` and submit.
+10. Wait for status **Application running**.
+11. Verify the result:
 
-## Test an application backup
-
-1. Open **Applications** and refresh discovery.
-2. Create a repository, for example `/media/Backup/ZimaBackup`.
-3. Create a backup containing a detected application and selected AppData mounts.
-4. Run the backup.
-5. Open **Snapshots → Applications**.
-6. Verify that the reconstructed Compose preview appears and environment values are masked.
-
-## Test application recovery
-
-From **Snapshots → Applications**, select **Restore application**.
-
-### Safe staging
-
-This restores only the selected application paths underneath:
-
-```text
-/DATA/ZimaBackup/ApplicationRestores/...
+```bash
+./tests/integration/zima-simulator/verify-auto-install.sh
 ```
 
-and generates:
+The test passes when the recreated Docker project is running and `http://localhost:8095` serves the restored HTML file.
 
-```text
-docker-compose.yml
-```
+## Safe file restore
 
-inside that staging folder. Existing application paths are untouched.
-
-### Original paths
-
-Use this only after the application has disappeared from Docker and its original data directories have been removed or emptied.
-
-Select **Restore original paths**, type:
-
-```text
-RESTORE
-```
-
-and launch the operation.
-
-ZimaBackup still restores to staging first. It then copies the selected application data to the original logical paths only if those targets are absent or empty. Existing files and symbolic-link destinations are refused.
-
-v0.9 deliberately does **not** run `docker compose up`. Automatic controlled deployment is a later milestone.
-
-## Test a normal file restore
-
-Open **Snapshots** and choose **Restore files** on a successful snapshot.
-
-The default target is under:
+Normal snapshot restores still use an isolated target under:
 
 ```text
 /DATA/ZimaBackup/Restores/...
 ```
 
-and must be new or empty.
+and refuse non-empty targets or repository overlap.
 
 ## Upgrading
 
-Keep your existing `storage/` directory.
+Keep the existing `storage/` directory.
 
-v0.9 adds:
+v1.0 adds:
 
 ```text
-007_application_restore_runs.sql
+008_application_install_runs.sql
 ```
 
 All migrations are applied automatically on startup.
-
-Rebuild:
 
 ```bash
 docker compose down
@@ -172,11 +147,12 @@ The browser-facing Apache/PHP service:
 The worker:
 
 - exposes no HTTP port;
-- owns backup and restore execution;
+- owns backup, restore and application installation execution;
 - can read/write `/DATA` and `/media`;
-- can query Docker through `/var/run/docker.sock`;
-- receives repository recovery-key files through `--password-file`;
-- reconstructs secret-bearing Compose files only in worker-controlled storage with mode `0600`.
+- accesses Docker through `/var/run/docker.sock`;
+- uses the Docker Engine API directly instead of exposing Docker control to the web process;
+- receives repository recovery keys through Restic `--password-file`;
+- keeps reconstructed secret-bearing Compose files worker-side with mode `0600`.
 
 Repository recovery keys remain under:
 
@@ -188,20 +164,8 @@ Save every displayed recovery key outside the ZimaOS machine.
 
 ## Useful commands
 
-Run migrations:
-
 ```bash
 docker compose exec app php bin/migrate.php
-```
-
-Check Restic:
-
-```bash
 docker compose exec worker restic version
-```
-
-Inspect worker activity:
-
-```bash
 docker compose logs -f worker
 ```

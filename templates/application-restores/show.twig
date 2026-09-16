@@ -6,7 +6,7 @@
 <header class="page-header compact-header">
     <div>
         <a class="back-link" href="{{ ROUTER.generate('restores') }}">← Restores</a>
-        <p class="eyebrow">Application restore</p>
+        <p class="eyebrow">Application recovery</p>
         <h1>{{ restore.app_name }}</h1>
         <p class="muted">{{ restore.mode == 'original' ? 'Original paths mode' : 'Safe staging mode' }} · {{ restore.repository_name }}</p>
     </div>
@@ -45,7 +45,7 @@
         <div>
             <span class="status-pill ok"><span class="status-dot"></span>Restore complete</span>
             <h2>{{ restore.mode == 'original' ? 'Application data returned to original paths' : 'Application staged safely' }}</h2>
-            <p>The selected snapshot data was restored and a Docker Compose definition was reconstructed. No container has been started.</p>
+            <p>The selected snapshot data was restored and a Docker Compose definition was reconstructed.</p>
         </div>
     </section>
 {% endif %}
@@ -78,9 +78,76 @@
     </section>
 </div>
 
-<section class="panel">
-    <span class="card-kicker">Next step</span>
-    <h2>Installation remains manual in v0.9</h2>
-    <p class="muted">Review the sanitized Compose preview from the snapshot inspection before using the generated file. Automatic Docker/ZimaOS installation will be added only after this recovery flow has been validated.</p>
+{% if install_error %}
+    <div class="alert alert-error"><strong>Application installation cannot start.</strong><div>{{ install_error }}</div></div>
+{% endif %}
+
+{% if install and install.status in ['pending', 'running'] %}
+<section class="panel live-panel" data-auto-refresh>
+    <div class="live-panel-head">
+        <div>
+            <span class="card-kicker">Restore & Install</span>
+            <h2>{{ install.status == 'pending' ? 'Installation queued' : 'Recreating application' }}</h2>
+            <p class="muted">Current stage: <strong>{{ install.stage ?: 'preparing' }}</strong></p>
+        </div>
+        <span class="status-pill warning"><span class="status-dot"></span>{{ install.status }}</span>
+    </div>
+    <div class="install-stage-track">
+        {% for stage_name in ['preflight', 'pulling-images', 'creating-networks', 'creating-containers', 'starting-containers', 'verifying'] %}
+            <span class="install-stage {{ install.stage == stage_name ? 'active' : '' }}">{{ stage_name|replace({'-': ' '}) }}</span>
+        {% endfor %}
+    </div>
 </section>
+{% elseif install and install.status == 'success' %}
+<section class="panel success-panel-v2 install-result-panel">
+    <div>
+        <span class="status-pill ok"><span class="status-dot"></span>Application running</span>
+        <h2>Restore & Install completed</h2>
+        <p>ZimaBackup recreated the Docker application from the encrypted backup manifest and verified that the restored containers stayed running.</p>
+    </div>
+    <div class="summary-cards two-summary-cards compact-summary-cards">
+        <article class="summary-card"><span>Project</span><strong>{{ install.project_name }}</strong></article>
+        <article class="summary-card"><span>Containers</span><strong>{{ install.container_ids|length }}</strong></article>
+    </div>
+</section>
+{% elseif install and install.status == 'failed' %}
+<section class="panel attention-panel">
+    <span class="status-pill error"><span class="status-dot"></span>Install failed</span>
+    <h2>Docker objects were rolled back where possible</h2>
+    <p>{{ install.error }}</p>
+    <p class="muted">Restored application data was deliberately left in place so you can inspect it or retry after correcting the problem.</p>
+</section>
+{% elseif restore.status == 'success' and restore.mode == 'original' %}
+<section class="panel install-action-panel">
+    <div class="panel-heading">
+        <div>
+            <span class="card-kicker">Final recovery step</span>
+            <h2>Restore & Install</h2>
+            <p class="muted">ZimaBackup can now pull missing images, recreate required Docker networks, create the backed-up containers and start them.</p>
+        </div>
+        <span class="status-pill warning"><span class="status-dot"></span>Docker write access</span>
+    </div>
+
+    <div class="info-strip compact-strip">
+        <strong>Safety rules</strong>
+        <p>An existing Docker application is never replaced. Bind mounts outside <code>/DATA</code> and <code>/media</code> are refused by default, named volumes are not installed automatically yet, and a failed install removes Docker objects created by that attempt without deleting restored data.</p>
+    </div>
+
+    <form method="post" action="{{ ROUTER.generate('application-restores.install', {uuid: restore.uuid}) }}" class="install-confirm-form">
+        <input type="hidden" name="_csrf" value="{{ csrf_token }}">
+        <label class="field">
+            <span>Type INSTALL to confirm</span>
+            <input type="text" name="confirm_install" autocomplete="off" placeholder="INSTALL" required>
+            <small>This action creates and starts Docker containers on the host.</small>
+        </label>
+        <button class="button" type="submit">Restore & Install application</button>
+    </form>
+</section>
+{% elseif restore.status == 'success' and restore.mode == 'staging' %}
+<section class="panel">
+    <span class="card-kicker">Installation unavailable</span>
+    <h2>Original paths are required</h2>
+    <p class="muted">This restore used Safe staging. Automatic installation remains disabled until the application's selected data paths have been restored to their original locations.</p>
+</section>
+{% endif %}
 {% endblock %}

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use ZimaBackup\Core\Application;
 use ZimaBackup\Service\ApplicationDiscoveryService;
+use ZimaBackup\Service\ApplicationInstallService;
 use ZimaBackup\Service\ApplicationRestoreService;
 use ZimaBackup\Service\BackupService;
 use ZimaBackup\Service\RepositoryService;
@@ -32,6 +33,8 @@ $scheduler = $app->service(SchedulerService::class);
 $snapshotApplications = $app->service(SnapshotApplicationService::class);
 /** @var ApplicationRestoreService $applicationRestores */
 $applicationRestores = $app->service(ApplicationRestoreService::class);
+/** @var ApplicationInstallService $applicationInstalls */
+$applicationInstalls = $app->service(ApplicationInstallService::class);
 
 $interval = max(2, (int) (getenv('WORKER_INTERVAL') ?: 10));
 $discoveryInterval = max(30, (int) (getenv('APP_DISCOVERY_INTERVAL') ?: 120));
@@ -133,6 +136,27 @@ while (true) {
                     }
 
                     $queue->complete((int) $operation['id'], ['application_restore_run_id' => $applicationRestoreRunId]);
+                    break;
+
+                case 'application.install':
+                    $applicationInstallRunId = (int) ($operation['payload']['application_install_run_id'] ?? 0);
+                    if ($applicationInstallRunId <= 0) {
+                        throw new RuntimeException('application.install task has no valid application_install_run_id.');
+                    }
+
+                    try {
+                        $applicationInstalls->execute($applicationInstallRunId);
+                    } catch (Throwable $exception) {
+                        // execute() records the rollback-aware failure itself. This is
+                        // still called for preflight errors that occur before its catch.
+                        $latest = $applicationInstalls->findById($applicationInstallRunId);
+                        if ($latest !== null && ($latest['status'] ?? null) !== 'failed') {
+                            $applicationInstalls->markFailed($applicationInstallRunId, $exception->getMessage());
+                        }
+                        throw $exception;
+                    }
+
+                    $queue->complete((int) $operation['id'], ['application_install_run_id' => $applicationInstallRunId]);
                     break;
 
                 default:

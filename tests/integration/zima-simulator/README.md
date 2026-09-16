@@ -61,3 +61,13 @@ The reconstructed `docker-compose.yml` is also stored under the ZimaBackup stagi
 ```bash
 ./tests/integration/zima-simulator/cleanup.sh
 ```
+
+### Verify the simulated disaster
+
+After `destroy-app.sh`, you can verify that both the host tree and the ZimaBackup worker see the application data as absent:
+
+```bash
+./tests/integration/zima-simulator/check-disaster-state.sh
+```
+
+The original-path restore is intentionally refused if even one target directory still contains data.

@@ -11,6 +11,7 @@ use Twig\Loader\FilesystemLoader;
 use Twig\TwigFilter;
 use ZimaBackup\Security\Csrf;
 use ZimaBackup\Service\ApplicationDiscoveryService;
+use ZimaBackup\Service\ApplicationInstallService;
 use ZimaBackup\Service\ApplicationRestoreService;
 use ZimaBackup\Service\ComposePreviewService;
 use ZimaBackup\Service\BackupService;
@@ -136,6 +137,12 @@ final class Application
             $queue,
             $composePreview,
             $docker
+        );
+        $this->services[ApplicationInstallService::class] = new ApplicationInstallService(
+            $this->database,
+            $pathService,
+            $docker,
+            $queue
         );
         $this->services[SchedulerService::class] = new SchedulerService($this->database);
     }

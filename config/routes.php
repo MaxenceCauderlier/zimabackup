@@ -43,6 +43,7 @@ return static function (Application $app): void {
     $router->map('GET', '/snapshot-applications/[i:applicationId]/restore', [ApplicationRestoreController::class, 'create'], 'application-restores.create');
     $router->map('POST', '/snapshot-applications/[i:applicationId]/restore', [ApplicationRestoreController::class, 'store'], 'application-restores.store');
     $router->map('GET', '/application-restores/[uuid:uuid]', [ApplicationRestoreController::class, 'show'], 'application-restores.show');
+    $router->map('POST', '/application-restores/[uuid:uuid]/install', [ApplicationRestoreController::class, 'install'], 'application-restores.install');
 
     $router->map('GET', '/restores', [RestoreController::class, 'index'], 'restores');
     $router->map('GET', '/restores/from/[i:runId]', [RestoreController::class, 'create'], 'restores.create');

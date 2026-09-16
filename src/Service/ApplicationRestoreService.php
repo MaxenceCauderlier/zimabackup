@@ -408,7 +408,14 @@ final class ApplicationRestoreService
         }
         $entries = array_values(array_diff(scandir($target) ?: [], ['.', '..']));
         if ($entries !== []) {
-            throw new RuntimeException(sprintf('Original path is not empty. Nothing was overwritten: %s', $logicalTarget));
+            $sample = implode(', ', array_slice($entries, 0, 5));
+            $suffix = count($entries) > 5 ? ', …' : '';
+            throw new RuntimeException(sprintf(
+                'Original path is not empty. Nothing was overwritten: %s (contains: %s%s)',
+                $logicalTarget,
+                $sample,
+                $suffix
+            ));
         }
     }
 

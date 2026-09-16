@@ -852,3 +852,44 @@ input[type="text"]:focus, select:focus {
 @media (max-width: 640px) {
     .manifest-source-line { align-items: stretch; flex-direction: column; }
 }
+
+.install-confirm-form {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 16px;
+    align-items: end;
+    margin-top: 18px;
+}
+.install-stage-track {
+    display: grid;
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    gap: 8px;
+    margin-top: 18px;
+}
+.install-stage {
+    padding: 10px 8px;
+    border-radius: 14px;
+    background: rgba(247,250,253,0.92);
+    box-shadow: inset 0 0 0 1px var(--line);
+    color: var(--muted);
+    font-size: 11px;
+    font-weight: 700;
+    text-align: center;
+    text-transform: capitalize;
+}
+.install-stage.active {
+    background: var(--warning-soft);
+    color: #9f6a00;
+    box-shadow: inset 0 0 0 1px rgba(246,184,76,.28);
+}
+.install-action-panel { margin-top: 18px; }
+.install-result-panel { margin-top: 18px; }
+
+@media (max-width: 960px) {
+    .install-stage-track { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .install-confirm-form { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 640px) {
+    .install-stage-track { grid-template-columns: 1fr 1fr; }
+}
