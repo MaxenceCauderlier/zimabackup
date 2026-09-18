@@ -24,6 +24,9 @@
     {% endif %}
 </header>
 
+{% if flash_success %}<div class="alert alert-success">{{ flash_success }}</div>{% endif %}
+{% if flash_error %}<div class="alert alert-error"><strong>Backup action failed</strong><div>{{ flash_error }}</div></div>{% endif %}
+
 <section class="stats-grid slim-stats">
     <article class="panel stat-card"><span class="stat-title">Jobs</span><strong>{{ jobs|length }}</strong><small>Configured plans</small></article>
     <article class="panel stat-card"><span class="stat-title">Running</span><strong>{{ running_count }}</strong><small>Pending or active</small></article>

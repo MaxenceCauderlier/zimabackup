@@ -29,7 +29,7 @@ final class SnapshotApplicationService
             "FROM backup_runs br " .
             "JOIN backup_jobs bj ON bj.id = br.backup_job_id " .
             "JOIN repositories r ON r.id = bj.repository_id " .
-            "WHERE br.id = :id AND br.status IN ('success', 'warning') AND br.snapshot_id IS NOT NULL",
+            "WHERE br.id = :id AND br.status IN ('success', 'warning') AND br.snapshot_id IS NOT NULL AND COALESCE(br.snapshot_state, 'present') = 'present'",
             ['id' => $runId]
         );
     }

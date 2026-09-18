@@ -5,16 +5,18 @@
 {% block content %}
 {% set ready_count = 0 %}
 {% set failed_count = 0 %}
+{% set busy_count = 0 %}
 {% for repository in repositories %}
     {% if repository.status == 'ready' %}{% set ready_count = ready_count + 1 %}{% endif %}
-    {% if repository.status == 'failed' %}{% set failed_count = failed_count + 1 %}{% endif %}
+    {% if repository.status == 'failed' or repository.last_check_status == 'failed' %}{% set failed_count = failed_count + 1 %}{% endif %}
+    {% if repository.running_operations > 0 or repository.last_check_status in ['queued', 'running'] %}{% set busy_count = busy_count + 1 %}{% endif %}
 {% endfor %}
 
 <header class="page-header hero-header">
     <div>
         <p class="eyebrow">Storage destinations</p>
         <h1>Repositories</h1>
-        <p class="muted">Each repository is an encrypted Restic destination where snapshots are written and verified.</p>
+        <p class="muted">Manage encrypted Restic destinations, verify integrity and remove unused repository configurations safely.</p>
     </div>
     <div class="header-actions">
         <span class="status-pill {{ failed_count > 0 ? 'warning' : 'ok' }}"><span class="status-dot"></span>{{ ready_count }} ready / {{ repositories|length }} total</span>
@@ -22,17 +24,20 @@
     </div>
 </header>
 
+{% if flash_success %}<div class="alert alert-success">{{ flash_success }}</div>{% endif %}
+{% if flash_error %}<div class="alert alert-error"><strong>Repository action failed</strong><div>{{ flash_error }}</div></div>{% endif %}
+
 <section class="stats-grid slim-stats">
-    <article class="panel stat-card"><span class="stat-title">Total repositories</span><strong>{{ repositories|length }}</strong><small>All configured destinations</small></article>
-    <article class="panel stat-card"><span class="stat-title">Ready</span><strong>{{ ready_count }}</strong><small>Ready for backups</small></article>
-    <article class="panel stat-card {{ failed_count > 0 ? 'warning-card' : '' }}"><span class="stat-title">Errors</span><strong>{{ failed_count }}</strong><small>{{ failed_count > 0 ? 'Need review' : 'None reported' }}</small></article>
+    <article class="panel stat-card"><span class="stat-title">Repositories</span><strong>{{ repositories|length }}</strong><small>Active configurations</small></article>
+    <article class="panel stat-card"><span class="stat-title">Ready</span><strong>{{ ready_count }}</strong><small>Available to backup</small></article>
+    <article class="panel stat-card {{ failed_count > 0 ? 'warning-card' : '' }}"><span class="stat-title">Attention</span><strong>{{ failed_count }}</strong><small>{{ failed_count > 0 ? 'Check failures or init errors' : 'No known issues' }}</small></article>
 </section>
 
 {% if repositories is empty %}
     <section class="panel empty-state large-empty-state">
         <div class="empty-illustration"><span>⛁</span></div>
         <h2>Create your first repository</h2>
-        <p>Pick a folder under <code>/DATA</code> or <code>/media</code>. ZimaBackup will initialize and verify the encrypted Restic repository for you.</p>
+        <p>Pick a folder under <code>/DATA</code> or <code>/media</code>. ZimaBackup initializes and verifies Restic for you.</p>
         <a class="button" href="{{ ROUTER.generate('repositories.create') }}">Create repository</a>
     </section>
 {% else %}
@@ -40,27 +45,35 @@
         {% for repository in repositories %}
             <article class="panel repository-card-v2">
                 <div class="card-topline">
-                    <div>
-                        <span class="card-kicker">{{ repository.type|upper }}</span>
-                        <h2>{{ repository.name }}</h2>
-                    </div>
+                    <div><span class="card-kicker">{{ repository.type|upper }}</span><h2>{{ repository.name }}</h2></div>
                     <span class="status-pill compact {{ repository.status == 'ready' ? 'ok' : (repository.status in ['pending', 'initializing'] ? 'warning' : 'error') }}"><span class="status-dot"></span>{{ repository.status }}</span>
                 </div>
-                <div class="storage-meter">
-                    <div class="meter-bar"><span style="width: {{ repository.status == 'ready' ? 86 : (repository.status == 'initializing' ? 45 : 18) }}%"></span></div>
-                    <div class="meter-labels"><span>{{ repository.status == 'ready' ? 'Ready for backups' : (repository.status == 'initializing' ? 'Initializing' : 'Needs attention') }}</span><span>{{ repository.running_operations }} op</span></div>
-                </div>
+
                 <dl class="detail-list">
                     <div><dt>Path</dt><dd><code>{{ repository.path }}</code></dd></div>
-                    <div><dt>Password file</dt><dd><code>{{ repository.password_file|split('/')|last }}</code></dd></div>
-                    <div><dt>Created</dt><dd>{{ repository.created_at }}</dd></div>
+                    <div><dt>Backup jobs</dt><dd>{{ repository.active_jobs }}</dd></div>
+                    <div><dt>Last integrity check</dt><dd>{{ repository.last_check_at ?: 'Never' }}{% if repository.last_check_status %} · {{ repository.last_check_status }}{% endif %}</dd></div>
                 </dl>
-                {% if repository.error %}
-                    <div class="inline-error">{{ repository.error }}</div>
-                {% endif %}
-                <div class="card-footer-note">Recovery key is shown once at creation and stored securely for worker access.</div>
+
+                {% if repository.error %}<div class="inline-error">{{ repository.error }}</div>{% endif %}
+                {% if repository.last_check_error %}<div class="inline-error">Check: {{ repository.last_check_error }}</div>{% endif %}
+
+                <div class="management-actions">
+                    <a class="button button-secondary compact-button" href="{{ ROUTER.generate('repositories.edit', {uuid: repository.uuid}) }}">Edit</a>
+                    <form method="post" action="{{ ROUTER.generate('repositories.check', {uuid: repository.uuid}) }}">
+                        <input type="hidden" name="_csrf" value="{{ csrf_token }}">
+                        <button class="button button-secondary compact-button" type="submit" {{ repository.running_operations > 0 ? 'disabled' : '' }}>Check integrity</button>
+                    </form>
+                    <form method="post" action="{{ ROUTER.generate('repositories.remove', {uuid: repository.uuid}) }}" data-confirm="Remove this repository from ZimaBackup? The Restic data on disk will NOT be deleted.">
+                        <input type="hidden" name="_csrf" value="{{ csrf_token }}">
+                        <button class="button danger-button compact-button" type="submit" {{ repository.active_jobs > 0 or repository.running_operations > 0 ? 'disabled' : '' }}>Remove</button>
+                    </form>
+                </div>
+                {% if repository.active_jobs > 0 %}<small class="action-hint">Remove is disabled while active backup jobs use this repository.</small>{% endif %}
             </article>
         {% endfor %}
     </section>
 {% endif %}
+
+{% if busy_count > 0 %}<div class="refresh-banner" data-auto-refresh><span class="spinner"></span> Repository maintenance is running. This page will refresh automatically.</div>{% endif %}
 {% endblock %}

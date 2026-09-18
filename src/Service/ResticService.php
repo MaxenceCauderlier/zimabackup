@@ -46,6 +46,16 @@ final class ResticService
         ], 300);
     }
 
+    public function forgetSnapshot(string $repositoryPath, string $passwordFile, string $snapshotId): Process
+    {
+        return $this->run([
+            'forget',
+            '--repo', $repositoryPath,
+            '--password-file', $passwordFile,
+            $snapshotId,
+        ], 300);
+    }
+
     /**
      * Run a Restic backup and decode its JSON-lines progress stream.
      *

@@ -6,6 +6,7 @@ namespace ZimaBackup\Service;
 
 use InvalidArgumentException;
 use RuntimeException;
+use Throwable;
 use ZimaBackup\Core\Database;
 use ZimaBackup\Core\Uuid;
 
@@ -24,8 +25,9 @@ final class RepositoryService
     {
         return $this->database->fetchAll(
             'SELECT r.*, ' .
-            "(SELECT COUNT(*) FROM operations o WHERE o.repository_id = r.id AND o.status = 'running') AS running_operations " .
-            'FROM repositories r ORDER BY r.created_at DESC'
+            "(SELECT COUNT(*) FROM operations o WHERE o.repository_id = r.id AND o.status IN ('pending', 'running')) AS running_operations, " .
+            "(SELECT COUNT(*) FROM backup_jobs bj WHERE bj.repository_id = r.id AND bj.deleted_at IS NULL) AS active_jobs " .
+            'FROM repositories r WHERE r.archived_at IS NULL ORDER BY r.created_at DESC'
         );
     }
 
@@ -39,28 +41,17 @@ final class RepositoryService
         return $this->database->fetchOne('SELECT * FROM repositories WHERE id = :id', ['id' => $id]);
     }
 
-    /**
-     * Persist a repository in pending state and queue its Restic initialization.
-     * The generated recovery key is returned once to the controller and is never
-     * stored in SQLite.
-     *
-     * @return array{repository: array, recovery_key: string}
-     */
     public function create(string $name, string $path): array
     {
-        $name = trim($name);
-        if ($name === '' || strlen($name) > 100) {
-            throw new InvalidArgumentException('Repository name must contain between 1 and 100 characters.');
-        }
-
+        $name = $this->validateName($name);
         $path = $this->paths->normalizeLogicalPath($path);
-        $this->paths->toContainerPath($path); // Also asserts that the path is inside an allowed root.
+        $this->paths->toContainerPath($path);
 
         if (in_array($path, ['/DATA', '/media'], true)) {
             throw new InvalidArgumentException('Choose a dedicated subdirectory, for example /media/Backup/ZimaBackup.');
         }
 
-        if ($this->database->scalar('SELECT COUNT(*) FROM repositories WHERE path = :path', ['path' => $path])) {
+        if ((int) $this->database->scalar('SELECT COUNT(*) FROM repositories WHERE path = :path', ['path' => $path]) > 0) {
             throw new InvalidArgumentException('A repository already uses this path.');
         }
 
@@ -71,7 +62,6 @@ final class RepositoryService
         if (!is_dir($this->secretsDirectory) && !mkdir($this->secretsDirectory, 0700, true) && !is_dir($this->secretsDirectory)) {
             throw new RuntimeException('Unable to create the repository secrets directory.');
         }
-
         if (file_put_contents($passwordFile, $recoveryKey . PHP_EOL, LOCK_EX) === false) {
             throw new RuntimeException('Unable to write the repository recovery key.');
         }
@@ -79,7 +69,6 @@ final class RepositoryService
 
         $pdo = $this->database->pdo();
         $pdo->beginTransaction();
-
         try {
             $now = date('c');
             $this->database->execute(
@@ -96,7 +85,6 @@ final class RepositoryService
                     'updated_at' => $now,
                 ]
             );
-
             $repositoryId = $this->database->lastInsertId();
             $operationId = $this->queue->enqueue('repository.init', ['repository_id' => $repositoryId]);
             $this->database->execute(
@@ -104,7 +92,7 @@ final class RepositoryService
                 ['repository_id' => $repositoryId, 'id' => $operationId]
             );
             $pdo->commit();
-        } catch (\Throwable $exception) {
+        } catch (Throwable $exception) {
             if ($pdo->inTransaction()) {
                 $pdo->rollBack();
             }
@@ -117,27 +105,119 @@ final class RepositoryService
             throw new RuntimeException('Repository was created but could not be reloaded.');
         }
 
-        return [
-            'repository' => $repository,
-            'recovery_key' => $recoveryKey,
-        ];
+        return ['repository' => $repository, 'recovery_key' => $recoveryKey];
     }
 
-    /** Execute repository initialization from the privileged worker only. */
+    public function updateName(string $uuid, string $name): void
+    {
+        $repository = $this->findByUuid($uuid);
+        if ($repository === null || $repository['archived_at'] !== null) {
+            throw new InvalidArgumentException('Repository not found.');
+        }
+        $this->database->execute(
+            'UPDATE repositories SET name = :name, updated_at = :updated_at WHERE id = :id',
+            ['name' => $this->validateName($name), 'updated_at' => date('c'), 'id' => $repository['id']]
+        );
+    }
+
+    public function enqueueCheck(string $uuid): void
+    {
+        $repository = $this->findByUuid($uuid);
+        if ($repository === null || $repository['archived_at'] !== null) {
+            throw new InvalidArgumentException('Repository not found.');
+        }
+        if (!in_array($repository['status'], ['ready', 'failed'], true)) {
+            throw new InvalidArgumentException('Repository must finish initialization before it can be checked.');
+        }
+        $active = (int) $this->database->scalar(
+            "SELECT COUNT(*) FROM operations WHERE repository_id = :id AND type = 'repository.check' AND status IN ('pending', 'running')",
+            ['id' => $repository['id']]
+        );
+        if ($active > 0) {
+            throw new InvalidArgumentException('A repository integrity check is already queued or running.');
+        }
+
+        $operationId = $this->queue->enqueue('repository.check', ['repository_id' => (int) $repository['id']]);
+        $this->database->execute(
+            'UPDATE operations SET repository_id = :repository_id WHERE id = :operation_id',
+            ['repository_id' => $repository['id'], 'operation_id' => $operationId]
+        );
+        $this->database->execute(
+            "UPDATE repositories SET last_check_status = 'queued', last_check_error = NULL WHERE id = :id",
+            ['id' => $repository['id']]
+        );
+    }
+
+    public function check(int $repositoryId): void
+    {
+        $repository = $this->findById($repositoryId);
+        if ($repository === null) {
+            throw new RuntimeException('Repository not found.');
+        }
+        $path = $this->paths->toContainerPath((string) $repository['path']);
+        $passwordFile = (string) $repository['password_file'];
+        if (!is_readable($passwordFile)) {
+            throw new RuntimeException('Repository recovery key file is missing or unreadable.');
+        }
+
+        $this->database->execute(
+            "UPDATE repositories SET last_check_status = 'running', last_check_error = NULL WHERE id = :id",
+            ['id' => $repositoryId]
+        );
+        $this->restic->checkRepository($path, $passwordFile);
+        $this->database->execute(
+            "UPDATE repositories SET status = 'ready', error = NULL, last_check_status = 'success', last_check_at = :checked_at, last_check_error = NULL, updated_at = :checked_at WHERE id = :id",
+            ['checked_at' => date('c'), 'id' => $repositoryId]
+        );
+    }
+
+    public function markCheckFailed(int $repositoryId, string $error): void
+    {
+        $this->database->execute(
+            "UPDATE repositories SET last_check_status = 'failed', last_check_at = :checked_at, last_check_error = :error WHERE id = :id",
+            ['checked_at' => date('c'), 'error' => substr($error, 0, 4000), 'id' => $repositoryId]
+        );
+    }
+
+    public function archive(string $uuid): void
+    {
+        $repository = $this->findByUuid($uuid);
+        if ($repository === null || $repository['archived_at'] !== null) {
+            throw new InvalidArgumentException('Repository not found.');
+        }
+        $activeJobs = (int) $this->database->scalar(
+            'SELECT COUNT(*) FROM backup_jobs WHERE repository_id = :id AND deleted_at IS NULL',
+            ['id' => $repository['id']]
+        );
+        if ($activeJobs > 0) {
+            throw new InvalidArgumentException('Delete or move all active backup jobs before removing this repository.');
+        }
+        $activeOperations = (int) $this->database->scalar(
+            "SELECT COUNT(*) FROM operations WHERE repository_id = :id AND status IN ('pending', 'running')",
+            ['id' => $repository['id']]
+        );
+        if ($activeOperations > 0) {
+            throw new InvalidArgumentException('Wait for active repository operations to finish before removing it.');
+        }
+
+        $this->database->execute(
+            'UPDATE repositories SET archived_at = :archived_at, updated_at = :archived_at WHERE id = :id',
+            ['archived_at' => date('c'), 'id' => $repository['id']]
+        );
+    }
+
     public function initialize(int $repositoryId): void
     {
         $repository = $this->findById($repositoryId);
         if ($repository === null) {
             throw new RuntimeException('Repository not found.');
         }
-
         if ($repository['status'] === 'ready') {
             return;
         }
 
         $containerPath = $this->paths->toContainerPath((string) $repository['path']);
         $passwordFile = (string) $repository['password_file'];
-
         $this->database->execute(
             "UPDATE repositories SET status = 'initializing', error = NULL, updated_at = :updated_at WHERE id = :id",
             ['updated_at' => date('c'), 'id' => $repositoryId]
@@ -150,10 +230,10 @@ final class RepositoryService
 
         $this->restic->initializeRepository($containerPath, $passwordFile);
         $this->restic->checkRepository($containerPath, $passwordFile);
-
+        $now = date('c');
         $this->database->execute(
-            "UPDATE repositories SET status = 'ready', error = NULL, updated_at = :updated_at WHERE id = :id",
-            ['updated_at' => date('c'), 'id' => $repositoryId]
+            "UPDATE repositories SET status = 'ready', error = NULL, last_check_at = :updated_at, last_check_status = 'success', last_check_error = NULL, updated_at = :updated_at WHERE id = :id",
+            ['updated_at' => $now, 'id' => $repositoryId]
         );
     }
 
@@ -161,11 +241,16 @@ final class RepositoryService
     {
         $this->database->execute(
             "UPDATE repositories SET status = 'failed', error = :error, updated_at = :updated_at WHERE id = :id",
-            [
-                'error' => substr($error, 0, 4000),
-                'updated_at' => date('c'),
-                'id' => $repositoryId,
-            ]
+            ['error' => substr($error, 0, 4000), 'updated_at' => date('c'), 'id' => $repositoryId]
         );
+    }
+
+    private function validateName(string $name): string
+    {
+        $name = trim($name);
+        if ($name === '' || strlen($name) > 100) {
+            throw new InvalidArgumentException('Repository name must contain between 1 and 100 characters.');
+        }
+        return $name;
     }
 }

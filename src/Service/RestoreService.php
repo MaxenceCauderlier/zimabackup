@@ -17,6 +17,7 @@ final class RestoreService
         private readonly PathService $paths,
         private readonly ResticService $restic,
         private readonly TaskQueueService $queue,
+        private readonly SettingsService $settings,
     ) {
     }
 
@@ -40,7 +41,7 @@ final class RestoreService
             'FROM backup_runs br ' .
             'JOIN backup_jobs bj ON bj.id = br.backup_job_id ' .
             'JOIN repositories r ON r.id = bj.repository_id ' .
-            'WHERE br.id = :id AND br.snapshot_id IS NOT NULL AND br.status IN (\'success\', \'warning\')',
+            "WHERE br.id = :id AND br.snapshot_id IS NOT NULL AND br.status IN ('success', 'warning') AND COALESCE(br.snapshot_state, 'present') = 'present'",
             ['id' => $backupRunId]
         );
     }
@@ -65,7 +66,8 @@ final class RestoreService
         $name = trim($name, '-');
         $shortSnapshot = substr((string) ($snapshot['snapshot_id'] ?? 'restore'), 0, 8);
 
-        return sprintf('/DATA/ZimaBackup/Restores/%s-%s', $name ?: 'snapshot', $shortSnapshot);
+        $root = rtrim((string) $this->settings->get('restore.default_root', '/DATA/ZimaBackup/Restores'), '/');
+        return sprintf('%s/%s-%s', $root, $name ?: 'snapshot', $shortSnapshot);
     }
 
     /**

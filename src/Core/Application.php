@@ -21,6 +21,8 @@ use ZimaBackup\Service\RepositoryService;
 use ZimaBackup\Service\RestoreService;
 use ZimaBackup\Service\ResticService;
 use ZimaBackup\Service\SchedulerService;
+use ZimaBackup\Service\SettingsService;
+use ZimaBackup\Service\SnapshotService;
 use ZimaBackup\Service\SnapshotApplicationService;
 use ZimaBackup\Service\TaskQueueService;
 
@@ -80,6 +82,7 @@ final class Application
         $session = new Session();
         $csrf = new Csrf($session);
         $queue = new TaskQueueService($this->database);
+        $settings = new SettingsService($this->database, $pathService);
         $docker = new DockerEngineClient(getenv('DOCKER_SOCKET') ?: '/var/run/docker.sock');
         $composePreview = new ComposePreviewService();
         $appDiscovery = new ApplicationDiscoveryService(
@@ -97,6 +100,7 @@ final class Application
             Session::class => $session,
             Csrf::class => $csrf,
             TaskQueueService::class => $queue,
+            SettingsService::class => $settings,
             DockerEngineClient::class => $docker,
             ApplicationDiscoveryService::class => $appDiscovery,
             ComposePreviewService::class => $composePreview,
@@ -121,7 +125,8 @@ final class Application
             $this->database,
             $pathService,
             $resticService,
-            $queue
+            $queue,
+            $settings
         );
         $this->services[SnapshotApplicationService::class] = new SnapshotApplicationService(
             $this->database,
@@ -136,12 +141,19 @@ final class Application
             $resticService,
             $queue,
             $composePreview,
-            $docker
+            $docker,
+            $settings
         );
         $this->services[ApplicationInstallService::class] = new ApplicationInstallService(
             $this->database,
             $pathService,
             $docker,
+            $queue
+        );
+        $this->services[SnapshotService::class] = new SnapshotService(
+            $this->database,
+            $pathService,
+            $resticService,
             $queue
         );
         $this->services[SchedulerService::class] = new SchedulerService($this->database);

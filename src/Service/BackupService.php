@@ -31,14 +31,14 @@ final class BackupService
             '(SELECT br.started_at FROM backup_runs br WHERE br.backup_job_id = bj.id ORDER BY br.id DESC LIMIT 1) AS latest_started_at, ' .
             '(SELECT br.finished_at FROM backup_runs br WHERE br.backup_job_id = bj.id ORDER BY br.id DESC LIMIT 1) AS latest_finished_at ' .
             'FROM backup_jobs bj JOIN repositories r ON r.id = bj.repository_id ' .
-            'ORDER BY bj.created_at DESC'
+            'WHERE bj.deleted_at IS NULL AND r.archived_at IS NULL ORDER BY bj.created_at DESC'
         );
     }
 
     public function readyRepositories(): array
     {
         return $this->database->fetchAll(
-            "SELECT * FROM repositories WHERE status = 'ready' ORDER BY name COLLATE NOCASE ASC"
+            "SELECT * FROM repositories WHERE status = 'ready' AND archived_at IS NULL ORDER BY name COLLATE NOCASE ASC"
         );
     }
 
@@ -46,7 +46,7 @@ final class BackupService
     {
         $job = $this->database->fetchOne(
             'SELECT bj.*, r.name AS repository_name, r.path AS repository_path, r.status AS repository_status ' .
-            'FROM backup_jobs bj JOIN repositories r ON r.id = bj.repository_id WHERE bj.uuid = :uuid',
+            'FROM backup_jobs bj JOIN repositories r ON r.id = bj.repository_id WHERE bj.uuid = :uuid AND bj.deleted_at IS NULL',
             ['uuid' => $uuid]
         );
 
@@ -89,7 +89,7 @@ final class BackupService
         }
 
         $repository = $this->database->fetchOne(
-            'SELECT * FROM repositories WHERE id = :id',
+            'SELECT * FROM repositories WHERE id = :id AND archived_at IS NULL',
             ['id' => $repositoryId]
         );
         if ($repository === null || $repository['status'] !== 'ready') {
@@ -215,16 +215,139 @@ final class BackupService
         return $job;
     }
 
+    public function update(string $uuid, string $name, int $repositoryId, array $sources, bool $enabled): array
+    {
+        $job = $this->findByUuid($uuid);
+        if ($job === null) {
+            throw new InvalidArgumentException('Backup job not found.');
+        }
+
+        $name = trim($name);
+        if ($name === '' || strlen($name) > 100) {
+            throw new InvalidArgumentException('Backup name must contain between 1 and 100 characters.');
+        }
+
+        $repository = $this->database->fetchOne(
+            "SELECT * FROM repositories WHERE id = :id AND archived_at IS NULL",
+            ['id' => $repositoryId]
+        );
+        if ($repository === null) {
+            throw new InvalidArgumentException('Choose an active repository.');
+        }
+
+        if ((int) $job['repository_id'] !== $repositoryId) {
+            if ($repository['status'] !== 'ready') {
+                throw new InvalidArgumentException('The new repository must be ready before this job can use it.');
+            }
+            $runCount = (int) $this->database->scalar(
+                'SELECT COUNT(*) FROM backup_runs WHERE backup_job_id = :id',
+                ['id' => $job['id']]
+            );
+            if ($runCount > 0) {
+                throw new InvalidArgumentException('Repository cannot be changed after a job has run. Create a new job instead so historical snapshots keep the correct repository.');
+            }
+        }
+
+        $normalizedSources = [];
+        foreach ($sources as $source) {
+            $source = trim((string) $source);
+            if ($source === '') {
+                continue;
+            }
+            $source = $this->validateSource($source, (string) $repository['path']);
+            $normalizedSources[$source] = $source;
+        }
+
+        foreach ($job['applications'] as $application) {
+            foreach ($application['selected_mounts'] as $mount) {
+                if (!is_array($mount) || empty($mount['source'])) {
+                    continue;
+                }
+                $this->validateSource((string) $mount['source'], (string) $repository['path']);
+            }
+        }
+
+        if ($normalizedSources === [] && $job['applications'] === []) {
+            throw new InvalidArgumentException('Keep at least one folder source or one protected application.');
+        }
+
+        $pdo = $this->database->pdo();
+        $pdo->exec('BEGIN IMMEDIATE');
+        try {
+            $this->database->execute(
+                'UPDATE backup_jobs SET name = :name, repository_id = :repository_id, enabled = :enabled, updated_at = :updated_at WHERE id = :id',
+                [
+                    'name' => $name,
+                    'repository_id' => $repositoryId,
+                    'enabled' => $enabled ? 1 : 0,
+                    'updated_at' => date('c'),
+                    'id' => $job['id'],
+                ]
+            );
+            $this->database->execute('DELETE FROM backup_sources WHERE backup_job_id = :id', ['id' => $job['id']]);
+            foreach (array_values($normalizedSources) as $source) {
+                $this->database->execute(
+                    'INSERT INTO backup_sources(backup_job_id, path, label, created_at) VALUES (:job_id, :path, :label, :created_at)',
+                    ['job_id' => $job['id'], 'path' => $source, 'label' => basename($source), 'created_at' => date('c')]
+                );
+            }
+            $pdo->commit();
+        } catch (Throwable $exception) {
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
+            throw $exception;
+        }
+
+        return $this->findByUuid($uuid) ?? [];
+    }
+
+    public function delete(string $uuid): void
+    {
+        $job = $this->findByUuid($uuid);
+        if ($job === null) {
+            throw new InvalidArgumentException('Backup job not found.');
+        }
+        $active = (int) $this->database->scalar(
+            "SELECT COUNT(*) FROM backup_runs WHERE backup_job_id = :id AND status IN ('pending', 'running')",
+            ['id' => $job['id']]
+        );
+        if ($active > 0) {
+            throw new InvalidArgumentException('Wait for the active backup run to finish before deleting this job.');
+        }
+        $this->database->execute(
+            'UPDATE backup_jobs SET enabled = 0, deleted_at = :deleted_at, updated_at = :deleted_at WHERE id = :id',
+            ['deleted_at' => date('c'), 'id' => $job['id']]
+        );
+    }
+
+    public function toggle(string $uuid): bool
+    {
+        $job = $this->findByUuid($uuid);
+        if ($job === null) {
+            throw new InvalidArgumentException('Backup job not found.');
+        }
+        $enabled = (int) $job['enabled'] !== 1;
+        $this->database->execute(
+            'UPDATE backup_jobs SET enabled = :enabled, updated_at = :updated_at WHERE id = :id',
+            ['enabled' => $enabled ? 1 : 0, 'updated_at' => date('c'), 'id' => $job['id']]
+        );
+        return $enabled;
+    }
+
     /** Queue one run and prevent the same job from being queued/running twice. */
     public function enqueueRunByUuid(string $uuid): array
     {
         $job = $this->database->fetchOne(
             'SELECT bj.*, r.status AS repository_status, r.id AS repo_id ' .
-            'FROM backup_jobs bj JOIN repositories r ON r.id = bj.repository_id WHERE bj.uuid = :uuid',
+            'FROM backup_jobs bj JOIN repositories r ON r.id = bj.repository_id WHERE bj.uuid = :uuid AND bj.deleted_at IS NULL',
             ['uuid' => $uuid]
         );
         if ($job === null) {
             throw new InvalidArgumentException('Backup job not found.');
+        }
+        if ((int) $job['enabled'] !== 1 || $job['deleted_at'] !== null) {
+            throw new InvalidArgumentException('This backup job is disabled. Enable it before running it.');
         }
         if ($job['repository_status'] !== 'ready') {
             throw new InvalidArgumentException('The destination repository is not ready.');

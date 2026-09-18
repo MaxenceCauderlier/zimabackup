@@ -26,8 +26,8 @@ final class DashboardController extends AbstractController
 
         return $this->render('dashboard/index.twig', [
             'stats' => [
-                'jobs' => (int) $database->scalar('SELECT COUNT(*) FROM backup_jobs'),
-                'repositories' => (int) $database->scalar('SELECT COUNT(*) FROM repositories'),
+                'jobs' => (int) $database->scalar('SELECT COUNT(*) FROM backup_jobs WHERE deleted_at IS NULL'),
+                'repositories' => (int) $database->scalar('SELECT COUNT(*) FROM repositories WHERE archived_at IS NULL'),
                 'successful_runs' => (int) $database->scalar(
                     "SELECT COUNT(*) FROM backup_runs WHERE status = 'success'"
                 ),

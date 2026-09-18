@@ -11,13 +11,20 @@
         <h1>{{ job.name }}</h1>
         <p class="muted">Destination: <strong>{{ job.repository_name }}</strong> · {% if job.applications|length > 0 %}{{ job.applications|length }} application{{ job.applications|length == 1 ? '' : 's' }}{% if job.sources|length > 0 %} and {% endif %}{% endif %}{% if job.sources|length > 0 %}{{ job.sources|length }} folder source{{ job.sources|length == 1 ? '' : 's' }}{% endif %}</p>
     </div>
-    <div class="header-actions">
-        {% if latest %}
-            <span class="status-pill {{ latest.status in ['success'] ? 'ok' : (latest.status in ['pending', 'running', 'warning'] ? 'warning' : 'error') }}"><span class="status-dot"></span>{{ latest.status }}</span>
-        {% endif %}
+    <div class="header-actions management-header-actions">
+        <span class="status-pill {{ job.enabled ? 'ok' : 'warning' }}"><span class="status-dot"></span>{{ job.enabled ? 'enabled' : 'disabled' }}</span>
+        <a class="button button-secondary" href="{{ ROUTER.generate('backups.edit', {uuid: job.uuid}) }}">Edit</a>
+        <form method="post" action="{{ ROUTER.generate('backups.toggle', {uuid: job.uuid}) }}">
+            <input type="hidden" name="_csrf" value="{{ csrf_token }}">
+            <button class="button button-secondary" type="submit">{{ job.enabled ? 'Disable' : 'Enable' }}</button>
+        </form>
         <form method="post" action="{{ ROUTER.generate('backups.run', {uuid: job.uuid}) }}">
             <input type="hidden" name="_csrf" value="{{ csrf_token }}">
-            <button class="button" type="submit" {{ latest and latest.status in ['pending', 'running'] ? 'disabled' : '' }}>Run now</button>
+            <button class="button" type="submit" {{ not job.enabled or (latest and latest.status in ['pending', 'running']) ? 'disabled' : '' }}>Run now</button>
+        </form>
+        <form method="post" action="{{ ROUTER.generate('backups.delete', {uuid: job.uuid}) }}" data-confirm="Delete this backup job? Existing Restic snapshots will be kept and remain visible in Snapshots.">
+            <input type="hidden" name="_csrf" value="{{ csrf_token }}">
+            <button class="button danger-button" type="submit" {{ latest and latest.status in ['pending', 'running'] ? 'disabled' : '' }}>Delete job</button>
         </form>
     </div>
 </header>

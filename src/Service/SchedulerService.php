@@ -20,7 +20,7 @@ final class SchedulerService
     {
         return $this->database->fetchAll(
             'SELECT * FROM backup_jobs ' .
-            'WHERE enabled = 1 AND next_run_at IS NOT NULL AND next_run_at <= :now ' .
+            'WHERE enabled = 1 AND deleted_at IS NULL AND next_run_at IS NOT NULL AND next_run_at <= :now ' .
             'ORDER BY next_run_at ASC',
             ['now' => date('c')]
         );

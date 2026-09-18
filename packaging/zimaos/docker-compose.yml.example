@@ -2,7 +2,7 @@ name: zimabackup
 
 services:
   zimabackup:
-    image: ghcr.io/CHANGE_ME/zimabackup:0.9.1
+    image: ghcr.io/CHANGE_ME/zimabackup:0.10.0
     restart: unless-stopped
     labels:
       org.zimabackup.internal: "true"
@@ -21,7 +21,7 @@ services:
       - /media:/media:ro
 
   worker:
-    image: ghcr.io/CHANGE_ME/zimabackup:0.9.1
+    image: ghcr.io/CHANGE_ME/zimabackup:0.10.0
     restart: unless-stopped
     labels:
       org.zimabackup.internal: "true"
@@ -59,7 +59,7 @@ x-casaos:
   category: Utilities
   architectures:
     - amd64
-  version: "0.9.1"
-  update_at: "2026-09-14"
+  version: "0.10.0"
+  update_at: "2026-09-16"
   release_notes:
-    en_US: Restore & Install workflow with controlled Docker recreation, image pulls, network/container creation, startup verification and rollback of newly created Docker objects on failure.
+    en_US: "Management milestone: repository editing/removal and integrity checks, backup-job editing/enabling/deletion, snapshot forget operations, and functional application settings."

@@ -4,28 +4,45 @@ declare(strict_types=1);
 
 namespace ZimaBackup\Controller;
 
-use ZimaBackup\Core\Database;
+use Throwable;
+use ZimaBackup\Core\Session;
+use ZimaBackup\Security\Csrf;
+use ZimaBackup\Service\SnapshotService;
 
 final class SnapshotController extends AbstractController
 {
     public function index(): string
     {
-        /** @var Database $database */
-        $database = $this->app->service(Database::class);
-
-        $snapshots = $database->fetchAll(
-            "SELECT br.*, bj.uuid AS job_uuid, bj.name AS job_name, r.name AS repository_name, " .
-            "(SELECT COUNT(*) FROM backup_applications ba WHERE ba.backup_job_id = bj.id) AS app_count, " .
-            "(SELECT status FROM snapshot_application_scans sas WHERE sas.backup_run_id = br.id) AS app_scan_status " .
-            "FROM backup_runs br " .
-            "JOIN backup_jobs bj ON bj.id = br.backup_job_id " .
-            "JOIN repositories r ON r.id = bj.repository_id " .
-            "WHERE br.status IN ('success', 'warning') AND br.snapshot_id IS NOT NULL " .
-            "ORDER BY br.finished_at DESC LIMIT 100"
-        );
+        /** @var SnapshotService $snapshots */
+        $snapshots = $this->app->service(SnapshotService::class);
+        /** @var Session $session */
+        $session = $this->app->service(Session::class);
 
         return $this->render('snapshots/index.twig', [
-            'snapshots' => $snapshots,
+            'snapshots' => $snapshots->all(),
+            'flash_success' => $session->pull('flash_success'),
+            'flash_error' => $session->pull('flash_error'),
         ]);
+    }
+
+    public function forget(int $runId): string
+    {
+        /** @var Csrf $csrf */
+        $csrf = $this->app->service(Csrf::class);
+        if (!$csrf->isValid($_POST['_csrf'] ?? null)) {
+            http_response_code(419);
+            return $this->render('errors/419.twig');
+        }
+        /** @var Session $session */
+        $session = $this->app->service(Session::class);
+        try {
+            /** @var SnapshotService $snapshots */
+            $snapshots = $this->app->service(SnapshotService::class);
+            $snapshots->enqueueForget($runId);
+            $session->set('flash_success', 'Snapshot removal queued. Restic will forget the snapshot in the background.');
+        } catch (Throwable $exception) {
+            $session->set('flash_error', $exception->getMessage());
+        }
+        return $this->redirect('snapshots');
     }
 }

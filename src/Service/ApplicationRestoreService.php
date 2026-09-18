@@ -21,6 +21,7 @@ final class ApplicationRestoreService
         private readonly TaskQueueService $queue,
         private readonly ComposePreviewService $composePreview,
         private readonly DockerEngineClient $docker,
+        private readonly SettingsService $settings,
     ) {
     }
 
@@ -36,7 +37,7 @@ final class ApplicationRestoreService
             'JOIN backup_jobs bj ON bj.id = br.backup_job_id ' .
             'JOIN repositories r ON r.id = bj.repository_id ' .
             'LEFT JOIN backup_applications ba ON ba.backup_job_id = bj.id AND ba.app_key = sa.app_key ' .
-            'WHERE sa.id = :id',
+            "WHERE sa.id = :id AND COALESCE(br.snapshot_state, 'present') = 'present'",
             ['id' => $snapshotApplicationId]
         );
 
@@ -89,7 +90,8 @@ final class ApplicationRestoreService
         $slug = preg_replace('/[^a-z0-9]+/', '-', $slug) ?: 'application';
         $slug = trim($slug, '-');
         $shortSnapshot = substr((string) ($application['snapshot_id'] ?? 'snapshot'), 0, 8);
-        return sprintf('/DATA/ZimaBackup/ApplicationRestores/%s-%s', $slug ?: 'application', $shortSnapshot);
+        $root = rtrim((string) $this->settings->get('application_restore.default_root', '/DATA/ZimaBackup/ApplicationRestores'), '/');
+        return sprintf('%s/%s-%s', $root, $slug ?: 'application', $shortSnapshot);
     }
 
     public function enqueue(int $snapshotApplicationId, string $mode, string $confirm = ''): array

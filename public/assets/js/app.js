@@ -107,3 +107,14 @@ document.querySelectorAll('[data-restore-mode-form]').forEach((form) => {
     radios.forEach((radio) => radio.addEventListener('change', refresh));
     refresh();
 });
+
+// Management operations that can remove configuration or recovery points
+// require an explicit browser confirmation before the POST is submitted.
+document.querySelectorAll('form[data-confirm]').forEach((form) => {
+    form.addEventListener('submit', (event) => {
+        const message = form.dataset.confirm || 'Are you sure?';
+        if (!window.confirm(message)) {
+            event.preventDefault();
+        }
+    });
+});

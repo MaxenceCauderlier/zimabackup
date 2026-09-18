@@ -18,9 +18,13 @@ final class BackupController extends AbstractController
         /** @var BackupService $backups */
         $backups = $this->app->service(BackupService::class);
 
+        /** @var Session $session */
+        $session = $this->app->service(Session::class);
         return $this->render('backups/index.twig', [
             'jobs' => $backups->all(),
             'repositories' => $backups->readyRepositories(),
+            'flash_success' => $session->pull('flash_success'),
+            'flash_error' => $session->pull('flash_error'),
         ]);
     }
 
@@ -133,6 +137,131 @@ final class BackupController extends AbstractController
                 'errors' => [$exception->getMessage()],
             ]);
         }
+    }
+
+    public function edit(string $uuid): string
+    {
+        /** @var BackupService $backups */
+        $backups = $this->app->service(BackupService::class);
+        $job = $backups->findByUuid($uuid);
+        if ($job === null) {
+            http_response_code(404);
+            return $this->render('errors/404.twig');
+        }
+        $repositories = $backups->readyRepositories();
+        $knownIds = array_map(static fn (array $repository): int => (int) $repository['id'], $repositories);
+        if (!in_array((int) $job['repository_id'], $knownIds, true)) {
+            $repositories[] = [
+                'id' => (int) $job['repository_id'],
+                'name' => (string) $job['repository_name'],
+                'path' => (string) $job['repository_path'],
+                'status' => (string) $job['repository_status'],
+            ];
+        }
+        return $this->render('backups/edit.twig', [
+            'job' => $job,
+            'repositories' => $repositories,
+            'errors' => [],
+        ]);
+    }
+
+    public function update(string $uuid): string
+    {
+        /** @var Csrf $csrf */
+        $csrf = $this->app->service(Csrf::class);
+        if (!$csrf->isValid($_POST['_csrf'] ?? null)) {
+            http_response_code(419);
+            return $this->render('errors/419.twig');
+        }
+        $sources = $_POST['sources'] ?? [];
+        if (!is_array($sources)) {
+            $sources = [];
+        }
+        try {
+            /** @var BackupService $backups */
+            $backups = $this->app->service(BackupService::class);
+            $backups->update(
+                $uuid,
+                (string) ($_POST['name'] ?? ''),
+                (int) ($_POST['repository_id'] ?? 0),
+                $sources,
+                isset($_POST['enabled'])
+            );
+            /** @var Session $session */
+            $session = $this->app->service(Session::class);
+            $session->set('flash_success', 'Backup job updated.');
+            return $this->redirect('backups.show', ['uuid' => $uuid]);
+        } catch (InvalidArgumentException $exception) {
+            /** @var BackupService $backups */
+            $backups = $this->app->service(BackupService::class);
+            $job = $backups->findByUuid($uuid);
+            if ($job === null) {
+                http_response_code(404);
+                return $this->render('errors/404.twig');
+            }
+            $job['name'] = trim((string) ($_POST['name'] ?? ''));
+            $job['repository_id'] = (int) ($_POST['repository_id'] ?? 0);
+            $job['enabled'] = isset($_POST['enabled']) ? 1 : 0;
+            $job['sources'] = array_map(static fn ($path): array => ['path' => trim((string) $path), 'label' => ''], $sources);
+            $repositories = $backups->readyRepositories();
+            $knownIds = array_map(static fn (array $repository): int => (int) $repository['id'], $repositories);
+            if (!in_array((int) $job['repository_id'], $knownIds, true)) {
+                $repositories[] = [
+                    'id' => (int) $job['repository_id'],
+                    'name' => (string) $job['repository_name'],
+                    'path' => (string) $job['repository_path'],
+                    'status' => (string) $job['repository_status'],
+                ];
+            }
+            return $this->render('backups/edit.twig', [
+                'job' => $job,
+                'repositories' => $repositories,
+                'errors' => [$exception->getMessage()],
+            ]);
+        }
+    }
+
+    public function delete(string $uuid): string
+    {
+        /** @var Csrf $csrf */
+        $csrf = $this->app->service(Csrf::class);
+        if (!$csrf->isValid($_POST['_csrf'] ?? null)) {
+            http_response_code(419);
+            return $this->render('errors/419.twig');
+        }
+        /** @var Session $session */
+        $session = $this->app->service(Session::class);
+        try {
+            /** @var BackupService $backups */
+            $backups = $this->app->service(BackupService::class);
+            $backups->delete($uuid);
+            $session->set('flash_success', 'Backup job deleted. Existing Restic snapshots were kept.');
+            return $this->redirect('backups');
+        } catch (Throwable $exception) {
+            $session->set('flash_error', $exception->getMessage());
+            return $this->redirect('backups.show', ['uuid' => $uuid]);
+        }
+    }
+
+    public function toggle(string $uuid): string
+    {
+        /** @var Csrf $csrf */
+        $csrf = $this->app->service(Csrf::class);
+        if (!$csrf->isValid($_POST['_csrf'] ?? null)) {
+            http_response_code(419);
+            return $this->render('errors/419.twig');
+        }
+        /** @var Session $session */
+        $session = $this->app->service(Session::class);
+        try {
+            /** @var BackupService $backups */
+            $backups = $this->app->service(BackupService::class);
+            $enabled = $backups->toggle($uuid);
+            $session->set('flash_success', $enabled ? 'Backup job enabled.' : 'Backup job disabled.');
+        } catch (Throwable $exception) {
+            $session->set('flash_error', $exception->getMessage());
+        }
+        return $this->redirect('backups.show', ['uuid' => $uuid]);
     }
 
     public function show(string $uuid): string

@@ -2,9 +2,11 @@
 
 ZimaBackup is a lightweight, application-aware backup and disaster-recovery manager for ZimaOS, built with PHP 8.4, Twig, SQLite and Restic.
 
-## Current milestone — v0.9.1 Restore & Install
+## Current milestone — v0.10 Management
 
-v0.9.1 completes the first end-to-end application disaster-recovery workflow:
+v0.10 turns the advanced prototype into something that can be managed day to day. It adds repository editing/removal and integrity checks, backup-job editing/enabling/deletion, explicit snapshot forget operations, and a functional Settings page.
+
+The existing Restore & Install workflow remains available and currently supports:
 
 1. discover a Docker/ZimaOS application;
 2. back up selected AppData and an encrypted runtime manifest;
@@ -82,7 +84,7 @@ Copy the two paths printed by the script into the root `.env`, then restart Zima
 
 The simulator creates the Compose project `zima-demo` with Nginx + Redis and bind-mounted data under a fake `/DATA/AppData` tree.
 
-### Complete v1.0 disaster-recovery test
+### Complete disaster-recovery test
 
 1. **Applications → Refresh** and confirm `Zima Demo` is detected.
 2. Create repository `/media/Backup/ZimaBackup`.
@@ -122,10 +124,10 @@ and refuse non-empty targets or repository overlap.
 
 Keep the existing `storage/` directory.
 
-v1.0 adds:
+v0.10 adds:
 
 ```text
-008_application_install_runs.sql
+009_management.sql
 ```
 
 All migrations are applied automatically on startup.

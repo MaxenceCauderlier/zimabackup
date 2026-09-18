@@ -11,6 +11,8 @@ use ZimaBackup\Service\RepositoryService;
 use ZimaBackup\Service\RestoreService;
 use ZimaBackup\Service\SchedulerService;
 use ZimaBackup\Service\SnapshotApplicationService;
+use ZimaBackup\Service\SnapshotService;
+use ZimaBackup\Service\SettingsService;
 use ZimaBackup\Service\TaskQueueService;
 
 require dirname(__DIR__) . '/vendor/autoload.php';
@@ -35,9 +37,13 @@ $snapshotApplications = $app->service(SnapshotApplicationService::class);
 $applicationRestores = $app->service(ApplicationRestoreService::class);
 /** @var ApplicationInstallService $applicationInstalls */
 $applicationInstalls = $app->service(ApplicationInstallService::class);
+/** @var SnapshotService $snapshots */
+$snapshots = $app->service(SnapshotService::class);
+/** @var SettingsService $settings */
+$settings = $app->service(SettingsService::class);
 
 $interval = max(2, (int) (getenv('WORKER_INTERVAL') ?: 10));
-$discoveryInterval = max(30, (int) (getenv('APP_DISCOVERY_INTERVAL') ?: 120));
+$discoveryInterval = max(30, $settings->getInt('apps.discovery.interval', (int) (getenv('APP_DISCOVERY_INTERVAL') ?: 120)));
 $lastDiscovery = 0;
 
 echo sprintf(
@@ -66,6 +72,34 @@ while (true) {
                     }
 
                     $queue->complete((int) $operation['id'], ['repository_id' => $repositoryId]);
+                    break;
+
+                case 'repository.check':
+                    $repositoryId = (int) ($operation['payload']['repository_id'] ?? 0);
+                    if ($repositoryId <= 0) {
+                        throw new RuntimeException('repository.check task has no valid repository_id.');
+                    }
+                    try {
+                        $repositories->check($repositoryId);
+                    } catch (Throwable $exception) {
+                        $repositories->markCheckFailed($repositoryId, $exception->getMessage());
+                        throw $exception;
+                    }
+                    $queue->complete((int) $operation['id'], ['repository_id' => $repositoryId]);
+                    break;
+
+                case 'snapshot.forget':
+                    $backupRunId = (int) ($operation['payload']['backup_run_id'] ?? 0);
+                    if ($backupRunId <= 0) {
+                        throw new RuntimeException('snapshot.forget task has no valid backup_run_id.');
+                    }
+                    try {
+                        $snapshots->executeForget($backupRunId);
+                    } catch (Throwable $exception) {
+                        $snapshots->markForgetFailed($backupRunId, $exception->getMessage());
+                        throw $exception;
+                    }
+                    $queue->complete((int) $operation['id'], ['backup_run_id' => $backupRunId]);
                     break;
 
                 case 'backup.run':
@@ -170,6 +204,7 @@ while (true) {
         }
     }
 
+    $discoveryInterval = max(30, $settings->getInt('apps.discovery.interval', $discoveryInterval));
     if ((time() - $lastDiscovery) >= $discoveryInterval) {
         try {
             $count = $applications->refresh();
