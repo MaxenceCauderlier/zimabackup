@@ -42,6 +42,7 @@ return static function (Application $app): void {
     $router->map('GET', '/repositories/[uuid:uuid]/edit', [RepositoryController::class, 'edit'], 'repositories.edit');
     $router->map('POST', '/repositories/[uuid:uuid]/update', [RepositoryController::class, 'update'], 'repositories.update');
     $router->map('POST', '/repositories/[uuid:uuid]/check', [RepositoryController::class, 'check'], 'repositories.check');
+    $router->map('POST', '/repositories/[uuid:uuid]/reinitialize', [RepositoryController::class, 'reinitialize'], 'repositories.reinitialize');
     $router->map('POST', '/repositories/[uuid:uuid]/remove', [RepositoryController::class, 'remove'], 'repositories.remove');
     $router->map('GET', '/repositories/[uuid:uuid]/recovery-key', [RepositoryController::class, 'recovery'], 'repositories.recovery');
 

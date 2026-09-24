@@ -74,6 +74,23 @@ while (true) {
                     $queue->complete((int) $operation['id'], ['repository_id' => $repositoryId]);
                     break;
 
+                case 'repository.reinitialize':
+                    $repositoryId = (int) ($operation['payload']['repository_id'] ?? 0);
+                    if ($repositoryId <= 0) {
+                        throw new RuntimeException('repository.reinitialize task has no valid repository_id.');
+                    }
+                    try {
+                        $unavailableSnapshots = $repositories->reinitialize($repositoryId);
+                    } catch (Throwable $exception) {
+                        $repositories->markReinitializeFailed($repositoryId, $exception->getMessage());
+                        throw $exception;
+                    }
+                    $queue->complete((int) $operation['id'], [
+                        'repository_id' => $repositoryId,
+                        'unavailable_snapshots' => $unavailableSnapshots,
+                    ]);
+                    break;
+
                 case 'repository.check':
                     $repositoryId = (int) ($operation['payload']['repository_id'] ?? 0);
                     if ($repositoryId <= 0) {

@@ -339,7 +339,7 @@ final class BackupService
     public function enqueueRunByUuid(string $uuid): array
     {
         $job = $this->database->fetchOne(
-            'SELECT bj.*, r.status AS repository_status, r.id AS repo_id ' .
+            'SELECT bj.*, r.status AS repository_status, r.id AS repo_id, r.path AS repository_path ' .
             'FROM backup_jobs bj JOIN repositories r ON r.id = bj.repository_id WHERE bj.uuid = :uuid AND bj.deleted_at IS NULL',
             ['uuid' => $uuid]
         );
@@ -351,6 +351,11 @@ final class BackupService
         }
         if ($job['repository_status'] !== 'ready') {
             throw new InvalidArgumentException('The destination repository is not ready.');
+        }
+        $repositoryPath = $this->paths->toContainerPath((string) $job['repository_path']);
+        if (!is_file(rtrim($repositoryPath, '/') . '/config')) {
+            $this->markRepositoryMissing((int) $job['repo_id'], (string) $job['repository_path']);
+            throw new InvalidArgumentException('The destination repository storage is missing. Open Repositories for recovery options.');
         }
 
         $pdo = $this->database->pdo();
@@ -427,6 +432,10 @@ final class BackupService
         $repositoryPath = $this->paths->toContainerPath($repositoryLogicalPath);
         $passwordFile = (string) $run['password_file'];
 
+        if (!is_file(rtrim($repositoryPath, '/') . '/config')) {
+            $this->markRepositoryMissing((int) $run['repository_id'], $repositoryLogicalPath);
+            throw new RuntimeException('Destination repository storage is missing. Open Repositories for recovery options.');
+        }
         if (!is_file($passwordFile) || !is_readable($passwordFile)) {
             throw new RuntimeException('Repository recovery key file is missing or unreadable.');
         }
@@ -550,6 +559,25 @@ final class BackupService
                 'finished_at' => date('c'),
                 'error' => substr($error, 0, 4000),
                 'id' => $runId,
+            ]
+        );
+    }
+
+    private function markRepositoryMissing(int $repositoryId, string $logicalPath): void
+    {
+        $now = date('c');
+        $message = sprintf(
+            'Repository storage is no longer available. ZimaBackup could not find %s/config.',
+            rtrim($logicalPath, '/')
+        );
+        $this->database->execute(
+            "UPDATE repositories SET status = 'missing', error = :error, missing_since = COALESCE(missing_since, :missing_since), last_check_status = 'failed', last_check_at = :checked_at, last_check_error = :error, updated_at = :updated_at WHERE id = :id",
+            [
+                'error' => $message,
+                'missing_since' => $now,
+                'checked_at' => $now,
+                'updated_at' => $now,
+                'id' => $repositoryId,
             ]
         );
     }

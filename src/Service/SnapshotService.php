@@ -29,7 +29,7 @@ final class SnapshotService
             "JOIN backup_jobs bj ON bj.id = br.backup_job_id " .
             "JOIN repositories r ON r.id = bj.repository_id " .
             "WHERE br.status IN ('success', 'warning') AND br.snapshot_id IS NOT NULL " .
-            "AND COALESCE(br.snapshot_state, 'present') IN ('present', 'forgetting') " .
+            "AND COALESCE(br.snapshot_state, 'present') IN ('present', 'forgetting', 'unavailable') " .
             "ORDER BY br.finished_at DESC LIMIT 100"
         );
     }

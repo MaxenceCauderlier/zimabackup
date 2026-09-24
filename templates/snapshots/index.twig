@@ -30,7 +30,7 @@
             <article class="panel snapshot-card-v2">
                 <div class="card-topline">
                     <div><span class="card-kicker">{{ snapshot.repository_name }}</span><h2>{{ snapshot.job_name }}</h2></div>
-                    <span class="status-pill compact {{ snapshot.snapshot_state == 'forgetting' ? 'warning' : (snapshot.status == 'warning' ? 'warning' : 'ok') }}"><span class="status-dot"></span>{{ snapshot.snapshot_state == 'forgetting' ? 'forgetting' : snapshot.status }}</span>
+                    <span class="status-pill compact {{ snapshot.snapshot_state == 'unavailable' ? 'error' : (snapshot.snapshot_state == 'forgetting' ? 'warning' : (snapshot.status == 'warning' ? 'warning' : 'ok')) }}"><span class="status-dot"></span>{{ snapshot.snapshot_state == 'unavailable' ? 'unavailable' : (snapshot.snapshot_state == 'forgetting' ? 'forgetting' : snapshot.status) }}</span>
                 </div>
                 <div class="summary-cards mini-summary-cards">
                     <article class="summary-card"><span>Finished</span><strong>{{ snapshot.finished_at }}</strong></article>
@@ -38,16 +38,21 @@
                     <article class="summary-card"><span>Added</span><strong>{{ snapshot.bytes_added|bytes }}</strong></article>
                 </div>
                 {% if snapshot.snapshot_forget_error %}<div class="inline-error">Forget failed: {{ snapshot.snapshot_forget_error }}</div>{% endif %}
+                {% if snapshot.snapshot_state == 'unavailable' %}<div class="inline-error">{{ snapshot.snapshot_unavailable_reason ?: 'This historical snapshot is no longer available in the repository.' }}</div>{% endif %}
                 <div class="snapshot-actions">
                     <code>{{ snapshot.snapshot_id|slice(0, 12) }}</code>
                     <div>
                         {% if not snapshot.job_deleted_at %}<a class="button button-secondary compact-button" href="{{ ROUTER.generate('backups.show', {uuid: snapshot.job_uuid}) }}">Open job</a>{% else %}<span class="mini-tag ignored">job deleted</span>{% endif %}
-                        {% if snapshot.app_count > 0 %}<a class="button button-secondary compact-button" href="{{ ROUTER.generate('snapshots.applications', {runId: snapshot.id}) }}">Applications</a>{% endif %}
-                        <a class="button compact-button" href="{{ ROUTER.generate('restores.create', {runId: snapshot.id}) }}">Restore files</a>
-                        <form method="post" action="{{ ROUTER.generate('snapshots.forget', {runId: snapshot.id}) }}" data-confirm="Forget this snapshot from the Restic repository? This removes the recovery point. Repository compaction (prune) is a separate maintenance step.">
-                            <input type="hidden" name="_csrf" value="{{ csrf_token }}">
-                            <button class="button danger-button compact-button" type="submit" {{ snapshot.snapshot_state == 'forgetting' ? 'disabled' : '' }}>Forget</button>
-                        </form>
+                        {% if snapshot.snapshot_state != 'unavailable' %}
+                            {% if snapshot.app_count > 0 %}<a class="button button-secondary compact-button" href="{{ ROUTER.generate('snapshots.applications', {runId: snapshot.id}) }}">Applications</a>{% endif %}
+                            <a class="button compact-button" href="{{ ROUTER.generate('restores.create', {runId: snapshot.id}) }}">Restore files</a>
+                            <form method="post" action="{{ ROUTER.generate('snapshots.forget', {runId: snapshot.id}) }}" data-confirm="Forget this snapshot from the Restic repository? This removes the recovery point. Repository compaction (prune) is a separate maintenance step.">
+                                <input type="hidden" name="_csrf" value="{{ csrf_token }}">
+                                <button class="button danger-button compact-button" type="submit" {{ snapshot.snapshot_state == 'forgetting' ? 'disabled' : '' }}>Forget</button>
+                            </form>
+                        {% else %}
+                            <span class="mini-tag ignored">recovery point unavailable</span>
+                        {% endif %}
                     </div>
                 </div>
             </article>

@@ -137,6 +137,30 @@ final class RepositoryController extends AbstractController
         return $this->redirect('repositories');
     }
 
+
+    public function reinitialize(string $uuid): string
+    {
+        /** @var Csrf $csrf */
+        $csrf = $this->app->service(Csrf::class);
+        if (!$csrf->isValid($_POST['_csrf'] ?? null)) {
+            http_response_code(419);
+            return $this->render('errors/419.twig');
+        }
+
+        /** @var Session $session */
+        $session = $this->app->service(Session::class);
+        try {
+            /** @var RepositoryService $repositories */
+            $repositories = $this->app->service(RepositoryService::class);
+            $repositories->enqueueReinitialize($uuid);
+            $session->set('flash_success', 'Repository reinitialization queued. A new empty Restic repository will be created with the existing recovery key.');
+        } catch (Throwable $exception) {
+            $session->set('flash_error', $exception->getMessage());
+        }
+
+        return $this->redirect('repositories');
+    }
+
     public function remove(string $uuid): string
     {
         /** @var Csrf $csrf */

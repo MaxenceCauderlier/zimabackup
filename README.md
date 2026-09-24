@@ -2,9 +2,9 @@
 
 ZimaBackup is a lightweight, application-aware backup and disaster-recovery manager for ZimaOS, built with PHP 8.4, Twig, SQLite and Restic.
 
-## Current milestone — v0.10 Management
+## Current milestone — v0.10.1 Repository recovery
 
-v0.10 turns the advanced prototype into something that can be managed day to day. It adds repository editing/removal and integrity checks, backup-job editing/enabling/deletion, explicit snapshot forget operations, and a functional Settings page.
+v0.10.1 hardens repository management. Missing Restic storage is detected explicitly, integrity checks now report a clean missing-storage state, and a missing repository can be safely reinitialized only when its destination is absent or empty. Historical snapshots from a lost repository are retained as unavailable records after reinitialization.
 
 The existing Restore & Install workflow remains available and currently supports:
 
@@ -124,10 +124,11 @@ and refuse non-empty targets or repository overlap.
 
 Keep the existing `storage/` directory.
 
-v0.10 adds:
+v0.10.1 adds:
 
 ```text
 009_management.sql
+010_repository_recovery.sql
 ```
 
 All migrations are applied automatically on startup.
