@@ -18,6 +18,7 @@ use ZimaBackup\Service\BackupService;
 use ZimaBackup\Service\DockerEngineClient;
 use ZimaBackup\Service\PathService;
 use ZimaBackup\Service\RepositoryService;
+use ZimaBackup\Service\RetentionService;
 use ZimaBackup\Service\RestoreService;
 use ZimaBackup\Service\ResticService;
 use ZimaBackup\Service\SchedulerService;
@@ -83,6 +84,7 @@ final class Application
         $csrf = new Csrf($session);
         $queue = new TaskQueueService($this->database);
         $settings = new SettingsService($this->database, $pathService);
+        $scheduler = new SchedulerService($this->database);
         $docker = new DockerEngineClient(getenv('DOCKER_SOCKET') ?: '/var/run/docker.sock');
         $composePreview = new ComposePreviewService();
         $appDiscovery = new ApplicationDiscoveryService(
@@ -101,6 +103,7 @@ final class Application
             Csrf::class => $csrf,
             TaskQueueService::class => $queue,
             SettingsService::class => $settings,
+            SchedulerService::class => $scheduler,
             DockerEngineClient::class => $docker,
             ApplicationDiscoveryService::class => $appDiscovery,
             ComposePreviewService::class => $composePreview,
@@ -111,7 +114,8 @@ final class Application
             $pathService,
             $resticService,
             $queue,
-            $appDiscovery
+            $appDiscovery,
+            $scheduler
         );
 
         $this->services[RepositoryService::class] = new RepositoryService(
@@ -156,7 +160,12 @@ final class Application
             $resticService,
             $queue
         );
-        $this->services[SchedulerService::class] = new SchedulerService($this->database);
+        $this->services[RetentionService::class] = new RetentionService(
+            $this->database,
+            $pathService,
+            $resticService,
+            $queue
+        );
     }
 
     public static function create(string $rootPath): self

@@ -3,93 +3,39 @@
 {% block title %}Repositories - {{ APP.name }}{% endblock %}
 
 {% block content %}
-{% set ready_count = 0 %}
-{% set failed_count = 0 %}
-{% set busy_count = 0 %}
-{% set missing_count = 0 %}
-{% for repository in repositories %}
-    {% if repository.status == 'ready' %}{% set ready_count = ready_count + 1 %}{% endif %}
-    {% if repository.status != 'missing' and (repository.status == 'failed' or repository.last_check_status == 'failed') %}{% set failed_count = failed_count + 1 %}{% endif %}
-    {% if repository.status == 'missing' %}{% set missing_count = missing_count + 1 %}{% endif %}
-    {% if repository.running_operations > 0 or repository.last_check_status in ['queued', 'running'] %}{% set busy_count = busy_count + 1 %}{% endif %}
-{% endfor %}
-
-<header class="page-header hero-header">
-    <div>
-        <p class="eyebrow">Storage destinations</p>
-        <h1>Repositories</h1>
-        <p class="muted">Manage encrypted Restic destinations, verify integrity and remove unused repository configurations safely.</p>
-    </div>
-    <div class="header-actions">
-        <span class="status-pill {{ failed_count > 0 or missing_count > 0 ? 'warning' : 'ok' }}"><span class="status-dot"></span>{{ ready_count }} ready / {{ repositories|length }} total{% if missing_count > 0 %} · {{ missing_count }} missing{% endif %}</span>
-        <a class="button" href="{{ ROUTER.generate('repositories.create') }}">New repository</a>
-    </div>
+<header class="page-header">
+    <div><h1>Repositories</h1><p class="muted">Encrypted destinations used by backup jobs.</p></div>
+    <a class="button" href="{{ ROUTER.generate('repositories.create') }}">Add repository</a>
 </header>
 
 {% if flash_success %}<div class="alert alert-success">{{ flash_success }}</div>{% endif %}
 {% if flash_error %}<div class="alert alert-error"><strong>Repository action failed</strong><div>{{ flash_error }}</div></div>{% endif %}
 
-<section class="stats-grid slim-stats">
-    <article class="panel stat-card"><span class="stat-title">Repositories</span><strong>{{ repositories|length }}</strong><small>Active configurations</small></article>
-    <article class="panel stat-card"><span class="stat-title">Ready</span><strong>{{ ready_count }}</strong><small>Available to backup</small></article>
-    <article class="panel stat-card {{ failed_count > 0 or missing_count > 0 ? 'warning-card' : '' }}"><span class="stat-title">Attention</span><strong>{{ failed_count + missing_count }}</strong><small>{{ missing_count > 0 ? missing_count ~ ' missing storage' : (failed_count > 0 ? 'Check failures or init errors' : 'No known issues') }}</small></article>
-</section>
-
 {% if repositories is empty %}
-    <section class="panel empty-state large-empty-state">
-        <div class="empty-illustration"><span>⛁</span></div>
-        <h2>Create your first repository</h2>
-        <p>Pick a folder under <code>/DATA</code> or <code>/media</code>. ZimaBackup initializes and verifies Restic for you.</p>
-        <a class="button" href="{{ ROUTER.generate('repositories.create') }}">Create repository</a>
-    </section>
+    <div class="empty-inline"><strong>No repositories.</strong><p>Create one on a separate disk or storage location.</p></div>
 {% else %}
-    <section class="card-grid repository-grid-v2">
-        {% for repository in repositories %}
-            <article class="panel repository-card-v2">
-                <div class="card-topline">
-                    <div><span class="card-kicker">{{ repository.type|upper }}</span><h2>{{ repository.name }}</h2></div>
-                    <span class="status-pill compact {{ repository.status == 'ready' ? 'ok' : (repository.status in ['pending', 'initializing', 'reinitializing'] ? 'warning' : 'error') }}"><span class="status-dot"></span>{{ repository.status }}</span>
-                </div>
+    {% for repository in repositories %}
+        <section class="simple-section">
+            <div class="simple-section-head">
+                <h2>{{ repository.name }}</h2>
+                <span class="status-pill {{ repository.status == 'ready' ? 'ok' : (repository.status in ['initializing','reinitializing'] ? 'warning' : 'error') }}"><span class="status-dot"></span>{{ repository.status }}</span>
+            </div>
+            <div class="simple-row"><div><strong>{{ repository.path }}</strong><small>{{ repository.active_jobs }} active job{{ repository.active_jobs == 1 ? '' : 's' }}</small></div><div class="simple-row-meta">{{ repository.storage_present ? 'storage present' : 'storage missing' }}</div></div>
+            <div class="simple-row"><div><strong>Integrity</strong><small>{{ repository.last_check_error ?: 'Repository verification state.' }}</small></div><div class="simple-row-meta">{{ repository.last_check_status ?: 'never checked' }}{% if repository.last_check_at %}<br>{{ repository.last_check_at }}{% endif %}</div></div>
+            <div class="simple-row"><div><strong>Prune</strong><small>Reclaims unreferenced data after forgotten snapshots.</small></div><div class="simple-row-meta">{{ repository.last_prune_status ?: 'never' }}{% if repository.last_prune_at %}<br>{{ repository.last_prune_at }}{% endif %}</div></div>
 
-                <dl class="detail-list">
-                    <div><dt>Path</dt><dd><code>{{ repository.path }}</code></dd></div>
-                    <div><dt>Backup jobs</dt><dd>{{ repository.active_jobs }}</dd></div>
-                    <div><dt>Last integrity check</dt><dd>{{ repository.last_check_at ?: 'Never' }}{% if repository.last_check_status %} · {{ repository.last_check_status }}{% endif %}</dd></div>
-                    <div><dt>Storage</dt><dd>{{ repository.storage_present ? 'Restic config found' : 'Missing' }}{% if repository.missing_since %} · since {{ repository.missing_since }}{% endif %}</dd></div>
-                </dl>
+            {% if repository.status == 'missing' %}
+                <div class="alert alert-error"><strong>Repository storage is missing.</strong><div>{{ repository.error }}</div></div>
+            {% endif %}
 
-                {% if repository.status == 'missing' %}
-                    <div class="inline-error"><strong>Repository storage missing.</strong> ZimaBackup still has this configuration and its recovery key, but <code>{{ repository.path }}/config</code> is not available. Existing snapshots cannot be restored while the original repository is missing.</div>
-                    {% if repository.can_reinitialize %}
-                        <p class="action-hint">Reinitialize creates a NEW empty Restic repository at this path using the existing recovery key. Historical snapshot records will be marked unavailable because their data is not part of the new repository.</p>
-                    {% else %}
-                        <p class="action-hint">Reinitialization is blocked because the path exists and is not empty. ZimaBackup will not delete or overwrite those files.</p>
-                    {% endif %}
-                {% elseif repository.error %}<div class="inline-error">{{ repository.error }}</div>{% endif %}
-                {% if repository.last_check_error and repository.status != 'missing' %}<div class="inline-error">Check: {{ repository.last_check_error }}</div>{% endif %}
-
-                <div class="management-actions">
-                    <a class="button button-secondary compact-button" href="{{ ROUTER.generate('repositories.edit', {uuid: repository.uuid}) }}">Edit</a>
-                    <form method="post" action="{{ ROUTER.generate('repositories.check', {uuid: repository.uuid}) }}">
-                        <input type="hidden" name="_csrf" value="{{ csrf_token }}">
-                        <button class="button button-secondary compact-button" type="submit" {{ repository.running_operations > 0 or not repository.storage_present ? 'disabled' : '' }}>Check integrity</button>
-                    </form>
-                    {% if repository.status == 'missing' and repository.can_reinitialize %}
-                        <form method="post" action="{{ ROUTER.generate('repositories.reinitialize', {uuid: repository.uuid}) }}" data-confirm="Reinitialize this missing repository? This creates a NEW EMPTY Restic repository with the existing recovery key. Historical snapshot records from the lost repository will become unavailable. No existing files will be overwritten.">
-                            <input type="hidden" name="_csrf" value="{{ csrf_token }}">
-                            <button class="button danger-button compact-button" type="submit" {{ repository.running_operations > 0 ? 'disabled' : '' }}>Reinitialize</button>
-                        </form>
-                    {% endif %}
-                    <form method="post" action="{{ ROUTER.generate('repositories.remove', {uuid: repository.uuid}) }}" data-confirm="Remove this repository from ZimaBackup? The Restic data on disk will NOT be deleted. After removal, the path can be reused only if it is absent or empty.">
-                        <input type="hidden" name="_csrf" value="{{ csrf_token }}">
-                        <button class="button danger-button compact-button" type="submit" {{ repository.active_jobs > 0 or repository.running_operations > 0 ? 'disabled' : '' }}>Remove</button>
-                    </form>
-                </div>
-                {% if repository.active_jobs > 0 %}<small class="action-hint">Remove is disabled while active backup jobs use this repository.</small>{% endif %}
-            </article>
-        {% endfor %}
-    </section>
+            <div class="form-actions">
+                <form method="post" action="{{ ROUTER.generate('repositories.check', {uuid: repository.uuid}) }}"><input type="hidden" name="_csrf" value="{{ csrf_token }}"><button class="button-secondary" type="submit" {{ repository.running_operations > 0 or not repository.storage_present ? 'disabled' : '' }}>Check</button></form>
+                <form method="post" action="{{ ROUTER.generate('repositories.prune', {uuid: repository.uuid}) }}" data-confirm="Prune this repository now? This can take a long time and reclaims data no longer referenced by snapshots."><input type="hidden" name="_csrf" value="{{ csrf_token }}"><button class="button-secondary" type="submit" {{ repository.status != 'ready' or repository.running_operations > 0 or not repository.storage_present ? 'disabled' : '' }}>Prune</button></form>
+                {% if repository.can_reinitialize %}<form method="post" action="{{ ROUTER.generate('repositories.reinitialize', {uuid: repository.uuid}) }}" data-confirm="Create a new empty Restic repository here with the existing recovery key? Historical snapshots will become unavailable."><input type="hidden" name="_csrf" value="{{ csrf_token }}"><button class="button-secondary" type="submit">Reinitialize</button></form>{% endif %}
+                <a class="button-secondary" href="{{ ROUTER.generate('repositories.edit', {uuid: repository.uuid}) }}">Rename</a>
+                <form method="post" action="{{ ROUTER.generate('repositories.remove', {uuid: repository.uuid}) }}" data-confirm="Remove this repository from ZimaBackup? Backup data on disk will NOT be deleted."><input type="hidden" name="_csrf" value="{{ csrf_token }}"><button class="button-secondary button-danger" type="submit" {{ repository.active_jobs > 0 or repository.running_operations > 0 ? 'disabled' : '' }}>Remove</button></form>
+            </div>
+        </section>
+    {% endfor %}
 {% endif %}
-
-{% if busy_count > 0 %}<div class="refresh-banner" data-auto-refresh><span class="spinner"></span> Repository maintenance is running. This page will refresh automatically.</div>{% endif %}
 {% endblock %}

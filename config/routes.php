@@ -35,6 +35,7 @@ return static function (Application $app): void {
     $router->map('POST', '/backups/[uuid:uuid]/toggle', [BackupController::class, 'toggle'], 'backups.toggle');
     $router->map('POST', '/backups/[uuid:uuid]/delete', [BackupController::class, 'delete'], 'backups.delete');
     $router->map('POST', '/backups/[uuid:uuid]/run', [BackupController::class, 'run'], 'backups.run');
+    $router->map('POST', '/backups/[uuid:uuid]/retention', [BackupController::class, 'applyRetention'], 'backups.retention');
 
     $router->map('GET', '/repositories', [RepositoryController::class, 'index'], 'repositories');
     $router->map('GET', '/repositories/new', [RepositoryController::class, 'create'], 'repositories.create');
@@ -42,6 +43,7 @@ return static function (Application $app): void {
     $router->map('GET', '/repositories/[uuid:uuid]/edit', [RepositoryController::class, 'edit'], 'repositories.edit');
     $router->map('POST', '/repositories/[uuid:uuid]/update', [RepositoryController::class, 'update'], 'repositories.update');
     $router->map('POST', '/repositories/[uuid:uuid]/check', [RepositoryController::class, 'check'], 'repositories.check');
+    $router->map('POST', '/repositories/[uuid:uuid]/prune', [RepositoryController::class, 'prune'], 'repositories.prune');
     $router->map('POST', '/repositories/[uuid:uuid]/reinitialize', [RepositoryController::class, 'reinitialize'], 'repositories.reinitialize');
     $router->map('POST', '/repositories/[uuid:uuid]/remove', [RepositoryController::class, 'remove'], 'repositories.remove');
     $router->map('GET', '/repositories/[uuid:uuid]/recovery-key', [RepositoryController::class, 'recovery'], 'repositories.recovery');

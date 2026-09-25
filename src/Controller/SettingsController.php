@@ -52,6 +52,10 @@ final class SettingsController extends AbstractController
                 'restore.default_root' => $_POST['restore_default_root'] ?? '',
                 'application_restore.default_root' => $_POST['application_restore_default_root'] ?? '',
                 'apps.discovery.interval' => $_POST['apps_discovery_interval'] ?? 120,
+                'maintenance.auto_check' => isset($_POST['maintenance_auto_check']),
+                'maintenance.check_interval_days' => $_POST['maintenance_check_interval_days'] ?? 7,
+                'maintenance.auto_prune' => isset($_POST['maintenance_auto_prune']),
+                'maintenance.prune_interval_days' => $_POST['maintenance_prune_interval_days'] ?? 30,
             ]);
             $session->set('flash_success', 'Settings saved. The worker will use the new values automatically.');
         } catch (InvalidArgumentException $exception) {

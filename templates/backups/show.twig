@@ -3,148 +3,95 @@
 {% block title %}{{ job.name }} - {{ APP.name }}{% endblock %}
 
 {% block content %}
-{% set latest = job.runs|first %}
-<header class="page-header compact-header">
+<header class="page-header">
     <div>
         <a class="back-link" href="{{ ROUTER.generate('backups') }}">← Backups</a>
-        <p class="eyebrow">Backup detail</p>
         <h1>{{ job.name }}</h1>
-        <p class="muted">Destination: <strong>{{ job.repository_name }}</strong> · {% if job.applications|length > 0 %}{{ job.applications|length }} application{{ job.applications|length == 1 ? '' : 's' }}{% if job.sources|length > 0 %} and {% endif %}{% endif %}{% if job.sources|length > 0 %}{{ job.sources|length }} folder source{{ job.sources|length == 1 ? '' : 's' }}{% endif %}</p>
+        <p class="muted">{{ job.repository_name }} · {{ job.repository_path }}</p>
     </div>
-    <div class="header-actions management-header-actions">
-        <span class="status-pill {{ job.enabled ? 'ok' : 'warning' }}"><span class="status-dot"></span>{{ job.enabled ? 'enabled' : 'disabled' }}</span>
-        <a class="button button-secondary" href="{{ ROUTER.generate('backups.edit', {uuid: job.uuid}) }}">Edit</a>
-        <form method="post" action="{{ ROUTER.generate('backups.toggle', {uuid: job.uuid}) }}">
-            <input type="hidden" name="_csrf" value="{{ csrf_token }}">
-            <button class="button button-secondary" type="submit">{{ job.enabled ? 'Disable' : 'Enable' }}</button>
-        </form>
+    <div class="header-actions">
         <form method="post" action="{{ ROUTER.generate('backups.run', {uuid: job.uuid}) }}">
             <input type="hidden" name="_csrf" value="{{ csrf_token }}">
-            <button class="button" type="submit" {{ not job.enabled or (latest and latest.status in ['pending', 'running']) ? 'disabled' : '' }}>Run now</button>
+            <button class="button" type="submit" {{ not job.enabled or job.repository_status != 'ready' ? 'disabled' : '' }}>Run now</button>
         </form>
-        <form method="post" action="{{ ROUTER.generate('backups.delete', {uuid: job.uuid}) }}" data-confirm="Delete this backup job? Existing Restic snapshots will be kept and remain visible in Snapshots.">
-            <input type="hidden" name="_csrf" value="{{ csrf_token }}">
-            <button class="button danger-button" type="submit" {{ latest and latest.status in ['pending', 'running'] ? 'disabled' : '' }}>Delete job</button>
-        </form>
+        <a class="button-secondary" href="{{ ROUTER.generate('backups.edit', {uuid: job.uuid}) }}">Edit</a>
     </div>
 </header>
 
 {% if flash_success %}<div class="alert alert-success">{{ flash_success }}</div>{% endif %}
-{% if flash_error %}<div class="alert alert-error"><strong>Unable to start backup</strong><div>{{ flash_error }}</div></div>{% endif %}
+{% if flash_error %}<div class="alert alert-error"><strong>Action failed</strong><div>{{ flash_error }}</div></div>{% endif %}
 
-<section class="summary-cards four-summary-cards">
-    <article class="summary-card"><span>Repository</span><strong>{{ job.repository_name }}</strong></article>
-    <article class="summary-card"><span>Applications</span><strong>{{ job.applications|length }}</strong></article>
-    <article class="summary-card"><span>Folders</span><strong>{{ job.sources|length }}</strong></article>
-    <article class="summary-card"><span>Latest snapshot</span><strong>{{ latest and latest.snapshot_id ? latest.snapshot_id|slice(0, 12) : '—' }}</strong></article>
+<section class="simple-section">
+    <div class="simple-section-head"><h2>Schedule</h2><span class="status-pill {{ job.enabled ? 'ok' : 'warning' }}"><span class="status-dot"></span>{{ job.enabled ? 'enabled' : 'disabled' }}</span></div>
+    <div class="simple-row">
+        <div><strong>{{ job.schedule_type == 'manual' ? 'Manual' : job.schedule_type|capitalize }}</strong><small>{{ job.schedule_type == 'manual' ? 'Runs only when requested.' : 'Next run is calculated by the worker.' }}</small></div>
+        <div class="simple-row-meta">{{ job.next_run_at ?: '—' }}</div>
+    </div>
 </section>
 
-{% if latest and latest.status in ['pending', 'running'] %}
-    <section class="panel live-panel" data-auto-refresh>
-        <div class="live-panel-head">
-            <div>
-                <span class="card-kicker">Current run</span>
-                <h2>{{ latest.status == 'pending' ? 'Queued for worker' : 'Backup in progress' }}</h2>
+<section class="simple-section">
+    <div class="simple-section-head">
+        <h2>Retention</h2>
+        {% if job.retention_enabled %}
+            <form method="post" action="{{ ROUTER.generate('backups.retention', {uuid: job.uuid}) }}">
+                <input type="hidden" name="_csrf" value="{{ csrf_token }}">
+                <button class="button-secondary" type="submit">Apply now</button>
+            </form>
+        {% endif %}
+    </div>
+    {% if job.retention_enabled %}
+        <div class="simple-row">
+            <div><strong>Automatic retention</strong><small>Policies are combined: a snapshot is kept if any rule keeps it.</small></div>
+            <div class="simple-row-meta">last {{ job.keep_last }} · daily {{ job.keep_daily }} · weekly {{ job.keep_weekly }} · monthly {{ job.keep_monthly }}</div>
+        </div>
+        {% if job.retention_runs is not empty %}
+            {% set retention = job.retention_runs[0] %}
+            <div class="simple-row">
+                <div><strong>Last retention run</strong><small>{{ retention.status }}{% if retention.error %} · {{ retention.error|slice(0, 100) }}{% endif %}</small></div>
+                <div class="simple-row-meta">{{ retention.finished_at ?: retention.created_at }} · {{ retention.removed_count }} removed</div>
             </div>
-            <strong>{{ latest.progress_percent|default(0)|number_format(0) }}%</strong>
-        </div>
-        <div class="progress-track large-track"><span style="width: {{ latest.progress_percent|default(0) }}%"></span></div>
-        <div class="summary-cards three-summary-cards compact-summary-cards">
-            <article class="summary-card"><span>Files</span><strong>{{ latest.files_done|default(0) }} / {{ latest.total_files|default(0) }}</strong></article>
-            <article class="summary-card"><span>Processed</span><strong>{{ latest.bytes_done|bytes }} / {{ latest.total_bytes|bytes }}</strong></article>
-            <article class="summary-card"><span>Errors</span><strong>{{ latest.error_count|default(0) }}</strong></article>
-        </div>
-    </section>
-{% elseif latest and latest.status == 'failed' %}
-    <section class="panel attention-panel">
-        <span class="status-pill error"><span class="status-dot"></span>Last run failed</span>
-        <h2>Backup failed</h2>
-        <p>{{ latest.error }}</p>
-    </section>
-{% elseif latest and latest.status in ['success', 'warning'] %}
-    <section class="panel success-panel-v2">
-        <div>
-            <span class="status-pill {{ latest.status == 'warning' ? 'warning' : 'ok' }}"><span class="status-dot"></span>{{ latest.status == 'warning' ? 'Completed with warnings' : 'Completed successfully' }}</span>
-            <h2>Latest snapshot result</h2>
-            <p>{{ latest.files_new }} new, {{ latest.files_changed }} changed, {{ latest.files_unmodified }} unchanged files.{% if latest.status == 'warning' and latest.error %} {{ latest.error }}{% endif %}</p>
-        </div>
-        <div class="summary-cards two-summary-cards compact-summary-cards">
-            <article class="summary-card"><span>Snapshot</span><strong>{{ latest.snapshot_id ? latest.snapshot_id|slice(0, 12) : '—' }}</strong></article>
-            <article class="summary-card"><span>Added</span><strong>{{ latest.bytes_added|bytes }}</strong></article>
-        </div>
-    </section>
-{% endif %}
-
-<div class="content-grid two-col-grid">
-    {% if job.applications is not empty %}
-        <section class="panel">
-            <div class="panel-heading"><div><span class="card-kicker">Protected applications</span><h2>Applications</h2></div></div>
-            <div class="detail-stack">
-                {% for application in job.applications %}
-                    <div class="detail-row-card">
-                        <div>
-                            <strong>{{ application.app_name }}</strong>
-                            <small>{{ application.app_key }}</small>
-                        </div>
-                        <div class="detail-row-meta">
-                            <span>{{ application.selected_mounts|length }} mount{{ application.selected_mounts|length == 1 ? '' : 's' }}</span>
-                            <span>Encrypted manifest</span>
-                        </div>
-                    </div>
-                {% endfor %}
-            </div>
-        </section>
+        {% endif %}
+    {% else %}
+        <div class="empty-inline"><strong>Retention is off.</strong><p>Snapshots remain until you forget them manually.</p></div>
     {% endif %}
+</section>
 
-    <section class="panel">
-        <div class="panel-heading"><div><span class="card-kicker">Destination</span><h2>Repository</h2></div></div>
-        <div class="detail-stack">
-            <div class="detail-row-card wide-row-card">
-                <div>
-                    <strong>{{ job.repository_name }}</strong>
-                    <small>{{ job.repository_path }}</small>
-                </div>
-                <span class="status-pill compact {{ job.repository_status == 'ready' ? 'ok' : (job.repository_status in ['pending', 'initializing'] ? 'warning' : 'error') }}"><span class="status-dot"></span>{{ job.repository_status }}</span>
+<section class="simple-section">
+    <div class="simple-section-head"><h2>Protected data</h2><a class="text-link" href="{{ ROUTER.generate('backups.edit', {uuid: job.uuid}) }}">Edit</a></div>
+    {% for application in job.applications %}
+        <div class="simple-row"><div><strong>{{ application.app_name }}</strong><small>Application · {{ application.selected_mounts|length }} selected mount{{ application.selected_mounts|length == 1 ? '' : 's' }}</small></div><div class="simple-row-meta">app</div></div>
+    {% endfor %}
+    {% for source in job.sources %}
+        <div class="simple-row"><div><strong>{{ source.path }}</strong><small>Folder source</small></div><div class="simple-row-meta">folder</div></div>
+    {% endfor %}
+</section>
+
+<section class="simple-section">
+    <div class="simple-section-head"><h2>Recent runs</h2><a class="text-link" href="{{ ROUTER.generate('snapshots') }}">Recovery points</a></div>
+    {% for run in job.runs %}
+        <div class="simple-row">
+            <div>
+                <strong>{{ run.status }}</strong>
+                <small>{{ run.error ?: (run.snapshot_id ? 'snapshot ' ~ run.snapshot_id|slice(0, 12) : 'No snapshot') }}</small>
             </div>
-            {% for source in job.sources %}
-                <div class="detail-row-card wide-row-card">
-                    <div>
-                        <strong>{{ source.label ?: source.path }}</strong>
-                        <small>{{ source.path }}</small>
-                    </div>
-                    <span class="mini-tag eligible">folder source</span>
-                </div>
-            {% else %}
-                <div class="empty-inline">
-                    <strong>No extra folder sources</strong>
-                    <p>This job currently protects applications only.</p>
-                </div>
-            {% endfor %}
-        </div>
-    </section>
-</div>
-
-<section class="panel">
-    <div class="panel-heading"><div><span class="card-kicker">History</span><h2>Recent runs</h2></div></div>
-    {% if job.runs is empty %}
-        <div class="empty-inline">
-            <strong>No history yet</strong>
-            <p>Press <strong>Run now</strong> to create the first snapshot.</p>
+            <div class="simple-row-meta">{{ run.finished_at ?: run.started_at }}{% if run.bytes_processed %}<br>{{ run.bytes_processed|bytes }}{% endif %}</div>
         </div>
     {% else %}
-        <div class="history-list">
-            {% for run in job.runs %}
-                <div class="history-item">
-                    <span class="status-pill compact {{ run.status in ['success'] ? 'ok' : (run.status in ['pending', 'running', 'warning'] ? 'warning' : 'error') }}"><span class="status-dot"></span>{{ run.status }}</span>
-                    <div class="history-main">
-                        <strong>{{ run.started_at }}</strong>
-                        <small>{{ run.status in ['success', 'warning'] ? run.bytes_processed|bytes ~ ' processed' : (run.error ?: 'No extra details') }}</small>
-                    </div>
-                    <div class="history-side">{{ run.files_new }} new · {{ run.files_changed }} changed</div>
-                    <code>{{ run.snapshot_id ? run.snapshot_id|slice(0, 10) : '—' }}</code>
-                </div>
-            {% endfor %}
-        </div>
-    {% endif %}
+        <div class="empty-inline"><strong>No runs yet.</strong><p>Run the job to create its first recovery point.</p></div>
+    {% endfor %}
+</section>
+
+<section class="simple-section">
+    <div class="simple-section-head"><h2>Job actions</h2></div>
+    <div class="form-actions">
+        <form method="post" action="{{ ROUTER.generate('backups.toggle', {uuid: job.uuid}) }}">
+            <input type="hidden" name="_csrf" value="{{ csrf_token }}">
+            <button class="button-secondary" type="submit">{{ job.enabled ? 'Disable' : 'Enable' }}</button>
+        </form>
+        <form method="post" action="{{ ROUTER.generate('backups.delete', {uuid: job.uuid}) }}" data-confirm="Delete this backup job? Existing Restic snapshots will be kept.">
+            <input type="hidden" name="_csrf" value="{{ csrf_token }}">
+            <button class="button-secondary button-danger" type="submit">Delete job</button>
+        </form>
+    </div>
 </section>
 {% endblock %}

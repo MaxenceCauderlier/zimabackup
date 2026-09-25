@@ -225,6 +225,131 @@ final class RepositoryService
         );
     }
 
+    public function enqueuePrune(string $uuid): void
+    {
+        $repository = $this->findByUuid($uuid);
+        if ($repository === null || $repository['archived_at'] !== null) {
+            throw new InvalidArgumentException('Repository not found.');
+        }
+        if ($repository['status'] !== 'ready') {
+            throw new InvalidArgumentException('Repository must be ready before pruning.');
+        }
+
+        $containerPath = $this->paths->toContainerPath((string) $repository['path']);
+        if (!$this->repositoryConfigExists($containerPath)) {
+            $message = $this->missingMessage((string) $repository['path']);
+            $this->markMissing((int) $repository['id'], $message);
+            throw new InvalidArgumentException($message);
+        }
+
+        $active = (int) $this->database->scalar(
+            "SELECT COUNT(*) FROM operations WHERE repository_id = :id AND status IN ('pending','running')",
+            ['id' => $repository['id']]
+        );
+        if ($active > 0) {
+            throw new InvalidArgumentException('Wait for active repository operations before pruning.');
+        }
+
+        $operationId = $this->queue->enqueue('repository.prune', ['repository_id' => (int) $repository['id']]);
+        $this->database->execute(
+            'UPDATE operations SET repository_id = :repository_id WHERE id = :operation_id',
+            ['repository_id' => $repository['id'], 'operation_id' => $operationId]
+        );
+        $this->database->execute(
+            "UPDATE repositories SET last_prune_status = 'queued', last_prune_error = NULL WHERE id = :id",
+            ['id' => $repository['id']]
+        );
+    }
+
+    public function prune(int $repositoryId): void
+    {
+        $repository = $this->findById($repositoryId);
+        if ($repository === null) {
+            throw new RuntimeException('Repository not found.');
+        }
+        $path = $this->paths->toContainerPath((string) $repository['path']);
+        if (!$this->repositoryConfigExists($path)) {
+            $message = $this->missingMessage((string) $repository['path']);
+            $this->markMissing($repositoryId, $message);
+            throw new RuntimeException($message);
+        }
+        if (!is_readable((string) $repository['password_file'])) {
+            throw new RuntimeException('Repository recovery key file is missing or unreadable.');
+        }
+
+        $this->database->execute(
+            "UPDATE repositories SET last_prune_status = 'running', last_prune_error = NULL WHERE id = :id",
+            ['id' => $repositoryId]
+        );
+        $this->restic->pruneRepository($path, (string) $repository['password_file']);
+        $now = date('c');
+        $this->database->execute(
+            "UPDATE repositories SET last_prune_status = 'success', last_prune_at = :at, last_prune_error = NULL, updated_at = :at WHERE id = :id",
+            ['at' => $now, 'id' => $repositoryId]
+        );
+    }
+
+    public function markPruneFailed(int $repositoryId, string $error): void
+    {
+        $this->database->execute(
+            "UPDATE repositories SET last_prune_status = 'failed', last_prune_at = :at, last_prune_error = :error WHERE id = :id",
+            ['at' => date('c'), 'error' => substr($error, 0, 4000), 'id' => $repositoryId]
+        );
+    }
+
+    /** Queue at most one automatic maintenance task per call. */
+    public function enqueueDueMaintenance(int $checkIntervalDays, bool $autoPrune, int $pruneIntervalDays): bool
+    {
+        $repositories = $this->database->fetchAll(
+            "SELECT * FROM repositories WHERE archived_at IS NULL AND status = 'ready' ORDER BY id ASC"
+        );
+        $now = time();
+        foreach ($repositories as $repository) {
+            $active = (int) $this->database->scalar(
+                "SELECT COUNT(*) FROM operations WHERE repository_id = :id AND status IN ('pending','running')",
+                ['id' => $repository['id']]
+            );
+            if ($active > 0) {
+                continue;
+            }
+
+            if ($checkIntervalDays > 0) {
+                $lastCheck = $repository['last_check_at'] ? strtotime((string) $repository['last_check_at']) : false;
+                if ($lastCheck === false || $lastCheck <= $now - ($checkIntervalDays * 86400)) {
+                    try {
+                        $this->enqueueCheck((string) $repository['uuid']);
+                        return true;
+                    } catch (Throwable) {
+                        continue;
+                    }
+                }
+            }
+
+            if ($autoPrune && $pruneIntervalDays > 0) {
+                $lastPrune = $repository['last_prune_at'] ? strtotime((string) $repository['last_prune_at']) : false;
+                $due = $lastPrune === false || $lastPrune <= $now - ($pruneIntervalDays * 86400);
+                if (!$due) {
+                    continue;
+                }
+                $forgotten = (int) $this->database->scalar(
+                    "SELECT COUNT(*) FROM backup_runs br JOIN backup_jobs bj ON bj.id = br.backup_job_id " .
+                    "WHERE bj.repository_id = :repository_id AND br.forgotten_at IS NOT NULL " .
+                    "AND (:last_prune IS NULL OR br.forgotten_at > :last_prune)",
+                    ['repository_id' => $repository['id'], 'last_prune' => $repository['last_prune_at']]
+                );
+                if ($forgotten > 0) {
+                    try {
+                        $this->enqueuePrune((string) $repository['uuid']);
+                        return true;
+                    } catch (Throwable) {
+                        continue;
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
     public function enqueueReinitialize(string $uuid): void
     {
         $repository = $this->findByUuid($uuid);

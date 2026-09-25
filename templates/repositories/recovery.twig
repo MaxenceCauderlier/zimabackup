@@ -1,49 +1,10 @@
 {% extends "layout.twig" %}
-
 {% block title %}Recovery key - {{ APP.name }}{% endblock %}
-
 {% block content %}
-<header class="page-header compact-header">
-    <div>
-        <p class="eyebrow">Save this now</p>
-        <h1>Repository recovery key</h1>
-        <p class="muted">Your repository <strong>{{ repository.name }}</strong> is being initialized in the background.</p>
-    </div>
-</header>
-
-<section class="panel recovery-panel-v2">
-    {% if recovery_key %}
-        <div class="recovery-intro">
-            <span class="status-pill ok"><span class="status-dot"></span>Shown once only</span>
-            <h2>Store this key outside the server</h2>
-            <p>Without this recovery key, an encrypted Restic repository cannot be reopened if ZimaBackup's local state is lost.</p>
-        </div>
-
-        <div class="secret-block">
-            <input id="recovery-key" type="text" readonly value="{{ recovery_key }}">
-            <button class="button" type="button" data-copy="#recovery-key">Copy key</button>
-        </div>
-
-        <div class="hint-chips">
-            <span>Password manager</span>
-            <span>Offline secure copy</span>
-            <span>Do not keep it only on ZimaOS</span>
-        </div>
-    {% else %}
-        <div class="alert alert-error">
-            <strong>The recovery key is no longer available here.</strong>
-            <div>For security, it was removed from the web session after the first display.</div>
-        </div>
-    {% endif %}
-
-    <div class="summary-cards three-summary-cards">
-        <article class="summary-card"><span>Repository</span><strong>{{ repository.name }}</strong></article>
-        <article class="summary-card"><span>Location</span><strong><code>{{ repository.path }}</code></strong></article>
-        <article class="summary-card"><span>Status</span><strong>{{ repository.status }}</strong></article>
-    </div>
-
-    <div class="form-actions recovery-actions">
-        <a class="button" href="{{ ROUTER.generate('repositories') }}">I saved the key</a>
-    </div>
-</section>
+<header class="page-header"><div><h1>Save the recovery key</h1><p class="muted">This key unlocks {{ repository.name }}. Keep a copy outside this machine.</p></div></header>
+{% if recovery_key %}
+<section class="panel stack-form"><label class="field"><span>Recovery key</span><input id="recovery-key" type="text" readonly value="{{ recovery_key }}"></label><div class="form-actions"><button class="button-secondary" type="button" data-copy="#recovery-key">Copy</button><a class="button" href="{{ ROUTER.generate('repositories') }}">I saved it</a></div></section>
+{% else %}
+<div class="alert alert-warning"><strong>This one-time key is no longer available in the browser session.</strong><div>The worker-side secret file is still used by ZimaBackup.</div></div><a class="button-secondary" href="{{ ROUTER.generate('repositories') }}">Back to repositories</a>
+{% endif %}
 {% endblock %}

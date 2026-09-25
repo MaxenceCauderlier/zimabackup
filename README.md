@@ -2,9 +2,58 @@
 
 ZimaBackup is a lightweight, application-aware backup and disaster-recovery manager for ZimaOS, built with PHP 8.4, Twig, SQLite and Restic.
 
-## Current milestone — v0.10.1 Repository recovery
+## Current milestone — v0.11 Scheduling & Retention
 
-v0.10.1 hardens repository management. Missing Restic storage is detected explicitly, integrity checks now report a clean missing-storage state, and a missing repository can be safely reinitialized only when its destination is absent or empty. Historical snapshots from a lost repository are retained as unavailable records after reinitialization.
+v0.11 adds day-to-day automation and deliberately simplifies the interface. The UI now behaves more like a quiet system utility than a generic SaaS dashboard: text-first navigation, compact actions, simple lists and details, and much less decorative chrome.
+
+### Scheduling
+
+Backup jobs can run:
+
+- manually;
+- daily at a selected time;
+- weekly on a selected weekday and time.
+
+The worker calculates `next_run_at` in the configured `TZ`. When a scheduled run becomes due, the backup operation and the next due time are committed together so a worker restart does not normally queue the same occurrence twice.
+
+### Retention
+
+Retention is configured per backup job and can combine:
+
+- keep last N snapshots;
+- keep daily snapshots;
+- keep weekly snapshots;
+- keep monthly snapshots.
+
+The rules are inclusive: a snapshot kept by any configured rule is retained. ZimaBackup always keeps at least one snapshot and applies retention only to snapshots known to belong to that backup job. It does not run a repository-wide Restic retention policy that could accidentally affect another job sharing the same repository.
+
+Retention runs separately after a successful backup. It uses exact snapshot IDs with `restic forget`. Disk space is reclaimed separately by `restic prune`.
+
+### Repository maintenance
+
+Repositories now support:
+
+- manual integrity check;
+- manual prune;
+- automatic integrity checks (enabled by default every 7 days);
+- optional automatic prune (disabled by default, interval configurable in Settings).
+
+Automatic prune is queued only when ZimaBackup knows that snapshots were forgotten since the previous prune.
+
+### Minimal interface
+
+The main sections are now:
+
+- **Overview** — overall state, last successful backup, next scheduled backup, jobs and recent activity;
+- **Backups** — simple job list and detail pages;
+- **Repositories** — repository state and maintenance actions;
+- **Restore** — recovery points and restore history;
+- **Applications** — detected Docker/ZimaOS applications;
+- **Settings** — restore paths, discovery and repository maintenance.
+
+The redesign intentionally removes the previous dashboard-card style, gradients, large decorative metrics and unnecessary status chrome.
+
+## Existing disaster-recovery workflow
 
 The existing Restore & Install workflow remains available and currently supports:
 
@@ -19,7 +68,7 @@ The existing Restore & Install workflow remains available and currently supports
 9. recreate and start the backed-up containers;
 10. verify that the recreated containers remain running.
 
-Automatic installation is a **separate confirmed step** after an Original paths restore. The user must type `INSTALL` before the worker can create Docker objects.
+Automatic installation is a separate confirmed step after an Original paths restore. The user must type `INSTALL` before the worker can create Docker objects.
 
 ### Restore & Install safety rules
 
@@ -33,7 +82,7 @@ ZimaBackup refuses automatic installation when:
 - a named Docker volume is required, because named-volume contents are not backed up yet;
 - an existing container name would be replaced.
 
-If container creation or startup fails, ZimaBackup removes Docker containers and networks created by that installation attempt where possible. Restored user/application data is **not deleted**.
+If container creation or startup fails, ZimaBackup removes Docker containers and networks created by that installation attempt where possible. Restored user/application data is not deleted.
 
 ## Development
 
@@ -64,6 +113,8 @@ ZIMABACKUP_DATA_PATH=/DATA
 ZIMABACKUP_MEDIA_PATH=/media
 ```
 
+The application timezone comes from `TZ` (the example uses `Europe/Paris`) and is also used for scheduled backup times.
+
 The isolated worker receives the Docker socket. The browser-facing `app` container never receives it.
 
 ## Integration simulator (no ZimaOS required)
@@ -90,7 +141,7 @@ The simulator creates the Compose project `zima-demo` with Nginx + Redis and bin
 2. Create repository `/media/Backup/ZimaBackup`.
 3. Create a backup containing `Zima Demo` and its selected Nginx/Redis mounts.
 4. Run the backup successfully.
-5. Inspect **Snapshots → Applications** and confirm the sanitized preview.
+5. Inspect **Restore → Applications** and confirm the sanitized preview.
 6. Destroy the simulated app:
 
 ```bash
@@ -110,28 +161,17 @@ The simulator creates the Compose project `zima-demo` with Nginx + Redis and bin
 
 The test passes when the recreated Docker project is running and `http://localhost:8095` serves the restored HTML file.
 
-## Safe file restore
-
-Normal snapshot restores still use an isolated target under:
-
-```text
-/DATA/ZimaBackup/Restores/...
-```
-
-and refuse non-empty targets or repository overlap.
-
 ## Upgrading
 
 Keep the existing `storage/` directory.
 
-v0.10.1 adds:
+v0.11 adds:
 
 ```text
-009_management.sql
-010_repository_recovery.sql
+011_scheduling_retention.sql
 ```
 
-All migrations are applied automatically on startup.
+Previous migrations are kept and applied automatically when required.
 
 ```bash
 docker compose down
@@ -150,7 +190,7 @@ The browser-facing Apache/PHP service:
 The worker:
 
 - exposes no HTTP port;
-- owns backup, restore and application installation execution;
+- owns backup, restore, retention and application installation execution;
 - can read/write `/DATA` and `/media`;
 - accesses Docker through `/var/run/docker.sock`;
 - uses the Docker Engine API directly instead of exposing Docker control to the web process;

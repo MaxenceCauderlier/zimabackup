@@ -1,77 +1,12 @@
 {% extends "layout.twig" %}
-
 {% block title %}New repository - {{ APP.name }}{% endblock %}
-
 {% block content %}
-<header class="page-header compact-header">
-    <div>
-        <a class="back-link" href="{{ ROUTER.generate('repositories') }}">← Repositories</a>
-        <p class="eyebrow">Create destination</p>
-        <h1>Set up an encrypted repository</h1>
-        <p class="muted">This is where all future snapshots will be stored.</p>
-    </div>
-</header>
-
-<div class="form-shell two-col-form-shell">
-    <section class="panel form-panel-v2">
-        {% if errors %}
-            <div class="alert alert-error">
-                <strong>We couldn't create this repository.</strong>
-                {% for error in errors %}<div>{{ error }}</div>{% endfor %}
-            </div>
-        {% endif %}
-
-        <form method="post" action="{{ ROUTER.generate('repositories.store') }}" class="stack-form">
-            <input type="hidden" name="_csrf" value="{{ csrf_token }}">
-
-            <div class="form-section-block">
-                <div class="section-label"><span>1</span><div><strong>Name</strong><small>Friendly label for the interface.</small></div></div>
-                <label class="field">
-                    <span>Repository name</span>
-                    <input type="text" name="name" maxlength="100" required autocomplete="off" value="{{ values.name }}" placeholder="USB Backup">
-                </label>
-            </div>
-
-            <div class="form-section-block">
-                <div class="section-label"><span>2</span><div><strong>Location</strong><small>A dedicated folder on ZimaOS or on a USB disk.</small></div></div>
-                <label class="field">
-                    <span>Path</span>
-                    <input type="text" name="path" required spellcheck="false" autocomplete="off" value="{{ values.path }}" placeholder="/media/Backup/ZimaBackup">
-                    <small>Allowed roots: <code>/DATA</code> and <code>/media</code>.</small>
-                </label>
-            </div>
-
-            <div class="info-strip">
-                <strong>Always encrypted</strong>
-                <p>ZimaBackup generates a Restic recovery key automatically and shows it once after creation.</p>
-            </div>
-
-            <div class="form-actions">
-                <a class="button button-secondary" href="{{ ROUTER.generate('repositories') }}">Cancel</a>
-                <button class="button" type="submit">Create repository</button>
-            </div>
-        </form>
-    </section>
-
-    <aside class="help-column">
-        <article class="panel side-note-card">
-            <span class="card-kicker">Recommended</span>
-            <h3>Use separate storage</h3>
-            <p>For better disaster recovery, avoid saving backups only on the main system disk.</p>
-        </article>
-        <article class="panel side-note-card soft-note">
-            <span class="card-kicker">Example</span>
-            <code>/media/MyUSB/ZimaBackup</code>
-            <p>The worker can create the folder and initialize Restic inside it.</p>
-        </article>
-        <article class="panel side-note-card soft-note">
-            <span class="card-kicker">Next</span>
-            <ul class="simple-list">
-                <li>Recovery key generated</li>
-                <li>Repository initialized</li>
-                <li>Integrity checked</li>
-            </ul>
-        </article>
-    </aside>
-</div>
+<header class="page-header"><div><a class="back-link" href="{{ ROUTER.generate('repositories') }}">← Repositories</a><h1>New repository</h1><p class="muted">The destination must be absent or empty. ZimaBackup will initialize Restic there.</p></div></header>
+{% if errors %}<div class="alert alert-error">{% for error in errors %}<div>{{ error }}</div>{% endfor %}</div>{% endif %}
+<form method="post" action="{{ ROUTER.generate('repositories.store') }}" class="panel stack-form">
+<input type="hidden" name="_csrf" value="{{ csrf_token }}">
+<label class="field"><span>Name</span><input type="text" name="name" value="{{ values.name }}" maxlength="100" required placeholder="USB Backup"></label>
+<label class="field"><span>Path</span><input type="text" name="path" value="{{ values.path }}" required><small>Example: /media/Backup/ZimaBackup</small></label>
+<div class="form-actions"><a class="button-secondary" href="{{ ROUTER.generate('repositories') }}">Cancel</a><button class="button" type="submit">Create repository</button></div>
+</form>
 {% endblock %}

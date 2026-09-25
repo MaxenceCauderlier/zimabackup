@@ -21,6 +21,10 @@ final class SettingsService
             'restore.default_root' => '/DATA/ZimaBackup/Restores',
             'application_restore.default_root' => '/DATA/ZimaBackup/ApplicationRestores',
             'apps.discovery.interval' => (string) max(30, (int) (getenv('APP_DISCOVERY_INTERVAL') ?: 120)),
+            'maintenance.auto_check' => '1',
+            'maintenance.check_interval_days' => '7',
+            'maintenance.auto_prune' => '0',
+            'maintenance.prune_interval_days' => '30',
         ];
     }
 
@@ -57,11 +61,23 @@ final class SettingsService
         if ($discoveryInterval < 30 || $discoveryInterval > 3600) {
             throw new InvalidArgumentException('Application discovery interval must be between 30 and 3600 seconds.');
         }
+        $checkInterval = (int) ($input['maintenance.check_interval_days'] ?? 7);
+        if ($checkInterval < 1 || $checkInterval > 365) {
+            throw new InvalidArgumentException('Repository check interval must be between 1 and 365 days.');
+        }
+        $pruneInterval = (int) ($input['maintenance.prune_interval_days'] ?? 30);
+        if ($pruneInterval < 1 || $pruneInterval > 365) {
+            throw new InvalidArgumentException('Repository prune interval must be between 1 and 365 days.');
+        }
 
         $values = [
             'restore.default_root' => $restoreRoot,
             'application_restore.default_root' => $applicationRestoreRoot,
             'apps.discovery.interval' => (string) $discoveryInterval,
+            'maintenance.auto_check' => !empty($input['maintenance.auto_check']) ? '1' : '0',
+            'maintenance.check_interval_days' => (string) $checkInterval,
+            'maintenance.auto_prune' => !empty($input['maintenance.auto_prune']) ? '1' : '0',
+            'maintenance.prune_interval_days' => (string) $pruneInterval,
         ];
 
         $now = date('c');

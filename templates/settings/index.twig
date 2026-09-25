@@ -3,54 +3,46 @@
 {% block title %}Settings - {{ APP.name }}{% endblock %}
 
 {% block content %}
-<header class="page-header hero-header">
-    <div>
-        <p class="eyebrow">Application configuration</p>
-        <h1>Settings</h1>
-        <p class="muted">These values are stored in ZimaBackup and are consumed by both the web app and worker.</p>
-    </div>
-    <span class="status-pill ok"><span class="status-dot"></span>v{{ version }}</span>
-</header>
+<header class="page-header"><div><h1>Settings</h1><p class="muted">Defaults and background maintenance. Changes are read by the worker automatically.</p></div></header>
 
 {% if flash_success %}<div class="alert alert-success">{{ flash_success }}</div>{% endif %}
-{% if flash_error %}<div class="alert alert-error"><strong>Unable to save settings</strong><div>{{ flash_error }}</div></div>{% endif %}
+{% if flash_error %}<div class="alert alert-error"><strong>Unable to save</strong><div>{{ flash_error }}</div></div>{% endif %}
 
-<form method="post" action="{{ ROUTER.generate('settings.update') }}">
+<form method="post" action="{{ ROUTER.generate('settings.update') }}" class="stack-form">
     <input type="hidden" name="_csrf" value="{{ csrf_token }}">
-    <div class="content-grid two-col-grid">
-        <section class="panel form-panel-v2 stack-form">
-            <div class="panel-heading"><div><span class="card-kicker">Recovery</span><h2>Default restore locations</h2></div></div>
-            <label class="field">
-                <span>File restore root</span>
-                <input type="text" name="restore_default_root" value="{{ values['restore.default_root'] }}" required>
-                <small>New safe file restores will be proposed below this path.</small>
-            </label>
-            <label class="field">
-                <span>Application staging root</span>
-                <input type="text" name="application_restore_default_root" value="{{ values['application_restore.default_root'] }}" required>
-                <small>Application restores stage data here before any original-path operation.</small>
-            </label>
-        </section>
 
-        <section class="panel form-panel-v2 stack-form">
-            <div class="panel-heading"><div><span class="card-kicker">Discovery</span><h2>Docker application scan</h2></div></div>
-            <label class="field">
-                <span>Background discovery interval (seconds)</span>
-                <input type="number" name="apps_discovery_interval" min="30" max="3600" value="{{ values['apps.discovery.interval'] }}" required>
-                <small>Accepted range: 30 to 3600 seconds. The worker picks up changes without restart.</small>
-            </label>
-            <div class="summary-cards two-summary-cards">
-                <article class="summary-card"><span>Docker socket</span><strong><code>{{ docker_socket }}</code></strong></article>
-                <article class="summary-card"><span>Restic</span><strong>{{ restic_version ?: 'Unavailable' }}</strong></article>
-            </div>
-        </section>
-    </div>
-    <div class="form-actions page-form-actions"><button class="button" type="submit">Save settings</button></div>
+    <section class="simple-section">
+        <div class="simple-section-head"><h2>Restore paths</h2></div>
+        <div class="panel stack-form">
+            <label class="field"><span>File restore root</span><input type="text" name="restore_default_root" value="{{ values['restore.default_root'] }}"><small>New file restores are created below this directory.</small></label>
+            <label class="field"><span>Application staging root</span><input type="text" name="application_restore_default_root" value="{{ values['application_restore.default_root'] }}"><small>Safe staging area used before original-path application restores.</small></label>
+        </div>
+    </section>
+
+    <section class="simple-section">
+        <div class="simple-section-head"><h2>Discovery</h2></div>
+        <div class="panel stack-form">
+            <label class="field"><span>Application discovery interval</span><input type="number" min="30" max="3600" name="apps_discovery_interval" value="{{ values['apps.discovery.interval'] }}"><small>Seconds between automatic Docker discovery passes.</small></label>
+        </div>
+    </section>
+
+    <section class="simple-section">
+        <div class="simple-section-head"><h2>Repository maintenance</h2></div>
+        <div class="panel stack-form">
+            <label class="toggle-line"><input type="checkbox" name="maintenance_auto_check" value="1" {{ values['maintenance.auto_check'] == '1' ? 'checked' : '' }}><span><strong>Automatic integrity checks</strong><small>Queue Restic check for ready repositories on the interval below.</small></span></label>
+            <label class="field"><span>Check every</span><input type="number" min="1" max="365" name="maintenance_check_interval_days" value="{{ values['maintenance.check_interval_days'] }}"><small>Days.</small></label>
+            <label class="toggle-line"><input type="checkbox" name="maintenance_auto_prune" value="1" {{ values['maintenance.auto_prune'] == '1' ? 'checked' : '' }}><span><strong>Automatic prune</strong><small>Disabled by default. When enabled, only repositories with forgotten snapshots are pruned.</small></span></label>
+            <label class="field"><span>Prune every</span><input type="number" min="1" max="365" name="maintenance_prune_interval_days" value="{{ values['maintenance.prune_interval_days'] }}"><small>Days. Manual prune remains available from Repositories.</small></label>
+        </div>
+    </section>
+
+    <div class="form-actions"><button class="button" type="submit">Save settings</button></div>
 </form>
 
-<section class="panel maintenance-note">
-    <span class="card-kicker">Safety model</span>
-    <h2>Destructive actions stay explicit</h2>
-    <p class="muted">Removing a repository from ZimaBackup never deletes the Restic repository on disk. Snapshot deletion uses <code>restic forget</code>; physical data compaction with <code>prune</code> will be introduced with retention management.</p>
+<section class="simple-section">
+    <div class="simple-section-head"><h2>Runtime</h2></div>
+    <div class="simple-row"><div><strong>ZimaBackup</strong><small>Installed application version.</small></div><div class="simple-row-meta">{{ version }}</div></div>
+    <div class="simple-row"><div><strong>Restic</strong><small>Backup engine detected by the worker image.</small></div><div class="simple-row-meta">{{ restic_version ?: 'unavailable' }}</div></div>
+    <div class="simple-row"><div><strong>Docker socket</strong><small>Used only by the privileged worker.</small></div><div class="simple-row-meta"><code>{{ docker_socket }}</code></div></div>
 </section>
 {% endblock %}

@@ -1,36 +1,7 @@
 {% extends "layout.twig" %}
-
-{% block title %}Edit {{ repository.name }} - {{ APP.name }}{% endblock %}
-
+{% block title %}Rename repository - {{ APP.name }}{% endblock %}
 {% block content %}
-<header class="page-header compact-header">
-    <div>
-        <a class="back-link" href="{{ ROUTER.generate('repositories') }}">← Repositories</a>
-        <p class="eyebrow">Repository settings</p>
-        <h1>Edit repository</h1>
-        <p class="muted">The repository path is intentionally immutable here so historical snapshots cannot silently point somewhere else.</p>
-    </div>
-</header>
-
-<section class="panel form-panel-v2 narrow-panel">
-    {% if errors %}
-        <div class="alert alert-error"><strong>Unable to save</strong>{% for error in errors %}<div>{{ error }}</div>{% endfor %}</div>
-    {% endif %}
-    <form method="post" action="{{ ROUTER.generate('repositories.update', {uuid: repository.uuid}) }}" class="stack-form">
-        <input type="hidden" name="_csrf" value="{{ csrf_token }}">
-        <label class="field">
-            <span>Repository name</span>
-            <input type="text" name="name" value="{{ repository.name }}" maxlength="100" required>
-        </label>
-        <label class="field">
-            <span>Repository path</span>
-            <input type="text" value="{{ repository.path }}" disabled>
-            <small>Path changes require creating a new repository entry.</small>
-        </label>
-        <div class="form-actions">
-            <a class="button button-secondary" href="{{ ROUTER.generate('repositories') }}">Cancel</a>
-            <button class="button" type="submit">Save changes</button>
-        </div>
-    </form>
-</section>
+<header class="page-header"><div><a class="back-link" href="{{ ROUTER.generate('repositories') }}">← Repositories</a><h1>Rename repository</h1><p class="muted">The storage path is intentionally immutable.</p></div></header>
+{% if errors %}<div class="alert alert-error">{% for error in errors %}<div>{{ error }}</div>{% endfor %}</div>{% endif %}
+<form method="post" action="{{ ROUTER.generate('repositories.update', {uuid: repository.uuid}) }}" class="panel stack-form"><input type="hidden" name="_csrf" value="{{ csrf_token }}"><label class="field"><span>Name</span><input type="text" name="name" value="{{ repository.name }}" maxlength="100" required></label><label class="field"><span>Path</span><input type="text" value="{{ repository.path }}" disabled></label><div class="form-actions"><a class="button-secondary" href="{{ ROUTER.generate('repositories') }}">Cancel</a><button class="button" type="submit">Save</button></div></form>
 {% endblock %}

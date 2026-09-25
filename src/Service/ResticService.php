@@ -56,6 +56,15 @@ final class ResticService
         ], 300);
     }
 
+    public function pruneRepository(string $repositoryPath, string $passwordFile): Process
+    {
+        return $this->run([
+            'prune',
+            '--repo', $repositoryPath,
+            '--password-file', $passwordFile,
+        ], null);
+    }
+
     /**
      * Run a Restic backup and decode its JSON-lines progress stream.
      *

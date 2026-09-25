@@ -1,134 +1,65 @@
 {% extends "layout.twig" %}
 
-{% block title %}Dashboard - {{ APP.name }}{% endblock %}
+{% block title %}Overview - {{ APP.name }}{% endblock %}
 
 {% block content %}
-{% set score = 1 %}
-{% if stats.repositories > 0 %}{% set score = score + 1 %}{% endif %}
-{% if stats.jobs > 0 %}{% set score = score + 1 %}{% endif %}
-{% if stats.successful_runs > 0 %}{% set score = score + 1 %}{% endif %}
-{% set protection_percent = score * 25 %}
+<section class="overview-state">
+    {% if attention > 0 %}
+        <h1>{{ attention }} item{{ attention == 1 ? '' : 's' }} need attention.</h1>
+        <p>Open the relevant backup or repository before relying on the next recovery point.</p>
+    {% elseif repository_count == 0 %}
+        <h1>No backup destination yet.</h1>
+        <p>Create a repository first, then define what ZimaBackup should protect.</p>
+    {% else %}
+        <h1>Everything looks quiet.</h1>
+        <p>
+            {% if last_success %}Last successful backup: {{ last_success.job_name }} · {{ last_success.finished_at }}.{% else %}No successful backup has been recorded yet.{% endif %}
+            {% if next_job %} Next scheduled run: {{ next_job.name }} · {{ next_job.next_run_at }}.{% endif %}
+        </p>
+    {% endif %}
 
-<header class="page-header hero-header">
-    <div>
-        <p class="eyebrow">Backup Center</p>
-        <h1>Keep your ZimaOS data recoverable.</h1>
-        <p class="muted">A cleaner, application-aware view of repositories, backup jobs and encrypted snapshots.</p>
-    </div>
-    <div class="header-actions">
-        <span class="status-pill {{ restic_version ? 'ok' : 'error' }}"><span class="status-dot"></span>{{ restic_version ? 'Restic ready' : 'Restic unavailable' }}</span>
+    <div class="overview-actions">
         <a class="button" href="{{ ROUTER.generate('backups.create') }}">New backup</a>
+        <a class="button-secondary" href="{{ ROUTER.generate('snapshots') }}">Restore</a>
+        <a class="button-secondary" href="{{ ROUTER.generate('repositories.create') }}">Add repository</a>
     </div>
-</header>
-
-<section class="hero-grid dashboard-hero-grid">
-    <article class="panel hero-overview-panel">
-        <div class="hero-overview-copy">
-            <span class="card-kicker">Protection level</span>
-            <h2>{{ protection_percent }}% ready</h2>
-            <p>
-                {% if stats.jobs == 0 %}
-                    Create a repository, then define your first job to start protecting ZimaOS applications and folders.
-                {% elseif stats.failed_runs > 0 %}
-                    You have {{ stats.failed_runs }} failed run{{ stats.failed_runs == 1 ? '' : 's' }} to review.
-                {% else %}
-                    Your backup stack is set up. Run jobs regularly and keep your recovery key somewhere safe.
-                {% endif %}
-            </p>
-        </div>
-        <div class="hero-progress-block">
-            <div class="hero-progress-number">{{ protection_percent }}%</div>
-            <div class="progress-track large-track"><span style="width: {{ protection_percent }}%"></span></div>
-            <div class="hero-progress-labels">
-                <span>App configured</span>
-                <span>{{ score }}/4 steps</span>
-            </div>
-        </div>
-        <div class="stepper-row">
-            <div class="step-tile {{ score >= 1 ? 'done' : '' }}"><strong>1</strong><span>Engine</span><small>{{ restic_version ? 'Online' : 'Check container' }}</small></div>
-            <div class="step-tile {{ score >= 2 ? 'done' : '' }}"><strong>2</strong><span>Repository</span><small>{{ stats.repositories > 0 ? stats.repositories ~ ' ready' : 'Create one' }}</small></div>
-            <div class="step-tile {{ score >= 3 ? 'done' : '' }}"><strong>3</strong><span>Jobs</span><small>{{ stats.jobs > 0 ? stats.jobs ~ ' configured' : 'Add a plan' }}</small></div>
-            <div class="step-tile {{ score >= 4 ? 'done' : '' }}"><strong>4</strong><span>Snapshots</span><small>{{ stats.successful_runs > 0 ? stats.successful_runs ~ ' successful' : 'Run backup' }}</small></div>
-        </div>
-    </article>
-
-    <article class="panel quick-actions-panel">
-        <span class="card-kicker">Quick actions</span>
-        <h2>Start from here</h2>
-        <div class="action-stack">
-            <a class="action-row" href="{{ ROUTER.generate('repositories.create') }}"><strong>Create repository</strong><small>Encrypted backup destination</small><span>→</span></a>
-            <a class="action-row" href="{{ ROUTER.generate('backups.create') }}"><strong>Create backup job</strong><small>Applications and folders</small><span>→</span></a>
-            <a class="action-row" href="{{ ROUTER.generate('applications') }}"><strong>Browse applications</strong><small>Detected Docker projects</small><span>→</span></a>
-            <a class="action-row" href="{{ ROUTER.generate('snapshots') }}"><strong>Review snapshots</strong><small>Recent recovery points</small><span>→</span></a>
-        </div>
-    </article>
 </section>
 
-<section class="stats-grid">
-    <article class="panel stat-card">
-        <span class="stat-title">Repositories</span>
-        <strong>{{ stats.repositories }}</strong>
-        <small>Encrypted destinations</small>
-    </article>
-    <article class="panel stat-card">
-        <span class="stat-title">Jobs</span>
-        <strong>{{ stats.jobs }}</strong>
-        <small>Configured plans</small>
-    </article>
-    <article class="panel stat-card">
-        <span class="stat-title">Successful runs</span>
-        <strong>{{ stats.successful_runs }}</strong>
-        <small>Healthy snapshots</small>
-    </article>
-    <article class="panel stat-card {{ stats.failed_runs > 0 ? 'warning-card' : '' }}">
-        <span class="stat-title">Attention needed</span>
-        <strong>{{ stats.failed_runs }}</strong>
-        <small>{{ stats.failed_runs > 0 ? 'Failed runs' : 'No known issues' }}</small>
-    </article>
+<section class="simple-section">
+    <div class="simple-section-head">
+        <h2>Backup jobs</h2>
+        <a class="text-link" href="{{ ROUTER.generate('backups') }}">View all</a>
+    </div>
+    {% for job in jobs %}
+        <a class="simple-row" href="{{ ROUTER.generate('backups.show', {uuid: job.uuid}) }}">
+            <div>
+                <strong>{{ job.name }}</strong>
+                <small>{{ job.repository_name }} · {{ job.schedule_type == 'manual' ? 'manual' : job.schedule_type }}</small>
+            </div>
+            <div class="simple-row-meta">
+                {% if not job.enabled %}disabled{% elseif job.next_run_at %}next {{ job.next_run_at }}{% else %}{{ job.latest_status ?: 'not run yet' }}{% endif %}
+            </div>
+        </a>
+    {% else %}
+        <div class="empty-inline"><strong>No backup jobs</strong><p>Create one when your first repository is ready.</p></div>
+    {% endfor %}
 </section>
 
-<section class="content-grid two-col-grid">
-    <article class="panel">
-        <div class="panel-heading">
+<section class="simple-section">
+    <div class="simple-section-head">
+        <h2>Recent activity</h2>
+        <span class="muted">Restic: {{ restic_version ?: 'unavailable' }}</span>
+    </div>
+    {% for run in recent_runs %}
+        <a class="simple-row" href="{{ ROUTER.generate('backups.show', {uuid: run.job_uuid}) }}">
             <div>
-                <span class="card-kicker">Recent activity</span>
-                <h2>Latest runs</h2>
+                <strong>{{ run.job_name }}</strong>
+                <small>{{ run.status }}{% if run.error %} · {{ run.error|slice(0, 100) }}{% endif %}</small>
             </div>
-        </div>
-        {% if recent_runs is empty %}
-            <div class="empty-inline">
-                <strong>No backup history yet</strong>
-                <p>Your latest backup runs will appear here as soon as you launch the first job.</p>
-            </div>
-        {% else %}
-            <div class="activity-list">
-                {% for run in recent_runs %}
-                    <div class="activity-row">
-                        <span class="status-pill compact {{ run.status in ['success'] ? 'ok' : (run.status in ['warning', 'pending', 'running'] ? 'warning' : 'error') }}"><span class="status-dot"></span>{{ run.status }}</span>
-                        <div class="activity-main">
-                            <strong>{{ run.job_name }}</strong>
-                            <small>{{ run.started_at }}</small>
-                        </div>
-                        <small class="activity-meta">{{ run.finished_at ?: 'In progress' }}</small>
-                    </div>
-                {% endfor %}
-            </div>
-        {% endif %}
-    </article>
-
-    <article class="panel tips-panel">
-        <div class="panel-heading">
-            <div>
-                <span class="card-kicker">Good practice</span>
-                <h2>Recovery checklist</h2>
-            </div>
-        </div>
-        <div class="check-list">
-            <div><span>1</span><div><strong>Save the repository recovery key</strong><small>Outside the ZimaOS machine.</small></div></div>
-            <div><span>2</span><div><strong>Use a separate disk or USB target</strong><small>Keep backups independent from the system disk.</small></div></div>
-            <div><span>3</span><div><strong>Protect app definitions and AppData</strong><small>Not just user folders.</small></div></div>
-            <div><span>4</span><div><strong>Test recovery periodically</strong><small>Backups matter only if restores work.</small></div></div>
-        </div>
-    </article>
+            <div class="simple-row-meta">{{ run.finished_at ?: run.started_at }}</div>
+        </a>
+    {% else %}
+        <div class="empty-inline"><strong>No activity yet</strong><p>Backup runs will appear here.</p></div>
+    {% endfor %}
 </section>
 {% endblock %}

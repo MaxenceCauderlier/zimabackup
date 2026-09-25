@@ -138,6 +138,27 @@ final class RepositoryController extends AbstractController
     }
 
 
+    public function prune(string $uuid): string
+    {
+        /** @var Csrf $csrf */
+        $csrf = $this->app->service(Csrf::class);
+        if (!$csrf->isValid($_POST['_csrf'] ?? null)) {
+            http_response_code(419);
+            return $this->render('errors/419.twig');
+        }
+        /** @var Session $session */
+        $session = $this->app->service(Session::class);
+        try {
+            /** @var RepositoryService $repositories */
+            $repositories = $this->app->service(RepositoryService::class);
+            $repositories->enqueuePrune($uuid);
+            $session->set('flash_success', 'Repository prune queued. Unreferenced Restic data will be reclaimed.');
+        } catch (Throwable $exception) {
+            $session->set('flash_error', $exception->getMessage());
+        }
+        return $this->redirect('repositories');
+    }
+
     public function reinitialize(string $uuid): string
     {
         /** @var Csrf $csrf */

@@ -10,6 +10,8 @@ use ZimaBackup\Core\Session;
 use ZimaBackup\Security\Csrf;
 use ZimaBackup\Service\ApplicationDiscoveryService;
 use ZimaBackup\Service\BackupService;
+use ZimaBackup\Service\RetentionService;
+use ZimaBackup\Service\SchedulerService;
 
 final class BackupController extends AbstractController
 {
@@ -52,6 +54,14 @@ final class BackupController extends AbstractController
                 'sources' => [''],
                 'application_ids' => [],
                 'app_mounts' => [],
+                'schedule_type' => 'manual',
+                'schedule_time' => '03:00',
+                'schedule_weekday' => 1,
+                'retention_enabled' => false,
+                'keep_last' => 3,
+                'keep_daily' => 7,
+                'keep_weekly' => 4,
+                'keep_monthly' => 6,
             ],
             'errors' => [],
         ]);
@@ -103,6 +113,14 @@ final class BackupController extends AbstractController
             'sources' => array_values(array_map(static fn ($value): string => trim((string) $value), $sources)),
             'application_ids' => $applicationIds,
             'app_mounts' => $appMounts,
+            'schedule_type' => (string) ($_POST['schedule_type'] ?? 'manual'),
+            'schedule_time' => (string) ($_POST['schedule_time'] ?? '03:00'),
+            'schedule_weekday' => (int) ($_POST['schedule_weekday'] ?? 1),
+            'retention_enabled' => isset($_POST['retention_enabled']),
+            'keep_last' => (int) ($_POST['keep_last'] ?? 3),
+            'keep_daily' => (int) ($_POST['keep_daily'] ?? 7),
+            'keep_weekly' => (int) ($_POST['keep_weekly'] ?? 4),
+            'keep_monthly' => (int) ($_POST['keep_monthly'] ?? 6),
         ];
 
         if ($values['sources'] === []) {
@@ -116,7 +134,8 @@ final class BackupController extends AbstractController
                 $values['name'],
                 (int) $values['repository_id'],
                 $values['sources'],
-                $applicationSelections
+                $applicationSelections,
+                $values
             );
 
             /** @var Session $session */
@@ -158,6 +177,9 @@ final class BackupController extends AbstractController
                 'status' => (string) $job['repository_status'],
             ];
         }
+        /** @var SchedulerService $scheduler */
+        $scheduler = $this->app->service(SchedulerService::class);
+        $job['schedule_form'] = $scheduler->formValues((string) $job['schedule_type'], $job['schedule_value'] ?? null);
         return $this->render('backups/edit.twig', [
             'job' => $job,
             'repositories' => $repositories,
@@ -185,7 +207,17 @@ final class BackupController extends AbstractController
                 (string) ($_POST['name'] ?? ''),
                 (int) ($_POST['repository_id'] ?? 0),
                 $sources,
-                isset($_POST['enabled'])
+                isset($_POST['enabled']),
+                [
+                    'schedule_type' => $_POST['schedule_type'] ?? 'manual',
+                    'schedule_time' => $_POST['schedule_time'] ?? '03:00',
+                    'schedule_weekday' => $_POST['schedule_weekday'] ?? 1,
+                    'retention_enabled' => isset($_POST['retention_enabled']),
+                    'keep_last' => $_POST['keep_last'] ?? 3,
+                    'keep_daily' => $_POST['keep_daily'] ?? 7,
+                    'keep_weekly' => $_POST['keep_weekly'] ?? 4,
+                    'keep_monthly' => $_POST['keep_monthly'] ?? 6,
+                ]
             );
             /** @var Session $session */
             $session = $this->app->service(Session::class);
@@ -203,6 +235,16 @@ final class BackupController extends AbstractController
             $job['repository_id'] = (int) ($_POST['repository_id'] ?? 0);
             $job['enabled'] = isset($_POST['enabled']) ? 1 : 0;
             $job['sources'] = array_map(static fn ($path): array => ['path' => trim((string) $path), 'label' => ''], $sources);
+            $job['schedule_type'] = (string) ($_POST['schedule_type'] ?? 'manual');
+            $job['schedule_form'] = [
+                'time' => (string) ($_POST['schedule_time'] ?? '03:00'),
+                'weekday' => (int) ($_POST['schedule_weekday'] ?? 1),
+            ];
+            $job['retention_enabled'] = isset($_POST['retention_enabled']) ? 1 : 0;
+            $job['keep_last'] = (int) ($_POST['keep_last'] ?? 3);
+            $job['keep_daily'] = (int) ($_POST['keep_daily'] ?? 7);
+            $job['keep_weekly'] = (int) ($_POST['keep_weekly'] ?? 4);
+            $job['keep_monthly'] = (int) ($_POST['keep_monthly'] ?? 6);
             $repositories = $backups->readyRepositories();
             $knownIds = array_map(static fn (array $repository): int => (int) $repository['id'], $repositories);
             if (!in_array((int) $job['repository_id'], $knownIds, true)) {
@@ -258,6 +300,28 @@ final class BackupController extends AbstractController
             $backups = $this->app->service(BackupService::class);
             $enabled = $backups->toggle($uuid);
             $session->set('flash_success', $enabled ? 'Backup job enabled.' : 'Backup job disabled.');
+        } catch (Throwable $exception) {
+            $session->set('flash_error', $exception->getMessage());
+        }
+        return $this->redirect('backups.show', ['uuid' => $uuid]);
+    }
+
+    public function applyRetention(string $uuid): string
+    {
+        /** @var Csrf $csrf */
+        $csrf = $this->app->service(Csrf::class);
+        if (!$csrf->isValid($_POST['_csrf'] ?? null)) {
+            http_response_code(419);
+            return $this->render('errors/419.twig');
+        }
+
+        /** @var Session $session */
+        $session = $this->app->service(Session::class);
+        try {
+            /** @var RetentionService $retention */
+            $retention = $this->app->service(RetentionService::class);
+            $retention->enqueueForJobUuid($uuid);
+            $session->set('flash_success', 'Retention policy queued.');
         } catch (Throwable $exception) {
             $session->set('flash_error', $exception->getMessage());
         }

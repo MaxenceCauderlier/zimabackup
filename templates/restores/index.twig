@@ -1,83 +1,27 @@
 {% extends "layout.twig" %}
 
-{% block title %}Restores - {{ APP.name }}{% endblock %}
+{% block title %}Restore history - {{ APP.name }}{% endblock %}
 
 {% block content %}
 {% set running_count = 0 %}
-{% set failed_count = 0 %}
-{% for restore in restores %}
-    {% if restore.status in ['pending', 'running'] %}{% set running_count = running_count + 1 %}{% endif %}
-    {% if restore.status == 'failed' %}{% set failed_count = failed_count + 1 %}{% endif %}
-{% endfor %}
-{% for restore in application_restores %}
-    {% if restore.status in ['pending', 'running'] %}{% set running_count = running_count + 1 %}{% endif %}
-    {% if restore.status == 'failed' %}{% set failed_count = failed_count + 1 %}{% endif %}
-{% endfor %}
+{% for restore in restores %}{% if restore.status in ['pending','running'] %}{% set running_count = running_count + 1 %}{% endif %}{% endfor %}
+{% for restore in application_restores %}{% if restore.status in ['pending','running'] %}{% set running_count = running_count + 1 %}{% endif %}{% endfor %}
 
-<header class="page-header hero-header">
-    <div>
-        <p class="eyebrow">Recovery operations</p>
-        <h1>Restores</h1>
-        <p class="muted">File restores stay isolated; application restores can stage data safely or return selected AppData to empty original paths.</p>
-    </div>
-    <div class="header-actions">
-        <span class="status-pill {{ failed_count > 0 ? 'warning' : 'ok' }}"><span class="status-dot"></span>{{ running_count }} active</span>
-        <a class="button" href="{{ ROUTER.generate('snapshots') }}">Choose snapshot</a>
-    </div>
-</header>
+<header class="page-header"><div><a class="back-link" href="{{ ROUTER.generate('snapshots') }}">← Restore</a><h1>Restore history</h1><p class="muted">File and application recovery operations.</p></div><a class="button" href="{{ ROUTER.generate('snapshots') }}">Choose recovery point</a></header>
 
-<section class="stats-grid slim-stats">
-    <article class="panel stat-card"><span class="stat-title">File restores</span><strong>{{ restores|length }}</strong><small>Safe snapshot recovery jobs</small></article>
-    <article class="panel stat-card"><span class="stat-title">Application restores</span><strong>{{ application_restores|length }}</strong><small>AppData + reconstructed Compose</small></article>
-    <article class="panel stat-card {{ failed_count > 0 ? 'warning-card' : '' }}"><span class="stat-title">Issues</span><strong>{{ failed_count }}</strong><small>{{ failed_count > 0 ? 'Need attention' : 'No active issues' }}</small></article>
+<section class="simple-section">
+    <div class="simple-section-head"><h2>Application restores</h2></div>
+    {% for restore in application_restores %}
+        <a class="simple-row" href="{{ ROUTER.generate('application-restores.show', {uuid: restore.uuid}) }}"><div><strong>{{ restore.app_name }}</strong><small>{{ restore.repository_name }} · {{ restore.mode }}</small></div><div class="simple-row-meta">{{ restore.status }} · {{ restore.progress_percent|default(0)|number_format(0) }}%</div></a>
+    {% else %}<div class="empty-inline"><strong>No application restores.</strong></div>{% endfor %}
 </section>
 
-{% if application_restores is not empty %}
-<section class="panel restore-section-panel">
-    <div class="panel-heading">
-        <div><span class="card-kicker">Application recovery</span><h2>Application restores</h2></div>
-    </div>
-    <div class="history-list">
-        {% for restore in application_restores %}
-            <a class="history-item restore-history-item" href="{{ ROUTER.generate('application-restores.show', {uuid: restore.uuid}) }}">
-                <span class="status-pill compact {{ restore.status == 'success' ? 'ok' : (restore.status in ['pending', 'running'] ? 'warning' : 'error') }}"><span class="status-dot"></span>{{ restore.status }}</span>
-                <div class="history-main"><strong>{{ restore.app_name }}</strong><small>{{ restore.repository_name }} · {{ restore.mode }}</small></div>
-                <div class="history-side">{{ restore.progress_percent|default(0)|number_format(0) }}%</div>
-                <span>Open →</span>
-            </a>
-        {% endfor %}
-    </div>
+<section class="simple-section">
+    <div class="simple-section-head"><h2>File restores</h2></div>
+    {% for restore in restores %}
+        <a class="simple-row" href="{{ ROUTER.generate('restores.show', {uuid: restore.uuid}) }}"><div><strong>{{ restore.job_name }}</strong><small>{{ restore.target_path }}</small></div><div class="simple-row-meta">{{ restore.status }} · {{ restore.progress_percent|default(0)|number_format(0) }}%</div></a>
+    {% else %}<div class="empty-inline"><strong>No file restores.</strong></div>{% endfor %}
 </section>
-{% endif %}
 
-{% if restores is not empty %}
-<section class="panel restore-section-panel">
-    <div class="panel-heading">
-        <div><span class="card-kicker">File recovery</span><h2>File restores</h2></div>
-    </div>
-    <div class="history-list">
-        {% for restore in restores %}
-            <a class="history-item restore-history-item" href="{{ ROUTER.generate('restores.show', {uuid: restore.uuid}) }}">
-                <span class="status-pill compact {{ restore.status == 'success' ? 'ok' : (restore.status in ['pending', 'running'] ? 'warning' : 'error') }}"><span class="status-dot"></span>{{ restore.status }}</span>
-                <div class="history-main"><strong>{{ restore.job_name }}</strong><small>{{ restore.target_path }}</small></div>
-                <div class="history-side">{{ restore.progress_percent|default(0)|number_format(0) }}%</div>
-                <span>Open →</span>
-            </a>
-        {% endfor %}
-    </div>
-</section>
-{% endif %}
-
-{% if restores is empty and application_restores is empty %}
-<section class="panel empty-state large-empty-state">
-    <div class="empty-illustration"><span>↺</span></div>
-    <h2>No restore has been started yet</h2>
-    <p>Browse snapshots to restore files or inspect an application manifest and prepare application recovery.</p>
-    <a class="button" href="{{ ROUTER.generate('snapshots') }}">Browse snapshots</a>
-</section>
-{% endif %}
-
-{% if running_count > 0 %}
-<div class="refresh-banner" data-auto-refresh><span class="spinner"></span> A restore is active. This page will refresh automatically.</div>
-{% endif %}
+{% if running_count > 0 %}<div class="alert alert-warning" data-auto-refresh>A restore is active. This page will refresh automatically.</div>{% endif %}
 {% endblock %}

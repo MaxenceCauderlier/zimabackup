@@ -18,6 +18,7 @@ final class BackupService
         private readonly ResticService $restic,
         private readonly TaskQueueService $queue,
         private readonly ApplicationDiscoveryService $applications,
+        private readonly SchedulerService $scheduler,
     ) {
     }
 
@@ -71,6 +72,10 @@ final class BackupService
             'SELECT * FROM backup_runs WHERE backup_job_id = :job_id ORDER BY id DESC LIMIT 20',
             ['job_id' => $job['id']]
         );
+        $job['retention_runs'] = $this->database->fetchAll(
+            'SELECT * FROM retention_runs WHERE backup_job_id = :job_id ORDER BY id DESC LIMIT 10',
+            ['job_id' => $job['id']]
+        );
 
         return $job;
     }
@@ -81,7 +86,7 @@ final class BackupService
      * @param list<string> $sources
      * @param list<array{application_id:int,mount_ids:list<int>}> $applicationSelections
      */
-    public function create(string $name, int $repositoryId, array $sources, array $applicationSelections = []): array
+    public function create(string $name, int $repositoryId, array $sources, array $applicationSelections = [], array $automation = []): array
     {
         $name = trim($name);
         if ($name === '' || strlen($name) > 100) {
@@ -152,6 +157,8 @@ final class BackupService
             throw new InvalidArgumentException('Select at least one application or add one source folder.');
         }
 
+        $automation = $this->normalizeAutomation($automation);
+
         $pdo = $this->database->pdo();
         $pdo->beginTransaction();
 
@@ -160,13 +167,20 @@ final class BackupService
             $uuid = Uuid::v4();
 
             $this->database->execute(
-                'INSERT INTO backup_jobs(uuid, repository_id, name, enabled, schedule_type, keep_last, keep_daily, keep_weekly, keep_monthly, created_at, updated_at) ' .
-                'VALUES (:uuid, :repository_id, :name, 1, :schedule_type, 3, 7, 4, 6, :created_at, :updated_at)',
+                'INSERT INTO backup_jobs(uuid, repository_id, name, enabled, schedule_type, schedule_value, next_run_at, keep_last, keep_daily, keep_weekly, keep_monthly, retention_enabled, created_at, updated_at) ' .
+                'VALUES (:uuid, :repository_id, :name, 1, :schedule_type, :schedule_value, :next_run_at, :keep_last, :keep_daily, :keep_weekly, :keep_monthly, :retention_enabled, :created_at, :updated_at)',
                 [
                     'uuid' => $uuid,
                     'repository_id' => $repositoryId,
                     'name' => $name,
-                    'schedule_type' => 'manual',
+                    'schedule_type' => $automation['schedule']['type'],
+                    'schedule_value' => $automation['schedule']['value'],
+                    'next_run_at' => $automation['schedule']['next_run_at'],
+                    'keep_last' => $automation['keep_last'],
+                    'keep_daily' => $automation['keep_daily'],
+                    'keep_weekly' => $automation['keep_weekly'],
+                    'keep_monthly' => $automation['keep_monthly'],
+                    'retention_enabled' => $automation['retention_enabled'] ? 1 : 0,
                     'created_at' => $now,
                     'updated_at' => $now,
                 ]
@@ -215,7 +229,7 @@ final class BackupService
         return $job;
     }
 
-    public function update(string $uuid, string $name, int $repositoryId, array $sources, bool $enabled): array
+    public function update(string $uuid, string $name, int $repositoryId, array $sources, bool $enabled, array $automation = []): array
     {
         $job = $this->findByUuid($uuid);
         if ($job === null) {
@@ -271,15 +285,28 @@ final class BackupService
             throw new InvalidArgumentException('Keep at least one folder source or one protected application.');
         }
 
+        $automation = $this->normalizeAutomation($automation);
+        if (!$enabled) {
+            $automation['schedule']['next_run_at'] = null;
+        }
+
         $pdo = $this->database->pdo();
         $pdo->exec('BEGIN IMMEDIATE');
         try {
             $this->database->execute(
-                'UPDATE backup_jobs SET name = :name, repository_id = :repository_id, enabled = :enabled, updated_at = :updated_at WHERE id = :id',
+                'UPDATE backup_jobs SET name = :name, repository_id = :repository_id, enabled = :enabled, schedule_type = :schedule_type, schedule_value = :schedule_value, next_run_at = :next_run_at, keep_last = :keep_last, keep_daily = :keep_daily, keep_weekly = :keep_weekly, keep_monthly = :keep_monthly, retention_enabled = :retention_enabled, updated_at = :updated_at WHERE id = :id',
                 [
                     'name' => $name,
                     'repository_id' => $repositoryId,
                     'enabled' => $enabled ? 1 : 0,
+                    'schedule_type' => $automation['schedule']['type'],
+                    'schedule_value' => $automation['schedule']['value'],
+                    'next_run_at' => $automation['schedule']['next_run_at'],
+                    'keep_last' => $automation['keep_last'],
+                    'keep_daily' => $automation['keep_daily'],
+                    'keep_weekly' => $automation['keep_weekly'],
+                    'keep_monthly' => $automation['keep_monthly'],
+                    'retention_enabled' => $automation['retention_enabled'] ? 1 : 0,
                     'updated_at' => date('c'),
                     'id' => $job['id'],
                 ]
@@ -328,9 +355,12 @@ final class BackupService
             throw new InvalidArgumentException('Backup job not found.');
         }
         $enabled = (int) $job['enabled'] !== 1;
+        $nextRunAt = $enabled
+            ? $this->scheduler->nextRun((string) $job['schedule_type'], $job['schedule_value'] ?? null)
+            : null;
         $this->database->execute(
-            'UPDATE backup_jobs SET enabled = :enabled, updated_at = :updated_at WHERE id = :id',
-            ['enabled' => $enabled ? 1 : 0, 'updated_at' => date('c'), 'id' => $job['id']]
+            'UPDATE backup_jobs SET enabled = :enabled, next_run_at = :next_run_at, updated_at = :updated_at WHERE id = :id',
+            ['enabled' => $enabled ? 1 : 0, 'next_run_at' => $nextRunAt, 'updated_at' => date('c'), 'id' => $job['id']]
         );
         return $enabled;
     }
@@ -397,11 +427,70 @@ final class BackupService
         return $this->database->fetchOne('SELECT * FROM backup_runs WHERE id = :id', ['id' => $runId]) ?? [];
     }
 
+    /** Queue a due scheduled run and advance its next_run_at in the same transaction. */
+    public function enqueueScheduledRunByUuid(string $uuid, ?string $nextRunAt): array
+    {
+        $job = $this->database->fetchOne(
+            'SELECT bj.*, r.status AS repository_status, r.id AS repo_id, r.path AS repository_path ' .
+            'FROM backup_jobs bj JOIN repositories r ON r.id = bj.repository_id WHERE bj.uuid = :uuid AND bj.deleted_at IS NULL',
+            ['uuid' => $uuid]
+        );
+        if ($job === null || (int) $job['enabled'] !== 1) {
+            throw new InvalidArgumentException('Scheduled backup job is unavailable or disabled.');
+        }
+        if (!in_array((string) $job['schedule_type'], ['daily', 'weekly'], true)) {
+            throw new InvalidArgumentException('Backup job is not scheduled.');
+        }
+        if ($job['repository_status'] !== 'ready') {
+            throw new InvalidArgumentException('The destination repository is not ready.');
+        }
+        $repositoryPath = $this->paths->toContainerPath((string) $job['repository_path']);
+        if (!is_file(rtrim($repositoryPath, '/') . '/config')) {
+            $this->markRepositoryMissing((int) $job['repo_id'], (string) $job['repository_path']);
+            throw new InvalidArgumentException('The destination repository storage is missing.');
+        }
+
+        $pdo = $this->database->pdo();
+        $pdo->exec('BEGIN IMMEDIATE');
+        try {
+            $active = (int) $this->database->scalar(
+                "SELECT COUNT(*) FROM backup_runs WHERE backup_job_id = :job_id AND status IN ('pending','running')",
+                ['job_id' => $job['id']]
+            );
+            if ($active > 0) {
+                throw new InvalidArgumentException('This backup is already queued or running.');
+            }
+
+            $now = date('c');
+            $this->database->execute(
+                "INSERT INTO backup_runs(backup_job_id, status, started_at, progress_percent) VALUES (:job_id, 'pending', :started_at, 0)",
+                ['job_id' => $job['id'], 'started_at' => $now]
+            );
+            $runId = $this->database->lastInsertId();
+            $operationId = $this->queue->enqueue('backup.run', ['job_id' => (int) $job['id'], 'run_id' => $runId]);
+            $this->database->execute(
+                'UPDATE operations SET repository_id = :repository_id WHERE id = :id',
+                ['repository_id' => $job['repo_id'], 'id' => $operationId]
+            );
+            $this->database->execute(
+                'UPDATE backup_jobs SET next_run_at = :next_run_at, schedule_last_queued_at = :queued_at, updated_at = :queued_at WHERE id = :id',
+                ['next_run_at' => $nextRunAt, 'queued_at' => $now, 'id' => $job['id']]
+            );
+            $pdo->commit();
+            return $this->database->fetchOne('SELECT * FROM backup_runs WHERE id = :id', ['id' => $runId]) ?? [];
+        } catch (Throwable $exception) {
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
+            throw $exception;
+        }
+    }
+
     /** Execute a queued run. This method must only be called by the worker. */
     public function executeRun(int $runId): void
     {
         $run = $this->database->fetchOne(
-            'SELECT br.*, bj.uuid AS job_uuid, bj.name AS job_name, bj.repository_id, ' .
+            'SELECT br.*, bj.uuid AS job_uuid, bj.name AS job_name, bj.repository_id, bj.retention_enabled, ' .
             'r.path AS repository_path, r.password_file, r.status AS repository_status ' .
             'FROM backup_runs br ' .
             'JOIN backup_jobs bj ON bj.id = br.backup_job_id ' .
@@ -527,8 +616,9 @@ final class BackupService
         }
 
         $partial = (bool) ($summary['_partial'] ?? false);
+        $retentionState = (int) ($run['retention_enabled'] ?? 0) === 1 ? 'pending' : 'not_applicable';
         $this->database->execute(
-            'UPDATE backup_runs SET status = :status, snapshot_id = :snapshot_id, finished_at = :finished_at, error = :error, ' .
+            'UPDATE backup_runs SET status = :status, snapshot_id = :snapshot_id, finished_at = :finished_at, error = :error, retention_state = :retention_state, retention_error = NULL, ' .
             'progress_percent = 100, files_new = :files_new, files_changed = :files_changed, files_unmodified = :files_unmodified, ' .
             'total_files = :total_files, files_done = :files_done, total_bytes = :total_bytes, bytes_done = :bytes_done, bytes_processed = :bytes_processed, bytes_added = :bytes_added ' .
             'WHERE id = :id',
@@ -537,6 +627,7 @@ final class BackupService
                 'snapshot_id' => $summary['snapshot_id'] ?? null,
                 'finished_at' => date('c'),
                 'error' => $partial ? substr((string) ($summary['_error'] ?? 'Some source data could not be read.'), 0, 4000) : null,
+                'retention_state' => $retentionState,
                 'files_new' => (int) ($summary['files_new'] ?? 0),
                 'files_changed' => (int) ($summary['files_changed'] ?? 0),
                 'files_unmodified' => (int) ($summary['files_unmodified'] ?? 0),
@@ -580,6 +671,42 @@ final class BackupService
                 'id' => $repositoryId,
             ]
         );
+    }
+
+    /** @return array{schedule:array{type:string,value:?string,next_run_at:?string},retention_enabled:bool,keep_last:int,keep_daily:int,keep_weekly:int,keep_monthly:int} */
+    private function normalizeAutomation(array $automation): array
+    {
+        $schedule = $this->scheduler->normalize(
+            (string) ($automation['schedule_type'] ?? 'manual'),
+            (string) ($automation['schedule_time'] ?? '03:00'),
+            isset($automation['schedule_weekday']) ? (int) $automation['schedule_weekday'] : 1
+        );
+
+        $keepLast = (int) ($automation['keep_last'] ?? 3);
+        $keepDaily = (int) ($automation['keep_daily'] ?? 7);
+        $keepWeekly = (int) ($automation['keep_weekly'] ?? 4);
+        $keepMonthly = (int) ($automation['keep_monthly'] ?? 6);
+        if ($keepLast < 1 || $keepLast > 1000) {
+            throw new InvalidArgumentException('Keep last must be between 1 and 1000 snapshots.');
+        }
+        foreach ([
+            'daily' => $keepDaily,
+            'weekly' => $keepWeekly,
+            'monthly' => $keepMonthly,
+        ] as $label => $value) {
+            if ($value < 0 || $value > 1000) {
+                throw new InvalidArgumentException(sprintf('Keep %s must be between 0 and 1000.', $label));
+            }
+        }
+
+        return [
+            'schedule' => $schedule,
+            'retention_enabled' => (bool) ($automation['retention_enabled'] ?? false),
+            'keep_last' => $keepLast,
+            'keep_daily' => $keepDaily,
+            'keep_weekly' => $keepWeekly,
+            'keep_monthly' => $keepMonthly,
+        ];
     }
 
     private function validateSource(string $source, string $repositoryPath): string

@@ -118,3 +118,23 @@ document.querySelectorAll('form[data-confirm]').forEach((form) => {
         }
     });
 });
+
+// v0.11: keep scheduling/retention forms compact and reveal only relevant fields.
+document.querySelectorAll('[data-automation-form]').forEach((form) => {
+    const schedule = form.querySelector('[name="schedule_type"]');
+    const timeWrap = form.querySelector('[data-schedule-time]');
+    const weekdayWrap = form.querySelector('[data-schedule-weekday]');
+    const retentionToggle = form.querySelector('[name="retention_enabled"]');
+    const retentionFields = form.querySelector('[data-retention-fields]');
+
+    const refresh = () => {
+        const type = schedule?.value || 'manual';
+        if (timeWrap) timeWrap.hidden = type === 'manual';
+        if (weekdayWrap) weekdayWrap.hidden = type !== 'weekly';
+        if (retentionFields) retentionFields.hidden = !retentionToggle?.checked;
+    };
+
+    schedule?.addEventListener('change', refresh);
+    retentionToggle?.addEventListener('change', refresh);
+    refresh();
+});

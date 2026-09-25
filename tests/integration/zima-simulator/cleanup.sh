@@ -5,7 +5,7 @@ HERE=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 SIM_ROOT="$HERE/runtime"
 export SIM_ROOT
 
-# v1.0 may recreate the simulator directly through the Docker Engine API.
+# Restore & Install may recreate the simulator directly through the Docker Engine API.
 # Remove any such project-labeled containers even if Compose does not know the
 # original local project file state anymore.
 ids=$(docker ps -aq --filter label=com.docker.compose.project=zima-demo)

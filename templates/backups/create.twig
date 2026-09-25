@@ -3,115 +3,88 @@
 {% block title %}New backup - {{ APP.name }}{% endblock %}
 
 {% block content %}
-<header class="page-header compact-header">
+<header class="page-header">
     <div>
         <a class="back-link" href="{{ ROUTER.generate('backups') }}">← Backups</a>
-        <p class="eyebrow">New backup plan</p>
-        <h1>Create a backup job</h1>
-        <p class="muted">Select a destination, then choose applications, folders, or both.</p>
+        <h1>New backup</h1>
+        <p class="muted">Choose the data, destination and automation. Nothing runs until the job is saved.</p>
     </div>
 </header>
 
-{% if errors %}
-    <div class="alert alert-error">
-        <strong>We couldn't create this backup.</strong>
-        {% for error in errors %}<div>{{ error }}</div>{% endfor %}
-    </div>
-{% endif %}
+{% if errors %}<div class="alert alert-error"><strong>Unable to create backup</strong>{% for error in errors %}<div>{{ error }}</div>{% endfor %}</div>{% endif %}
 
-<form method="post" action="{{ ROUTER.generate('backups.store') }}" class="wizard-form">
+<form method="post" action="{{ ROUTER.generate('backups.store') }}" class="stack-form" data-automation-form>
     <input type="hidden" name="_csrf" value="{{ csrf_token }}">
 
-    <div class="wizard-grid">
-        <section class="panel form-panel-v2 form-stage">
-            <div class="section-label"><span>1</span><div><strong>General</strong><small>Name and destination repository.</small></div></div>
-            <label class="field">
-                <span>Backup name</span>
-                <input type="text" name="name" maxlength="120" required value="{{ values.name }}" placeholder="Apps and Documents">
-            </label>
+    <section class="panel stack-form">
+        <div class="section-label"><div><strong>General</strong><small>Name and repository.</small></div></div>
+        <label class="field"><span>Name</span><input type="text" name="name" maxlength="100" required value="{{ values.name }}" placeholder="Apps and Documents"></label>
+        <div class="repo-option-grid">
+            {% for repository in repositories %}
+                <label class="repo-option">
+                    <input type="radio" name="repository_id" value="{{ repository.id }}" {{ values.repository_id == (repository.id ~ '') ? 'checked' : '' }} required>
+                    <div><strong>{{ repository.name }}</strong><small>{{ repository.path }}</small></div>
+                    <span class="status-pill ok"><span class="status-dot"></span>ready</span>
+                </label>
+            {% endfor %}
+        </div>
+    </section>
 
-            <div class="repo-option-grid">
-                {% for repository in repositories %}
-                    <label class="repo-option {{ values.repository_id == (repository.id ~ '') ? 'selected' : '' }}">
-                        <input type="radio" name="repository_id" value="{{ repository.id }}" {{ values.repository_id == (repository.id ~ '') ? 'checked' : '' }} required>
-                        <div>
-                            <strong>{{ repository.name }}</strong>
-                            <small>{{ repository.path }}</small>
+    <section class="panel stack-form">
+        <div class="section-label"><div><strong>Applications</strong><small>Select applications and eligible bind mounts.</small></div></div>
+        {% if applications is empty %}
+            <div class="empty-inline"><strong>No applications discovered.</strong><p>You can still create a folder-only backup, or refresh Applications first.</p></div>
+        {% else %}
+            <div class="app-picker-grid">
+                {% for application in applications %}
+                    <label class="app-picker-card" data-app-picker>
+                        <div class="app-picker-header">
+                            <input class="app-select-checkbox" type="checkbox" name="application_ids[]" value="{{ application.id }}" {{ application.id in values.application_ids ? 'checked' : '' }}>
+                            <div><strong>{{ application.name }}</strong><small>{{ application.image }}</small></div>
+                            <span class="status-pill {{ application.status == 'running' ? 'ok' : 'warning' }}"><span class="status-dot"></span>{{ application.status }}</span>
                         </div>
-                        <span class="status-pill compact {{ repository.status == 'ready' ? 'ok' : 'warning' }}"><span class="status-dot"></span>{{ repository.status }}</span>
+                        <div class="mount-checklist">
+                            {% for mount in application.mounts %}
+                                <label class="mount-check-row {{ not mount.eligible ? 'mount-disabled' : '' }}">
+                                    <input type="checkbox" name="app_mounts[{{ application.id }}][]" value="{{ mount.id }}" {{ mount.id in (values.app_mounts[application.id ~ '']|default([])) ? 'checked' : (mount.recommended ? 'checked' : '') }} {{ not mount.eligible ? 'disabled' : '' }}>
+                                    <div><strong>{{ mount.destination }}</strong><small>{{ mount.source }}</small></div>
+                                    <span class="mini-tag">{{ mount.recommended ? 'recommended' : (mount.eligible ? 'optional' : 'ignored') }}</span>
+                                </label>
+                            {% endfor %}
+                        </div>
                     </label>
                 {% endfor %}
             </div>
-        </section>
+        {% endif %}
+    </section>
 
-        <section class="panel form-panel-v2 form-stage">
-            <div class="section-label"><span>2</span><div><strong>Applications</strong><small>Select detected applications and the volumes you want to include.</small></div></div>
-            {% if applications is empty %}
-                <div class="empty-inline">
-                    <strong>No applications discovered yet</strong>
-                    <p>Use the Applications page to refresh discovery, or continue with folder-only backup sources below.</p>
-                </div>
-            {% else %}
-                <div class="app-picker-grid">
-                    {% for application in applications %}
-                        <label class="app-picker-card" data-app-picker>
-                            <div class="app-picker-header">
-                                <input class="app-select-checkbox" type="checkbox" name="application_ids[]" value="{{ application.id }}" {{ application.id in values.application_ids ? 'checked' : '' }}>
-                                <div>
-                                    <strong>{{ application.name }}</strong>
-                                    <small>{{ application.image }}</small>
-                                </div>
-                                <span class="status-pill compact {{ application.status == 'running' ? 'ok' : 'warning' }}"><span class="status-dot"></span>{{ application.status }}</span>
-                            </div>
-                            <div class="mount-checklist">
-                                {% for mount in application.mounts %}
-                                    <label class="mount-check-row {{ not mount.eligible ? 'mount-disabled' : '' }}">
-                                        <input type="checkbox" name="app_mounts[{{ application.id }}][]" value="{{ mount.id }}" {{ mount.id in (values.app_mounts[application.id ~ '']|default([])) ? 'checked' : (mount.recommended ? 'checked' : '') }} {{ not mount.eligible ? 'disabled' : '' }}>
-                                        <div>
-                                            <strong>{{ mount.destination }}</strong>
-                                            <small>{{ mount.source }}</small>
-                                        </div>
-                                        <span class="mini-tag {{ mount.eligible ? (mount.recommended ? 'recommended' : 'eligible') : 'ignored' }}">{{ mount.eligible ? (mount.recommended ? 'recommended' : 'eligible') : 'ignored' }}</span>
-                                    </label>
-                                {% endfor %}
-                            </div>
-                        </label>
-                    {% endfor %}
-                </div>
-            {% endif %}
-        </section>
+    <section class="panel stack-form">
+        <div class="section-label"><div><strong>Folders</strong><small>Optional extra logical paths under /DATA or /media.</small></div></div>
+        <div class="source-list" data-source-list>
+            {% for source in values.sources %}
+                <div class="source-row"><input type="text" name="sources[]" value="{{ source }}" placeholder="/DATA/Documents"><button type="button" class="icon-button" data-remove-source aria-label="Remove source">×</button></div>
+            {% endfor %}
+        </div>
+        <div><button type="button" class="button-secondary" data-add-source>Add folder</button></div>
+    </section>
 
-        <section class="panel form-panel-v2 form-stage form-stage-wide">
-            <div class="section-label"><span>3</span><div><strong>Folders</strong><small>Add any extra folders to protect alongside the selected applications.</small></div></div>
-            <div class="source-list" data-source-list>
-                {% for source in values.sources %}
-                    <div class="source-row">
-                        <input type="text" name="sources[]" value="{{ source }}" placeholder="/DATA/Documents">
-                        <button type="button" class="icon-button" data-remove-source aria-label="Remove source">×</button>
-                    </div>
-                {% endfor %}
-            </div>
-            <button type="button" class="button button-secondary" data-add-source>Add folder source</button>
-            <div class="info-strip compact-strip">
-                <strong>Allowed roots</strong>
-                <p>Use logical ZimaOS paths such as <code>/DATA/Documents</code> or <code>/media/MyUSB/Photos</code>.</p>
-            </div>
-        </section>
+    <section class="panel stack-form">
+        <div class="section-label"><div><strong>Automation</strong><small>Manual, daily or weekly execution.</small></div></div>
+        <div class="schedule-fields">
+            <label class="field"><span>Schedule</span><select name="schedule_type"><option value="manual" {{ values.schedule_type == 'manual' ? 'selected' : '' }}>Manual</option><option value="daily" {{ values.schedule_type == 'daily' ? 'selected' : '' }}>Daily</option><option value="weekly" {{ values.schedule_type == 'weekly' ? 'selected' : '' }}>Weekly</option></select></label>
+            <label class="field" data-schedule-time><span>Time</span><input type="time" name="schedule_time" value="{{ values.schedule_time }}"></label>
+            <label class="field" data-schedule-weekday><span>Weekday</span><select name="schedule_weekday"><option value="1" {{ values.schedule_weekday == 1 ? 'selected' : '' }}>Monday</option><option value="2" {{ values.schedule_weekday == 2 ? 'selected' : '' }}>Tuesday</option><option value="3" {{ values.schedule_weekday == 3 ? 'selected' : '' }}>Wednesday</option><option value="4" {{ values.schedule_weekday == 4 ? 'selected' : '' }}>Thursday</option><option value="5" {{ values.schedule_weekday == 5 ? 'selected' : '' }}>Friday</option><option value="6" {{ values.schedule_weekday == 6 ? 'selected' : '' }}>Saturday</option><option value="7" {{ values.schedule_weekday == 7 ? 'selected' : '' }}>Sunday</option></select></label>
+        </div>
 
-        <aside class="panel side-summary-panel">
-            <span class="card-kicker">Summary</span>
-            <h2>What this job will do</h2>
-            <ul class="simple-list">
-                <li>Store snapshots in one encrypted repository</li>
-                <li>Include selected applications and their runtime manifest</li>
-                <li>Optionally include extra folders</li>
-                <li>Run through the isolated worker</li>
-            </ul>
-            <div class="form-actions sticky-actions">
-                <a class="button button-secondary" href="{{ ROUTER.generate('backups') }}">Cancel</a>
-                <button class="button" type="submit">Create backup</button>
-            </div>
-        </aside>
-    </div>
+        <label class="toggle-line"><input type="checkbox" name="retention_enabled" value="1" {{ values.retention_enabled ? 'checked' : '' }}><span><strong>Automatic retention</strong><small>Forget older snapshots after a successful backup. Prune remains a separate repository operation.</small></span></label>
+        <div class="retention-grid" data-retention-fields>
+            <label class="field"><span>Keep last</span><input type="number" min="1" max="1000" name="keep_last" value="{{ values.keep_last }}"></label>
+            <label class="field"><span>Daily</span><input type="number" min="0" max="1000" name="keep_daily" value="{{ values.keep_daily }}"></label>
+            <label class="field"><span>Weekly</span><input type="number" min="0" max="1000" name="keep_weekly" value="{{ values.keep_weekly }}"></label>
+            <label class="field"><span>Monthly</span><input type="number" min="0" max="1000" name="keep_monthly" value="{{ values.keep_monthly }}"></label>
+        </div>
+    </section>
+
+    <div class="form-actions"><a class="button-secondary" href="{{ ROUTER.generate('backups') }}">Cancel</a><button class="button" type="submit">Create backup</button></div>
 </form>
 {% endblock %}
