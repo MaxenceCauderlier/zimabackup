@@ -1,0 +1,110 @@
+{% extends "layout.twig" %}
+
+{% block title %}Browse snapshot - {{ APP.name }}{% endblock %}
+
+{% block content %}
+<header class="page-header">
+    <div>
+        <a class="back-link" href="{{ ROUTER.generate('snapshots') }}">← Restore</a>
+        <h1>{{ snapshot.job_name }}</h1>
+        <p class="muted">Browse snapshot {{ snapshot.snapshot_id|slice(0, 12) }} from {{ snapshot.repository_name }}.</p>
+    </div>
+    <div class="header-actions">
+        <a class="button-secondary" href="{{ ROUTER.generate('restores.create', {runId: snapshot.id}) }}">Restore entire snapshot</a>
+        {% if snapshot.configured_app_count|default(0) > 0 %}
+            <a class="button-secondary" href="{{ ROUTER.generate('snapshots.applications', {runId: snapshot.id}) }}">Applications</a>
+        {% endif %}
+    </div>
+</header>
+
+{% if flash_success %}<div class="alert alert-success">{{ flash_success }}</div>{% endif %}
+{% if flash_error %}<div class="alert alert-error">{{ flash_error }}</div>{% endif %}
+{% if browse_error %}<div class="alert alert-error">{{ browse_error }}</div>{% endif %}
+
+<nav class="snapshot-breadcrumbs" aria-label="Snapshot path">
+    {% for crumb in breadcrumbs %}
+        {% if not loop.last %}
+            <a href="{{ ROUTER.generate('snapshots.browse', {runId: snapshot.id}) }}?path={{ crumb.path|url_encode }}">{{ crumb.label }}</a><span>/</span>
+        {% else %}
+            <strong>{{ crumb.label }}</strong>
+        {% endif %}
+    {% endfor %}
+</nav>
+
+{% if not listing or listing.status in ['queued', 'loading'] %}
+    <section class="simple-section" data-auto-refresh>
+        <div class="empty-inline">
+            <strong>{{ listing and listing.status == 'loading' ? 'Reading snapshot…' : 'Waiting for worker…' }}</strong>
+            <p>The worker is reading this directory from the encrypted repository. This page refreshes automatically.</p>
+        </div>
+    </section>
+{% elseif listing.status == 'failed' %}
+    <section class="simple-section">
+        <div class="alert alert-error">
+            <strong>Unable to read this directory</strong>
+            <div>{{ listing.error }}</div>
+        </div>
+        <form method="post" action="{{ ROUTER.generate('snapshots.browse.refresh', {runId: snapshot.id}) }}">
+            <input type="hidden" name="_csrf" value="{{ csrf_token }}">
+            <input type="hidden" name="path" value="{{ path }}">
+            <button class="button-secondary" type="submit">Try again</button>
+        </form>
+    </section>
+{% else %}
+    <form method="post" action="{{ ROUTER.generate('restores.select', {runId: snapshot.id}) }}" class="snapshot-browser-form">
+        <input type="hidden" name="_csrf" value="{{ csrf_token }}">
+        <input type="hidden" name="browse_path" value="{{ path }}">
+
+        <section class="simple-section snapshot-browser-section">
+            <div class="simple-section-head">
+                <div>
+                    <h2>{{ path }}</h2>
+                    <p class="muted">{{ listing.entry_count }} item{{ listing.entry_count == 1 ? '' : 's' }}</p>
+                </div>
+                {% if listing.entries is not empty %}
+                    <label class="select-all-line"><input type="checkbox" data-select-all> Select this page</label>
+                {% endif %}
+            </div>
+
+            {% if listing.truncated %}
+                <div class="alert alert-warning">
+                    <strong>Large directory</strong>
+                    <div>Only the first {{ listing.entries|length }} items are shown. Select the parent directory from the previous level to restore everything inside it.</div>
+                </div>
+            {% endif %}
+
+            <div class="snapshot-file-list">
+                {% for entry in listing.entries %}
+                    <div class="snapshot-file-row">
+                        <label class="snapshot-file-select">
+                            <input type="checkbox" name="paths[]" value="{{ entry.path }}" data-select-item>
+                        </label>
+                        <div class="snapshot-file-main">
+                            {% if entry.type == 'dir' %}
+                                <a class="snapshot-file-name" href="{{ ROUTER.generate('snapshots.browse', {runId: snapshot.id}) }}?path={{ entry.path|url_encode }}">{{ entry.name }}/</a>
+                            {% else %}
+                                <strong class="snapshot-file-name">{{ entry.name }}</strong>
+                            {% endif %}
+                            <small>{{ entry.path }}</small>
+                        </div>
+                        <div class="snapshot-file-meta">
+                            <span>{{ entry.type }}</span>
+                            <span>{{ entry.type == 'file' ? (entry.size|bytes) : '—' }}</span>
+                            <span>{{ entry.mtime ?: '—' }}</span>
+                        </div>
+                    </div>
+                {% else %}
+                    <div class="empty-inline"><strong>This directory is empty.</strong></div>
+                {% endfor %}
+            </div>
+        </section>
+
+        {% if listing.entries is not empty %}
+            <div class="browser-action-bar">
+                <span class="muted">Choose files or folders from this level.</span>
+                <button class="button" type="submit">Restore selected</button>
+            </div>
+        {% endif %}
+    </form>
+{% endif %}
+{% endblock %}

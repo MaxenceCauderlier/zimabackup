@@ -253,7 +253,7 @@ final class ResticService
                 throw new RuntimeException('Restic restore include paths must be absolute snapshot paths.');
             }
             $arguments[] = '--include';
-            $arguments[] = $include;
+            $arguments[] = $this->escapeRestoreIncludePath($include);
         }
 
         $arguments[] = $snapshotId;
@@ -416,6 +416,136 @@ final class ResticService
         return $matches;
     }
 
+    /**
+     * List only the direct children of one snapshot directory.
+     * Restic currently streams the whole snapshot for `ls --json`; filtering is
+     * done while streaming so memory use remains bounded even for large trees.
+     *
+     * @return array{entries:list<array<string,mixed>>,count:int,truncated:bool}
+     */
+    public function listSnapshotDirectory(
+        string $repositoryPath,
+        string $passwordFile,
+        string $snapshotId,
+        string $directory,
+        int $limit = 1000,
+    ): array {
+        $directory = $directory === '/' ? '/' : rtrim($directory, '/');
+        $limit = max(1, min(5000, $limit));
+        $process = new Process([
+            $this->binary,
+            'ls',
+            '--repo', $repositoryPath,
+            '--password-file', $passwordFile,
+            '--json',
+            $snapshotId,
+        ]);
+        $process->setTimeout(300);
+
+        $buffer = '';
+        $stderr = '';
+        $entries = [];
+        $count = 0;
+
+        $consume = static function (string $line) use (&$entries, &$count, $directory, $limit): void {
+            $line = trim($line);
+            if ($line === '') {
+                return;
+            }
+            try {
+                $message = json_decode($line, true, 512, JSON_THROW_ON_ERROR);
+            } catch (JsonException) {
+                return;
+            }
+            if (!is_array($message)) {
+                return;
+            }
+            $messageType = $message['message_type'] ?? $message['struct_type'] ?? null;
+            if ($messageType !== 'node') {
+                return;
+            }
+
+            $path = (string) ($message['path'] ?? '');
+            if ($path === '') {
+                return;
+            }
+
+            // User-facing recovery only exposes the logical ZimaOS data roots.
+            // Internal manifest files backed up from the worker stay hidden.
+            $visible = $path === '/DATA' || str_starts_with($path, '/DATA/') || $path === '/media' || str_starts_with($path, '/media/');
+            if (!$visible) {
+                return;
+            }
+
+            if ($directory === '/') {
+                if (!in_array($path, ['/DATA', '/media'], true)) {
+                    return;
+                }
+            } else {
+                if ($path === $directory) {
+                    return;
+                }
+                $prefix = $directory . '/';
+                if (!str_starts_with($path, $prefix)) {
+                    return;
+                }
+                $relative = substr($path, strlen($prefix));
+                if ($relative === '' || str_contains($relative, '/')) {
+                    return;
+                }
+            }
+
+            $count++;
+            if (count($entries) >= $limit) {
+                return;
+            }
+
+            $entries[] = [
+                'name' => (string) ($message['name'] ?? basename($path)),
+                'path' => $path,
+                'type' => (string) ($message['type'] ?? 'other'),
+                'size' => (int) ($message['size'] ?? 0),
+                'mtime' => (string) ($message['mtime'] ?? ''),
+                'permissions' => (string) ($message['permissions'] ?? ''),
+            ];
+        };
+
+        $exitCode = $process->run(function (string $type, string $data) use (&$buffer, &$stderr, $consume): void {
+            if ($type === Process::ERR) {
+                $stderr .= $data;
+                return;
+            }
+            $buffer .= $data;
+            while (($position = strpos($buffer, "\n")) !== false) {
+                $line = substr($buffer, 0, $position);
+                $buffer = substr($buffer, $position + 1);
+                $consume($line);
+            }
+        });
+        if (trim($buffer) !== '') {
+            $consume($buffer);
+        }
+        if ($exitCode !== 0) {
+            $message = trim($stderr);
+            throw new RuntimeException($message !== '' ? $message : sprintf('Restic ls failed with exit code %d.', $exitCode));
+        }
+
+        usort($entries, static function (array $left, array $right): int {
+            $leftDir = ($left['type'] ?? '') === 'dir';
+            $rightDir = ($right['type'] ?? '') === 'dir';
+            if ($leftDir !== $rightDir) {
+                return $leftDir ? -1 : 1;
+            }
+            return strnatcasecmp((string) ($left['name'] ?? ''), (string) ($right['name'] ?? ''));
+        });
+
+        return [
+            'entries' => $entries,
+            'count' => $count,
+            'truncated' => $count > count($entries),
+        ];
+    }
+
     /** Decrypt one file from a snapshot directly to memory. */
     public function dumpSnapshotFile(
         string $repositoryPath,
@@ -438,6 +568,21 @@ final class ResticService
             throw new RuntimeException('Snapshot manifest is unexpectedly large.');
         }
         return $output;
+    }
+
+    /** Escape Restic/Go glob metacharacters so UI-selected paths are exact. */
+    private function escapeRestoreIncludePath(string $path): string
+    {
+        $escaped = '';
+        $length = strlen($path);
+        for ($index = 0; $index < $length; $index++) {
+            $character = $path[$index];
+            if (in_array($character, ['\\', '*', '?', '['], true)) {
+                $escaped .= '\\';
+            }
+            $escaped .= $character;
+        }
+        return $escaped;
     }
 
     /**

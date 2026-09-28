@@ -6,6 +6,7 @@ namespace ZimaBackup\Controller;
 
 use InvalidArgumentException;
 use Throwable;
+use ZimaBackup\Core\Session;
 use ZimaBackup\Security\Csrf;
 use ZimaBackup\Service\ApplicationInstallService;
 use ZimaBackup\Service\ApplicationRestoreService;
@@ -85,10 +86,15 @@ final class ApplicationRestoreController extends AbstractController
         /** @var ApplicationInstallService $installs */
         $installs = $this->app->service(ApplicationInstallService::class);
 
+        /** @var Session $session */
+        $session = $this->app->service(Session::class);
+
         return $this->render('application-restores/show.twig', [
             'restore' => $restore,
             'install' => $installs->latestForRestore((int) $restore['id']),
             'install_error' => null,
+            'flash_success' => $session->pull('flash_success'),
+            'flash_error' => $session->pull('flash_error'),
         ]);
     }
 
@@ -129,4 +135,27 @@ final class ApplicationRestoreController extends AbstractController
             ]);
         }
     }
+    public function cleanup(string $uuid): string
+    {
+        /** @var Csrf $csrf */
+        $csrf = $this->app->service(Csrf::class);
+        if (!$csrf->isValid($_POST['_csrf'] ?? null)) {
+            http_response_code(419);
+            return $this->render('errors/419.twig');
+        }
+
+        /** @var Session $session */
+        $session = $this->app->service(Session::class);
+        try {
+            /** @var ApplicationRestoreService $restores */
+            $restores = $this->app->service(ApplicationRestoreService::class);
+            $restores->enqueueCleanup($uuid);
+            $session->set('flash_success', 'Application staging cleanup queued.');
+        } catch (Throwable $exception) {
+            $session->set('flash_error', $exception->getMessage());
+        }
+
+        return $this->redirect('application-restores.show', ['uuid' => $uuid]);
+    }
+
 }

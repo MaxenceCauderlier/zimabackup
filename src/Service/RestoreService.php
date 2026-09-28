@@ -5,7 +5,9 @@ declare(strict_types=1);
 namespace ZimaBackup\Service;
 
 use InvalidArgumentException;
+use JsonException;
 use RuntimeException;
+use Symfony\Component\Process\Process;
 use Throwable;
 use ZimaBackup\Core\Database;
 use ZimaBackup\Core\Uuid;
@@ -23,7 +25,7 @@ final class RestoreService
 
     public function all(): array
     {
-        return $this->database->fetchAll(
+        $rows = $this->database->fetchAll(
             'SELECT rr.*, bj.name AS job_name, r.name AS repository_name ' .
             'FROM restore_runs rr ' .
             'JOIN backup_runs br ON br.id = rr.backup_run_id ' .
@@ -31,6 +33,11 @@ final class RestoreService
             'JOIN repositories r ON r.id = rr.repository_id ' .
             'ORDER BY rr.id DESC LIMIT 100'
         );
+        foreach ($rows as &$row) {
+            $row['selected_paths'] = $this->decodeSelectedPaths((string) ($row['selected_paths_json'] ?? '[]'));
+        }
+        unset($row);
+        return $rows;
     }
 
     public function snapshotByBackupRunId(int $backupRunId): ?array
@@ -48,7 +55,7 @@ final class RestoreService
 
     public function findByUuid(string $uuid): ?array
     {
-        return $this->database->fetchOne(
+        $row = $this->database->fetchOne(
             'SELECT rr.*, bj.uuid AS job_uuid, bj.name AS job_name, r.name AS repository_name, r.path AS repository_path ' .
             'FROM restore_runs rr ' .
             'JOIN backup_runs br ON br.id = rr.backup_run_id ' .
@@ -57,6 +64,10 @@ final class RestoreService
             'WHERE rr.uuid = :uuid',
             ['uuid' => $uuid]
         );
+        if ($row !== null) {
+            $row['selected_paths'] = $this->decodeSelectedPaths((string) ($row['selected_paths_json'] ?? '[]'));
+        }
+        return $row;
     }
 
     public function defaultTarget(array $snapshot): string
@@ -72,10 +83,10 @@ final class RestoreService
 
     /**
      * Queue a safe restore into a dedicated target directory.
-     * The current safe-restore workflow deliberately does not restore in-place: the existing source data is
-     * never modified by this workflow.
+     * If $selectedPaths is empty, the whole snapshot is restored. Otherwise only
+     * the selected absolute paths inside /DATA or /media are included.
      */
-    public function enqueue(int $backupRunId, string $targetPath): array
+    public function enqueue(int $backupRunId, string $targetPath, array $selectedPaths = []): array
     {
         $snapshot = $this->snapshotByBackupRunId($backupRunId);
         if ($snapshot === null) {
@@ -86,6 +97,8 @@ final class RestoreService
         }
 
         $targetPath = $this->validateTarget($targetPath, (string) $snapshot['repository_path']);
+        $selectedPaths = $this->normalizeSelectedPaths($selectedPaths);
+        $selectionMode = $selectedPaths === [] ? 'full' : 'selected';
 
         $pdo = $this->database->pdo();
         $pdo->exec('BEGIN IMMEDIATE');
@@ -101,14 +114,16 @@ final class RestoreService
 
             $uuid = Uuid::v4();
             $this->database->execute(
-                'INSERT INTO restore_runs(uuid, backup_run_id, repository_id, snapshot_id, target_path, overwrite_mode, status, progress_percent, created_at) ' .
-                "VALUES (:uuid, :backup_run_id, :repository_id, :snapshot_id, :target_path, 'never', 'pending', 0, :created_at)",
+                'INSERT INTO restore_runs(uuid, backup_run_id, repository_id, snapshot_id, target_path, overwrite_mode, status, progress_percent, selection_mode, selected_paths_json, created_at) ' .
+                "VALUES (:uuid, :backup_run_id, :repository_id, :snapshot_id, :target_path, 'never', 'pending', 0, :selection_mode, :selected_paths_json, :created_at)",
                 [
                     'uuid' => $uuid,
                     'backup_run_id' => $backupRunId,
                     'repository_id' => (int) $snapshot['repository_id'],
                     'snapshot_id' => (string) $snapshot['snapshot_id'],
                     'target_path' => $targetPath,
+                    'selection_mode' => $selectionMode,
+                    'selected_paths_json' => json_encode($selectedPaths, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR),
                     'created_at' => date('c'),
                 ]
             );
@@ -153,6 +168,8 @@ final class RestoreService
         $targetLogicalPath = $this->validateTarget((string) $run['target_path'], $repositoryLogicalPath);
         $targetPath = $this->paths->toContainerPath($targetLogicalPath);
         $passwordFile = (string) $run['password_file'];
+        $selectedPaths = $this->decodeSelectedPaths((string) ($run['selected_paths_json'] ?? '[]'));
+        $selectedPaths = $this->normalizeSelectedPaths($selectedPaths);
 
         if (!is_file($passwordFile) || !is_readable($passwordFile)) {
             throw new RuntimeException('Repository recovery key file is missing or unreadable.');
@@ -162,6 +179,7 @@ final class RestoreService
             throw new RuntimeException('Restore target exists and is not a directory.');
         }
 
+        $this->assertNoSymlinkComponents($targetPath, $targetLogicalPath);
         if (!is_dir($targetPath) && !mkdir($targetPath, 0770, true) && !is_dir($targetPath)) {
             throw new RuntimeException(sprintf('Unable to create restore target: %s', $targetLogicalPath));
         }
@@ -211,7 +229,8 @@ final class RestoreService
                         'id' => $restoreRunId,
                     ]
                 );
-            }
+            },
+            $selectedPaths
         );
 
         $this->database->execute(
@@ -231,6 +250,68 @@ final class RestoreService
         );
     }
 
+    public function enqueueCleanup(string $uuid): void
+    {
+        $run = $this->findByUuid($uuid);
+        if ($run === null) {
+            throw new InvalidArgumentException('Restore not found.');
+        }
+        if (!in_array($run['status'], ['success', 'failed'], true)) {
+            throw new InvalidArgumentException('Wait for the restore to finish before cleaning its target.');
+        }
+        if (!empty($run['cleaned_at'])) {
+            throw new InvalidArgumentException('This restore target has already been cleaned.');
+        }
+        if (in_array((string) ($run['cleanup_status'] ?? ''), ['queued', 'running'], true)) {
+            throw new InvalidArgumentException('Restore cleanup is already queued or running.');
+        }
+
+        $this->database->execute("UPDATE restore_runs SET cleanup_status = 'queued', cleanup_error = NULL WHERE id = :id", ['id' => (int) $run['id']]);
+        $operationId = $this->queue->enqueue('restore.cleanup', ['restore_run_id' => (int) $run['id']]);
+        $this->database->execute(
+            'UPDATE operations SET repository_id = :repository_id WHERE id = :id',
+            ['repository_id' => (int) $run['repository_id'], 'id' => $operationId]
+        );
+    }
+
+    public function executeCleanup(int $restoreRunId): void
+    {
+        $run = $this->database->fetchOne(
+            'SELECT rr.*, r.path AS repository_path FROM restore_runs rr JOIN repositories r ON r.id = rr.repository_id WHERE rr.id = :id',
+            ['id' => $restoreRunId]
+        );
+        if ($run === null) {
+            throw new RuntimeException('Restore run not found.');
+        }
+        if (!in_array($run['status'], ['success', 'failed'], true)) {
+            throw new RuntimeException('Restore target cannot be cleaned while the restore is active.');
+        }
+
+        $this->database->execute("UPDATE restore_runs SET cleanup_status = 'running', cleanup_error = NULL WHERE id = :id", ['id' => $restoreRunId]);
+        $logical = $this->validateTarget((string) $run['target_path'], (string) $run['repository_path']);
+        $target = $this->paths->toContainerPath($logical);
+        $this->assertNoSymlinkComponents($target, $logical);
+
+        if (file_exists($target) || is_link($target)) {
+            $process = new Process(['rm', '-rf', '--', $target]);
+            $process->setTimeout(null);
+            $process->mustRun();
+        }
+
+        $this->database->execute(
+            "UPDATE restore_runs SET cleanup_status = 'success', cleaned_at = :cleaned_at, cleanup_error = NULL WHERE id = :id",
+            ['cleaned_at' => date('c'), 'id' => $restoreRunId]
+        );
+    }
+
+    public function markCleanupFailed(int $restoreRunId, string $error): void
+    {
+        $this->database->execute(
+            "UPDATE restore_runs SET cleanup_status = 'failed', cleanup_error = :error WHERE id = :id",
+            ['error' => substr($error, 0, 4000), 'id' => $restoreRunId]
+        );
+    }
+
     public function markFailed(int $restoreRunId, string $error): void
     {
         $this->database->execute(
@@ -241,6 +322,51 @@ final class RestoreService
                 'id' => $restoreRunId,
             ]
         );
+    }
+
+    /** @return list<string> */
+    private function normalizeSelectedPaths(array $paths): array
+    {
+        $normalized = [];
+        foreach ($paths as $path) {
+            if (!is_string($path)) {
+                continue;
+            }
+            $path = trim($path);
+            if ($path === '' || $path[0] !== '/' || str_contains($path, "\0") || str_contains($path, '\\')) {
+                throw new InvalidArgumentException('Invalid selected snapshot path.');
+            }
+            $segments = [];
+            foreach (explode('/', $path) as $segment) {
+                if ($segment === '' || $segment === '.') {
+                    continue;
+                }
+                if ($segment === '..') {
+                    throw new InvalidArgumentException('Snapshot path traversal is not allowed.');
+                }
+                $segments[] = $segment;
+            }
+            $candidate = '/' . implode('/', $segments);
+            if (!($candidate === '/DATA' || str_starts_with($candidate, '/DATA/') || $candidate === '/media' || str_starts_with($candidate, '/media/'))) {
+                throw new InvalidArgumentException('Selected restore paths must stay under /DATA or /media.');
+            }
+            $normalized[$candidate] = true;
+            if (count($normalized) > 100) {
+                throw new InvalidArgumentException('Select at most 100 files or folders in one restore.');
+            }
+        }
+        return array_keys($normalized);
+    }
+
+    /** @return list<string> */
+    private function decodeSelectedPaths(string $json): array
+    {
+        try {
+            $paths = json_decode($json, true, 512, JSON_THROW_ON_ERROR);
+        } catch (JsonException) {
+            return [];
+        }
+        return is_array($paths) ? array_values(array_filter($paths, 'is_string')) : [];
     }
 
     private function validateTarget(string $targetPath, string $repositoryPath): string
@@ -257,5 +383,23 @@ final class RestoreService
         }
 
         return $targetPath;
+    }
+
+    private function assertNoSymlinkComponents(string $path, string $logicalLabel): void
+    {
+        $cursor = rtrim($path, '/');
+        while ($cursor !== '' && $cursor !== '/') {
+            if (is_link($cursor)) {
+                throw new RuntimeException(sprintf('Restore path contains a symbolic link and was refused: %s', $logicalLabel));
+            }
+            if (in_array($cursor, ['/DATA', '/media'], true)) {
+                break;
+            }
+            $parent = dirname($cursor);
+            if ($parent === $cursor) {
+                break;
+            }
+            $cursor = $parent;
+        }
     }
 }

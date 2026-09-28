@@ -24,6 +24,7 @@ use ZimaBackup\Service\ResticService;
 use ZimaBackup\Service\SchedulerService;
 use ZimaBackup\Service\SettingsService;
 use ZimaBackup\Service\SnapshotService;
+use ZimaBackup\Service\SnapshotBrowserService;
 use ZimaBackup\Service\SnapshotApplicationService;
 use ZimaBackup\Service\TaskQueueService;
 
@@ -155,6 +156,12 @@ final class Application
             $queue
         );
         $this->services[SnapshotService::class] = new SnapshotService(
+            $this->database,
+            $pathService,
+            $resticService,
+            $queue
+        );
+        $this->services[SnapshotBrowserService::class] = new SnapshotBrowserService(
             $this->database,
             $pathService,
             $resticService,

@@ -3,78 +3,65 @@
 {% block title %}Restore - {{ APP.name }}{% endblock %}
 
 {% block content %}
-<header class="page-header compact-header">
+<header class="page-header">
     <div>
-        <a class="back-link" href="{{ ROUTER.generate('restores') }}">← Restores</a>
-        <p class="eyebrow">Restore operation</p>
+        <a class="back-link" href="{{ ROUTER.generate('restores') }}">← Restore history</a>
         <h1>{{ restore.job_name }}</h1>
-        <p class="muted">Snapshot <strong>{{ restore.snapshot_id|slice(0, 12) }}</strong> → {{ restore.target_path }}</p>
+        <p class="muted">Snapshot {{ restore.snapshot_id|slice(0, 12) }} · {{ restore.repository_name }}</p>
     </div>
-    <div class="header-actions">
-        <span class="status-pill {{ restore.status == 'success' ? 'ok' : (restore.status in ['pending', 'running'] ? 'warning' : 'error') }}"><span class="status-dot"></span>{{ restore.status }}</span>
-    </div>
+    <span class="status-pill {{ restore.status == 'success' ? 'ok' : (restore.status in ['pending', 'running'] ? 'warning' : 'error') }}"><span class="status-dot"></span>{{ restore.status }}</span>
 </header>
 
-<section class="summary-cards four-summary-cards">
-    <article class="summary-card"><span>Repository</span><strong>{{ restore.repository_name }}</strong></article>
-    <article class="summary-card"><span>Target</span><strong>{{ restore.target_path }}</strong></article>
-    <article class="summary-card"><span>Snapshot</span><strong>{{ restore.snapshot_id|slice(0, 12) }}</strong></article>
-    <article class="summary-card"><span>Overwrite mode</span><strong>{{ restore.overwrite_mode }}</strong></article>
+{% if flash_success %}<div class="alert alert-success">{{ flash_success }}</div>{% endif %}
+{% if flash_error %}<div class="alert alert-error">{{ flash_error }}</div>{% endif %}
+{% if restore.cleanup_error %}<div class="alert alert-error"><strong>Cleanup failed</strong><div>{{ restore.cleanup_error }}</div></div>{% endif %}
+
+<section class="simple-section">
+    <div class="simple-section-head"><h2>Restore</h2></div>
+    <div class="simple-row"><div><strong>Content</strong><small>{{ restore.selection_mode == 'selected' ? restore.selected_paths|length ~ ' selected path(s)' : 'Entire snapshot' }}</small></div><div class="simple-row-meta">{{ restore.overwrite_mode }}</div></div>
+    <div class="simple-row"><div><strong>Target</strong><small>{{ restore.target_path }}</small></div><div class="simple-row-meta">{{ restore.cleaned_at ? 'cleaned' : 'kept' }}</div></div>
+    <div class="simple-row"><div><strong>Created</strong><small>{{ restore.created_at }}</small></div><div class="simple-row-meta">{{ restore.finished_at ?: '—' }}</div></div>
 </section>
 
-{% if restore.status in ['pending', 'running'] %}
-    <section class="panel live-panel" data-auto-refresh>
-        <div class="live-panel-head">
-            <div>
-                <span class="card-kicker">Current restore</span>
-                <h2>{{ restore.status == 'pending' ? 'Waiting for worker' : 'Recovering files' }}</h2>
-            </div>
-            <strong>{{ restore.progress_percent|default(0)|number_format(0) }}%</strong>
-        </div>
-        <div class="progress-track large-track"><span style="width: {{ restore.progress_percent|default(0) }}%"></span></div>
-        <div class="summary-cards three-summary-cards compact-summary-cards">
-            <article class="summary-card"><span>Files restored</span><strong>{{ restore.files_restored|default(0) }} / {{ restore.total_files|default(0) }}</strong></article>
-            <article class="summary-card"><span>Data restored</span><strong>{{ restore.bytes_restored|bytes }} / {{ restore.total_bytes|bytes }}</strong></article>
-            <article class="summary-card"><span>Skipped</span><strong>{{ restore.files_skipped|default(0) }}</strong></article>
-        </div>
-    </section>
-{% elseif restore.status == 'failed' %}
-    <section class="panel attention-panel">
-        <span class="status-pill error"><span class="status-dot"></span>Restore failed</span>
-        <h2>Nothing was written over the original data</h2>
-        <p>{{ restore.error }}</p>
-    </section>
-{% elseif restore.status == 'success' %}
-    <section class="panel success-panel-v2">
-        <div>
-            <span class="status-pill ok"><span class="status-dot"></span>Restore complete</span>
-            <h2>Recovery files are ready to inspect</h2>
-            <p>The snapshot was restored under <code>{{ restore.target_path }}</code>. Your original source data was not modified.</p>
-        </div>
-        <div class="summary-cards three-summary-cards compact-summary-cards">
-            <article class="summary-card"><span>Files restored</span><strong>{{ restore.files_restored|default(0) }}</strong></article>
-            <article class="summary-card"><span>Data restored</span><strong>{{ restore.bytes_restored|bytes }}</strong></article>
-            <article class="summary-card"><span>Finished</span><strong>{{ restore.finished_at }}</strong></article>
-        </div>
-    </section>
+{% if restore.selection_mode == 'selected' and restore.selected_paths is not empty %}
+<section class="simple-section">
+    <div class="simple-section-head"><h2>Selected paths</h2></div>
+    {% for selected in restore.selected_paths %}
+        <div class="simple-row"><div><strong>{{ selected|split('/')|last ?: selected }}</strong><small>{{ selected }}</small></div></div>
+    {% endfor %}
+</section>
 {% endif %}
 
-<section class="panel">
-    <div class="panel-heading">
-        <div><span class="card-kicker">Recovery location</span><h2>Where to look</h2></div>
-    </div>
-    <div class="detail-stack">
-        <div class="detail-row-card wide-row-card">
-            <div>
-                <strong>Restored root</strong>
-                <small>{{ restore.target_path }}</small>
-            </div>
-            <span class="mini-tag eligible">safe target</span>
-        </div>
-        <div class="empty-inline">
-            <strong>Path layout</strong>
-            <p>Restic preserves the absolute source tree beneath the target. A source such as <code>/DATA/Documents</code> is therefore available below <code>{{ restore.target_path }}/DATA/Documents</code>.</p>
-        </div>
+{% if restore.status in ['pending', 'running'] %}
+<section class="simple-section" data-auto-refresh>
+    <div class="simple-section-head"><h2>{{ restore.status == 'pending' ? 'Waiting for worker' : 'Restoring' }}</h2><strong>{{ restore.progress_percent|default(0)|number_format(0) }}%</strong></div>
+    <div class="progress-track"><span style="width: {{ restore.progress_percent|default(0) }}%"></span></div>
+    <div class="simple-row"><div><strong>Files</strong><small>{{ restore.files_restored|default(0) }} restored · {{ restore.files_skipped|default(0) }} skipped</small></div><div class="simple-row-meta">{{ restore.bytes_restored|bytes }} / {{ restore.total_bytes|bytes }}</div></div>
+</section>
+{% elseif restore.status == 'failed' %}
+<div class="alert alert-error"><strong>Restore failed safely</strong><div>{{ restore.error }}</div></div>
+{% elseif restore.status == 'success' %}
+<div class="alert alert-success"><strong>Restore complete</strong><div>{{ restore.files_restored|default(0) }} files · {{ restore.bytes_restored|bytes }} restored.</div></div>
+{% endif %}
+
+{% if restore.cleanup_status in ['queued', 'running'] %}
+<section class="simple-section" data-auto-refresh>
+    <div class="empty-inline"><strong>Cleaning restore target…</strong><p>The worker is removing only {{ restore.target_path }}.</p></div>
+</section>
+{% elseif restore.cleaned_at %}
+<section class="simple-section">
+    <div class="empty-inline"><strong>Recovered files cleaned</strong><p>The temporary restore target was removed on {{ restore.cleaned_at }}. The restore history remains available.</p></div>
+</section>
+{% elseif restore.status in ['success', 'failed'] %}
+<section class="simple-section">
+    <div class="simple-section-head"><h2>Cleanup</h2></div>
+    <div class="simple-row">
+        <div><strong>Remove recovered files</strong><small>Deletes only this restore target: {{ restore.target_path }}</small></div>
+        <form method="post" action="{{ ROUTER.generate('restores.cleanup', {uuid: restore.uuid}) }}" data-confirm="Delete this restore target and all recovered files inside it? The snapshot itself is not deleted.">
+            <input type="hidden" name="_csrf" value="{{ csrf_token }}">
+            <button class="button-secondary button-danger" type="submit">Clean restore</button>
+        </form>
     </div>
 </section>
+{% endif %}
 {% endblock %}

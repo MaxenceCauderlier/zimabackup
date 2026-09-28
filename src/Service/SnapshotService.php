@@ -95,6 +95,10 @@ final class SnapshotService
             "UPDATE backup_runs SET snapshot_state = 'forgotten', forgotten_at = :forgotten_at, snapshot_forget_error = NULL WHERE id = :id",
             ['forgotten_at' => date('c'), 'id' => $runId]
         );
+        $this->database->execute(
+            'DELETE FROM snapshot_browser_cache WHERE backup_run_id = :id',
+            ['id' => $runId]
+        );
     }
 
     public function markForgetFailed(int $runId, string $error): void

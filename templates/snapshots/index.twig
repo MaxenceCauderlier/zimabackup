@@ -29,8 +29,8 @@
             <div class="header-actions">
                 <span class="status-pill {{ snapshot.snapshot_state == 'unavailable' ? 'error' : (snapshot.snapshot_state == 'forgetting' or snapshot.status == 'warning' ? 'warning' : 'ok') }}"><span class="status-dot"></span>{{ snapshot.snapshot_state == 'unavailable' ? 'unavailable' : (snapshot.snapshot_state == 'forgetting' ? 'forgetting' : snapshot.status) }}</span>
                 {% if snapshot.snapshot_state != 'unavailable' %}
+                    <a class="button" href="{{ ROUTER.generate('snapshots.browse', {runId: snapshot.id}) }}">Browse</a>
                     {% if snapshot.app_count > 0 %}<a class="button-secondary" href="{{ ROUTER.generate('snapshots.applications', {runId: snapshot.id}) }}">Application</a>{% endif %}
-                    <a class="button" href="{{ ROUTER.generate('restores.create', {runId: snapshot.id}) }}">Files</a>
                     <form method="post" action="{{ ROUTER.generate('snapshots.forget', {runId: snapshot.id}) }}" data-confirm="Forget this recovery point? Disk space is reclaimed later by prune."><input type="hidden" name="_csrf" value="{{ csrf_token }}"><button class="button-secondary button-danger" type="submit" {{ snapshot.snapshot_state == 'forgetting' ? 'disabled' : '' }}>Forget</button></form>
                 {% endif %}
             </div>

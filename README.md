@@ -2,9 +2,9 @@
 
 ZimaBackup is a lightweight, application-aware backup and disaster-recovery manager for ZimaOS, built with PHP 8.4, Twig, SQLite and Restic.
 
-## Current milestone — v0.11 Scheduling & Retention
+## Current milestone — v0.12 Restore Maturity
 
-v0.11 adds day-to-day automation and deliberately simplifies the interface. The UI now behaves more like a quiet system utility than a generic SaaS dashboard: text-first navigation, compact actions, simple lists and details, and much less decorative chrome.
+v0.12 makes recovery practical with worker-backed snapshot browsing, selective file/folder restores, cleanup of temporary recovery data, and a clearer restore history. v0.11 introduced day-to-day automation and deliberately simplified the interface. The UI now behaves more like a quiet system utility than a generic SaaS dashboard: text-first navigation, compact actions, simple lists and details, and much less decorative chrome.
 
 ### Scheduling
 
@@ -212,3 +212,16 @@ docker compose exec app php bin/migrate.php
 docker compose exec worker restic version
 docker compose logs -f worker
 ```
+
+## v0.12.0 - Restore maturity
+
+This release makes Restore a practical recovery workflow instead of an all-or-nothing operation.
+
+- Browse snapshot contents through the privileged worker. The web process never opens Restic repositories directly.
+- Browse only logical user roots (`/DATA` and `/media`); internal backup manifests remain hidden.
+- Restore one or multiple selected files/folders using Restic `--include`, or restore the whole snapshot.
+- Directory listings are streamed from `restic ls --json` and cached per snapshot/path. The UI caps one directory view at 1,000 entries to avoid unbounded browser payloads.
+- File restores keep `--overwrite never` and a separate empty target directory.
+- Completed/failed file restore targets can be cleaned from Restore history without deleting the source snapshot.
+- Application restore staging workspaces can be cleaned after restore/install activity has finished. Original AppData applied to `/DATA` or `/media` is never removed by staging cleanup.
+- Cleanup runs through the worker and refuses symlinked restore paths.

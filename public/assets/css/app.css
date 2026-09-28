@@ -260,3 +260,36 @@ pre {
 .snapshot-actions { display: flex; justify-content: space-between; gap: 12px; align-items: center; margin-top: 12px; }
 .snapshot-actions > div { display: flex; gap: 7px; flex-wrap: wrap; align-items: center; }
 .more-mounts { padding-top: 9px; color: var(--muted); font-size: 12px; }
+
+/* v0.12: snapshot browsing and selective restore stay intentionally plain. */
+.snapshot-breadcrumbs {
+    display: flex; align-items: center; gap: 7px; flex-wrap: wrap;
+    padding: 10px 0 14px; border-bottom: 1px solid var(--line); color: var(--muted); font-size: 13px;
+}
+.snapshot-breadcrumbs a { color: var(--muted); }
+.snapshot-breadcrumbs a:hover { color: var(--text); }
+.snapshot-breadcrumbs strong { color: var(--text); font-weight: 650; }
+.snapshot-browser-section { padding-top: 16px; }
+.select-all-line { display: inline-flex; align-items: center; gap: 7px; color: var(--muted); font-size: 12px; }
+.snapshot-file-list { border-top: 1px solid var(--line); }
+.snapshot-file-row {
+    display: grid; grid-template-columns: 28px minmax(0, 1fr) auto; gap: 10px; align-items: center;
+    min-height: 54px; border-bottom: 1px solid #e9e9e4;
+}
+.snapshot-file-select { display: grid; place-items: center; }
+.snapshot-file-main { min-width: 0; }
+.snapshot-file-main small { display: block; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.snapshot-file-name { color: var(--text); font-weight: 620; }
+a.snapshot-file-name:hover { text-decoration: underline; }
+.snapshot-file-meta { display: grid; grid-template-columns: 70px 90px minmax(150px, auto); gap: 12px; color: var(--muted); font-size: 12px; text-align: right; }
+.browser-action-bar {
+    position: sticky; bottom: 14px; display: flex; justify-content: space-between; align-items: center; gap: 16px;
+    margin-top: 16px; padding: 10px 12px; background: rgba(255,255,255,.96); border: 1px solid var(--line); border-radius: 8px;
+}
+.restore-plain-form { display: grid; gap: 0; }
+
+@media (max-width: 760px) {
+    .snapshot-file-row { grid-template-columns: 28px minmax(0, 1fr); padding: 9px 0; }
+    .snapshot-file-meta { grid-column: 2; grid-template-columns: repeat(3, auto); justify-content: start; text-align: left; }
+    .browser-action-bar { position: static; }
+}

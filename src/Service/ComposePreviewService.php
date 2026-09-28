@@ -276,7 +276,7 @@ final class ComposePreviewService
                 $name = trim((string) ($mount['Name'] ?? ''));
                 if ($name !== '') {
                     $volumes[] = $name . ':' . $destination;
-                    $warnings[] = sprintf('Service %s uses named Docker volume %s. ZimaBackup v0.5-v0.8 does not automatically back up named-volume contents.', $serviceName, $name);
+                    $warnings[] = sprintf('Service %s uses named Docker volume %s. ZimaBackup does not currently back up named-volume contents automatically.', $serviceName, $name);
                 }
             }
         }

@@ -488,7 +488,7 @@ final class ApplicationDiscoveryService
 
         $reason = null;
         if ($type !== 'bind') {
-            $reason = 'Named Docker volumes are detected but are not backed up automatically in v0.5.';
+            $reason = 'Named Docker volumes are detected but are not backed up automatically.';
         } elseif (!$eligible) {
             $reason = 'The host path is outside /DATA and /media.';
         } elseif ($recommended) {

@@ -13,6 +13,10 @@
     <span class="status-pill {{ restore.status == 'success' ? 'ok' : (restore.status in ['pending', 'running'] ? 'warning' : 'error') }}"><span class="status-dot"></span>{{ restore.status }}</span>
 </header>
 
+{% if flash_success %}<div class="alert alert-success">{{ flash_success }}</div>{% endif %}
+{% if flash_error %}<div class="alert alert-error">{{ flash_error }}</div>{% endif %}
+{% if restore.cleanup_error %}<div class="alert alert-error"><strong>Cleanup failed</strong><div>{{ restore.cleanup_error }}</div></div>{% endif %}
+
 <section class="summary-cards four-summary-cards">
     <article class="summary-card"><span>Snapshot</span><strong>{{ restore.backup_run_id }}</strong></article>
     <article class="summary-card"><span>Mode</span><strong>{{ restore.mode }}</strong></article>
@@ -117,7 +121,7 @@
     <p>{{ install.error }}</p>
     <p class="muted">Restored application data was deliberately left in place so you can inspect it or retry after correcting the problem.</p>
 </section>
-{% elseif restore.status == 'success' and restore.mode == 'original' %}
+{% elseif restore.status == 'success' and restore.mode == 'original' and not restore.cleaned_at %}
 <section class="panel install-action-panel">
     <div class="panel-heading">
         <div>
@@ -148,6 +152,29 @@
     <span class="card-kicker">Installation unavailable</span>
     <h2>Original paths are required</h2>
     <p class="muted">This restore used Safe staging. Automatic installation remains disabled until the application's selected data paths have been restored to their original locations.</p>
+</section>
+{% elseif restore.status == 'success' and restore.mode == 'original' and restore.cleaned_at and not install %}
+<div class="alert alert-warning"><strong>Staging was cleaned</strong><div>The restored AppData remains at its original paths, but automatic installation is no longer available from this restore because its encrypted manifest workspace was removed.</div></div>
+{% endif %}
+
+{% if restore.cleanup_status in ['queued', 'running'] %}
+<section class="simple-section" data-auto-refresh>
+    <div class="empty-inline"><strong>Cleaning staging…</strong><p>The worker is removing only the application restore workspace.</p></div>
+</section>
+{% elseif restore.cleaned_at %}
+<section class="simple-section">
+    <div class="empty-inline"><strong>Staging cleaned</strong><p>The application restore workspace was removed on {{ restore.cleaned_at }}. Original paths already applied by an original-mode restore were not deleted.</p></div>
+</section>
+{% elseif restore.status in ['success', 'failed'] and not (install and install.status in ['pending', 'running']) %}
+<section class="simple-section">
+    <div class="simple-section-head"><h2>Cleanup</h2></div>
+    <div class="simple-row">
+        <div><strong>Remove staging workspace</strong><small>{{ restore.staging_path }} · restored original AppData is not removed</small></div>
+        <form method="post" action="{{ ROUTER.generate('application-restores.cleanup', {uuid: restore.uuid}) }}" data-confirm="Delete this application restore staging workspace? Original paths already restored will stay in place.">
+            <input type="hidden" name="_csrf" value="{{ csrf_token }}">
+            <button class="button-secondary button-danger" type="submit">Clean staging</button>
+        </form>
+    </div>
 </section>
 {% endif %}
 {% endblock %}

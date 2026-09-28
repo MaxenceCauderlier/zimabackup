@@ -54,7 +54,7 @@ Restart the simulator:
 
 Open `http://localhost:8095`. The page should contain `Original application data is present.`
 
-The reconstructed `docker-compose.yml` is also stored under the ZimaBackup staging directory. In development it uses logical `/DATA` paths intended for ZimaOS, so use the simulator's original Compose file to restart the test application. Automatic deployment is a later milestone.
+The reconstructed `docker-compose.yml` is also stored under the ZimaBackup staging directory. For the full recovery path, use **Restore & Install** after an original-path restore; the simulator can then verify the application recreated through the Docker Engine API.
 
 ## Cleanup
 
@@ -71,3 +71,16 @@ After `destroy-app.sh`, you can verify that both the host tree and the ZimaBacku
 ```
 
 The original-path restore is intentionally refused if even one target directory still contains data.
+
+## Selective file restore (v0.12)
+
+After creating a successful snapshot:
+
+1. Open **Restore** and click **Browse** on the snapshot.
+2. Open `/DATA/AppData/zima-demo/nginx`.
+3. Select only `index.html` and click **Restore selected**.
+4. Keep the proposed safe target and start the restore.
+5. Verify that the target contains `DATA/AppData/zima-demo/nginx/index.html` but does not contain the Redis data tree.
+6. From **Restore history**, open the restore and use **Clean restore**. Confirm the safe target disappears while the Restic snapshot remains available.
+
+You can also clean an application restore staging workspace after its restore/install operation is finished. This cleanup never removes original AppData already applied outside the staging directory.

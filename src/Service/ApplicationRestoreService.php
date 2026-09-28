@@ -355,6 +355,91 @@ final class ApplicationRestoreService
         );
     }
 
+    public function enqueueCleanup(string $uuid): void
+    {
+        $run = $this->findByUuid($uuid);
+        if ($run === null) {
+            throw new InvalidArgumentException('Application restore not found.');
+        }
+        if (!in_array($run['status'], ['success', 'failed'], true)) {
+            throw new InvalidArgumentException('Wait for the application restore to finish before cleaning staging data.');
+        }
+        if (!empty($run['cleaned_at'])) {
+            throw new InvalidArgumentException('This application staging directory has already been cleaned.');
+        }
+        if (in_array((string) ($run['cleanup_status'] ?? ''), ['queued', 'running'], true)) {
+            throw new InvalidArgumentException('Application staging cleanup is already queued or running.');
+        }
+
+        $activeInstall = (int) $this->database->scalar(
+            "SELECT COUNT(*) FROM application_install_runs WHERE application_restore_run_id = :id AND status IN ('pending', 'running')",
+            ['id' => (int) $run['id']]
+        );
+        if ($activeInstall > 0) {
+            throw new InvalidArgumentException('Wait for the application installation to finish before cleaning staging data.');
+        }
+
+        $this->database->execute(
+            "UPDATE application_restore_runs SET cleanup_status = 'queued', cleanup_error = NULL WHERE id = :id",
+            ['id' => (int) $run['id']]
+        );
+        $operationId = $this->queue->enqueue('application.restore.cleanup', [
+            'application_restore_run_id' => (int) $run['id'],
+        ]);
+        $this->database->execute(
+            'UPDATE operations SET repository_id = :repository_id WHERE id = :id',
+            ['repository_id' => (int) $run['repository_id'], 'id' => $operationId]
+        );
+    }
+
+    public function executeCleanup(int $restoreRunId): void
+    {
+        $run = $this->database->fetchOne(
+            'SELECT ar.*, r.path AS repository_path FROM application_restore_runs ar JOIN repositories r ON r.id = ar.repository_id WHERE ar.id = :id',
+            ['id' => $restoreRunId]
+        );
+        if ($run === null) {
+            throw new RuntimeException('Application restore run not found.');
+        }
+        if (!in_array($run['status'], ['success', 'failed'], true)) {
+            throw new RuntimeException('Application staging cannot be cleaned while the restore is active.');
+        }
+
+        $activeInstall = (int) $this->database->scalar(
+            "SELECT COUNT(*) FROM application_install_runs WHERE application_restore_run_id = :id AND status IN ('pending', 'running')",
+            ['id' => $restoreRunId]
+        );
+        if ($activeInstall > 0) {
+            throw new RuntimeException('Application staging cannot be cleaned while an install is active.');
+        }
+
+        $this->database->execute(
+            "UPDATE application_restore_runs SET cleanup_status = 'running', cleanup_error = NULL WHERE id = :id",
+            ['id' => $restoreRunId]
+        );
+        $logical = $this->validateStagingTarget((string) $run['staging_path'], (string) $run['repository_path']);
+        $path = $this->paths->toContainerPath($logical);
+        $this->assertNoSymlinkComponents($path, $logical);
+        if (file_exists($path) || is_link($path)) {
+            $process = new Process(['rm', '-rf', '--', $path]);
+            $process->setTimeout(null);
+            $process->mustRun();
+        }
+
+        $this->database->execute(
+            "UPDATE application_restore_runs SET cleanup_status = 'success', cleaned_at = :cleaned_at, cleanup_error = NULL WHERE id = :id",
+            ['cleaned_at' => date('c'), 'id' => $restoreRunId]
+        );
+    }
+
+    public function markCleanupFailed(int $restoreRunId, string $error): void
+    {
+        $this->database->execute(
+            "UPDATE application_restore_runs SET cleanup_status = 'failed', cleanup_error = :error WHERE id = :id",
+            ['error' => substr($error, 0, 4000), 'id' => $restoreRunId]
+        );
+    }
+
     public function markFailed(int $restoreRunId, string $error): void
     {
         $this->database->execute(
@@ -380,8 +465,8 @@ final class ApplicationRestoreService
     {
         $path = $this->paths->normalizeLogicalPath($path);
         $this->paths->toContainerPath($path);
-        if (!str_starts_with($path, '/DATA/ZimaBackup/ApplicationRestores/')) {
-            throw new InvalidArgumentException('Application restore staging must stay under /DATA/ZimaBackup/ApplicationRestores.');
+        if (in_array($path, ['/DATA', '/media'], true)) {
+            throw new InvalidArgumentException('Application restore staging requires a dedicated subdirectory.');
         }
         if ($this->paths->overlaps($path, $repositoryPath)) {
             throw new InvalidArgumentException('Application restore staging cannot overlap the repository.');

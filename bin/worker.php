@@ -12,6 +12,7 @@ use ZimaBackup\Service\RetentionService;
 use ZimaBackup\Service\RestoreService;
 use ZimaBackup\Service\SchedulerService;
 use ZimaBackup\Service\SnapshotApplicationService;
+use ZimaBackup\Service\SnapshotBrowserService;
 use ZimaBackup\Service\SnapshotService;
 use ZimaBackup\Service\SettingsService;
 use ZimaBackup\Service\TaskQueueService;
@@ -42,6 +43,8 @@ $applicationRestores = $app->service(ApplicationRestoreService::class);
 $applicationInstalls = $app->service(ApplicationInstallService::class);
 /** @var SnapshotService $snapshots */
 $snapshots = $app->service(SnapshotService::class);
+/** @var SnapshotBrowserService $snapshotBrowser */
+$snapshotBrowser = $app->service(SnapshotBrowserService::class);
 /** @var SettingsService $settings */
 $settings = $app->service(SettingsService::class);
 
@@ -183,6 +186,35 @@ while (true) {
                     $queue->complete((int) $operation['id'], ['restore_run_id' => $restoreRunId]);
                     break;
 
+                case 'restore.cleanup':
+                    $restoreRunId = (int) ($operation['payload']['restore_run_id'] ?? 0);
+                    if ($restoreRunId <= 0) {
+                        throw new RuntimeException('restore.cleanup task has no valid restore_run_id.');
+                    }
+                    try {
+                        $restores->executeCleanup($restoreRunId);
+                    } catch (Throwable $exception) {
+                        $restores->markCleanupFailed($restoreRunId, $exception->getMessage());
+                        throw $exception;
+                    }
+                    $queue->complete((int) $operation['id'], ['restore_run_id' => $restoreRunId]);
+                    break;
+
+                case 'snapshot.browse':
+                    $backupRunId = (int) ($operation['payload']['backup_run_id'] ?? 0);
+                    $browsePath = (string) ($operation['payload']['path'] ?? '/');
+                    if ($backupRunId <= 0) {
+                        throw new RuntimeException('snapshot.browse task has no valid backup_run_id.');
+                    }
+                    try {
+                        $snapshotBrowser->execute($backupRunId, $browsePath);
+                    } catch (Throwable $exception) {
+                        $snapshotBrowser->markFailed($backupRunId, $browsePath, $exception->getMessage());
+                        throw $exception;
+                    }
+                    $queue->complete((int) $operation['id'], ['backup_run_id' => $backupRunId, 'path' => $browsePath]);
+                    break;
+
                 case 'apps.discover':
                     $count = $applications->refresh();
                     $lastDiscovery = time();
@@ -218,6 +250,20 @@ while (true) {
                         throw $exception;
                     }
 
+                    $queue->complete((int) $operation['id'], ['application_restore_run_id' => $applicationRestoreRunId]);
+                    break;
+
+                case 'application.restore.cleanup':
+                    $applicationRestoreRunId = (int) ($operation['payload']['application_restore_run_id'] ?? 0);
+                    if ($applicationRestoreRunId <= 0) {
+                        throw new RuntimeException('application.restore.cleanup task has no valid application_restore_run_id.');
+                    }
+                    try {
+                        $applicationRestores->executeCleanup($applicationRestoreRunId);
+                    } catch (Throwable $exception) {
+                        $applicationRestores->markCleanupFailed($applicationRestoreRunId, $exception->getMessage());
+                        throw $exception;
+                    }
                     $queue->complete((int) $operation['id'], ['application_restore_run_id' => $applicationRestoreRunId]);
                     break;
 

@@ -448,7 +448,7 @@ final class RepositoryService
 
     private function markHistoricalSnapshotsUnavailable(int $repositoryId): int
     {
-        return $this->database->execute(
+        $affected = $this->database->execute(
             "UPDATE backup_runs SET snapshot_state = 'unavailable', snapshot_unavailable_reason = :reason " .
             "WHERE backup_job_id IN (SELECT id FROM backup_jobs WHERE repository_id = :repository_id) " .
             "AND snapshot_id IS NOT NULL AND COALESCE(snapshot_state, 'present') IN ('present', 'forgetting')",
@@ -457,6 +457,13 @@ final class RepositoryService
                 'reason' => 'Repository was reinitialized after its physical storage disappeared. This historical snapshot is no longer present in the new empty repository.',
             ]
         );
+        $this->database->execute(
+            'DELETE FROM snapshot_browser_cache WHERE backup_run_id IN (' .
+            'SELECT br.id FROM backup_runs br JOIN backup_jobs bj ON bj.id = br.backup_job_id WHERE bj.repository_id = :repository_id' .
+            ')',
+            ['repository_id' => $repositoryId]
+        );
+        return $affected;
     }
 
     public function archive(string $uuid): void

@@ -138,3 +138,18 @@ document.querySelectorAll('[data-automation-form]').forEach((form) => {
     retentionToggle?.addEventListener('change', refresh);
     refresh();
 });
+
+// v0.12: lightweight selection for one snapshot directory at a time.
+document.querySelectorAll('[data-select-all]').forEach((toggle) => {
+    const form = toggle.closest('form');
+    if (!form) return;
+    const items = () => Array.from(form.querySelectorAll('[data-select-item]'));
+    toggle.addEventListener('change', () => {
+        items().forEach((item) => { item.checked = toggle.checked; });
+    });
+    items().forEach((item) => item.addEventListener('change', () => {
+        const current = items();
+        toggle.checked = current.length > 0 && current.every((entry) => entry.checked);
+        toggle.indeterminate = current.some((entry) => entry.checked) && !toggle.checked;
+    }));
+});

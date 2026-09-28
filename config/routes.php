@@ -50,6 +50,8 @@ return static function (Application $app): void {
 
     $router->map('GET', '/snapshots', [SnapshotController::class, 'index'], 'snapshots');
     $router->map('POST', '/snapshots/[i:runId]/forget', [SnapshotController::class, 'forget'], 'snapshots.forget');
+    $router->map('GET', '/snapshots/[i:runId]/browse', [SnapshotController::class, 'browse'], 'snapshots.browse');
+    $router->map('POST', '/snapshots/[i:runId]/browse', [SnapshotController::class, 'refreshBrowse'], 'snapshots.browse.refresh');
     $router->map('GET', '/snapshots/[i:runId]/applications', [SnapshotApplicationController::class, 'index'], 'snapshots.applications');
     $router->map('POST', '/snapshots/[i:runId]/applications/inspect', [SnapshotApplicationController::class, 'inspect'], 'snapshots.applications.inspect');
 
@@ -57,11 +59,14 @@ return static function (Application $app): void {
     $router->map('POST', '/snapshot-applications/[i:applicationId]/restore', [ApplicationRestoreController::class, 'store'], 'application-restores.store');
     $router->map('GET', '/application-restores/[uuid:uuid]', [ApplicationRestoreController::class, 'show'], 'application-restores.show');
     $router->map('POST', '/application-restores/[uuid:uuid]/install', [ApplicationRestoreController::class, 'install'], 'application-restores.install');
+    $router->map('POST', '/application-restores/[uuid:uuid]/cleanup', [ApplicationRestoreController::class, 'cleanup'], 'application-restores.cleanup');
 
     $router->map('GET', '/restores', [RestoreController::class, 'index'], 'restores');
     $router->map('GET', '/restores/from/[i:runId]', [RestoreController::class, 'create'], 'restores.create');
+    $router->map('POST', '/restores/from/[i:runId]/select', [RestoreController::class, 'select'], 'restores.select');
     $router->map('POST', '/restores/from/[i:runId]', [RestoreController::class, 'store'], 'restores.store');
     $router->map('GET', '/restores/[uuid:uuid]', [RestoreController::class, 'show'], 'restores.show');
+    $router->map('POST', '/restores/[uuid:uuid]/cleanup', [RestoreController::class, 'cleanup'], 'restores.cleanup');
     $router->map('GET', '/settings', [SettingsController::class, 'index'], 'settings');
     $router->map('POST', '/settings', [SettingsController::class, 'update'], 'settings.update');
 };
