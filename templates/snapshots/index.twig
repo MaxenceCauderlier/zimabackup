@@ -12,7 +12,7 @@
 </header>
 
 {% if flash_success %}<div class="alert alert-success">{{ flash_success|trans }}</div>{% endif %}
-{% if flash_error %}<div class="alert alert-error"><strong>{{ t("Snapshot action failed") }}</strong><div>{{ flash_error|trans }}</div></div>{% endif %}
+{% if flash_error %}<div class="alert alert-error"><strong>{{ t("Recovery point action failed") }}</strong><div>{{ flash_error|trans }}</div></div>{% endif %}
 
 {% if snapshots is empty %}
     <div class="empty-inline"><strong>{{ t("No recovery points.") }}</strong><p>{{ t("Successful backups will appear here.") }}</p></div>
@@ -23,15 +23,15 @@
             <div>
                 <strong>{{ snapshot.job_name }}</strong>
                 <small>{{ snapshot.repository_name }} · {{ snapshot.finished_at|local_datetime }} · {{ snapshot.bytes_processed|bytes }} · <code>{{ snapshot.snapshot_id|slice(0, 12) }}</code></small>
-                {% if snapshot.snapshot_forget_error %}<small style="color:var(--danger)">{{ t("Forget failed:") }} {{ snapshot.snapshot_forget_error|trans }}</small>{% endif %}
-                {% if snapshot.snapshot_state == 'unavailable' %}<small style="color:var(--danger)">{{ snapshot.snapshot_unavailable_reason ? (snapshot.snapshot_unavailable_reason|trans) : t('This snapshot is no longer available.') }}</small>{% endif %}
+                {% if snapshot.snapshot_forget_error %}<small style="color:var(--danger)">{{ t("Deletion failed:") }} {{ snapshot.snapshot_forget_error|trans }}</small>{% endif %}
+                {% if snapshot.snapshot_state == 'unavailable' %}<small style="color:var(--danger)">{{ snapshot.snapshot_unavailable_reason ? (snapshot.snapshot_unavailable_reason|trans) : t('This recovery point is no longer available.') }}</small>{% endif %}
             </div>
             <div class="header-actions">
                 <span class="status-pill {{ snapshot.snapshot_state == 'unavailable' ? 'error' : (snapshot.snapshot_state == 'forgetting' or snapshot.status == 'warning' ? 'warning' : 'ok') }}"><span class="status-dot"></span>{{ (snapshot.snapshot_state == 'unavailable' ? 'unavailable' : (snapshot.snapshot_state == 'forgetting' ? 'forgetting' : snapshot.status))|status_label }}</span>
                 {% if snapshot.snapshot_state != 'unavailable' %}
                     <a class="button" href="{{ ROUTER.generate('snapshots.browse', {runId: snapshot.id}) }}">{{ t("Browse") }}</a>
                     {% if snapshot.app_count > 0 %}<a class="button-secondary" href="{{ ROUTER.generate('snapshots.applications', {runId: snapshot.id}) }}">{{ t("Application") }}</a>{% endif %}
-                    <form method="post" action="{{ ROUTER.generate('snapshots.forget', {runId: snapshot.id}) }}" data-confirm="{{ t('Forget this recovery point? Disk space is reclaimed later by prune.') }}"><input type="hidden" name="_csrf" value="{{ csrf_token }}"><button class="button-secondary button-danger" type="submit" {{ snapshot.snapshot_state == 'forgetting' ? 'disabled' : '' }}>{{ t("Forget") }}</button></form>
+                    <form method="post" action="{{ ROUTER.generate('snapshots.forget', {runId: snapshot.id}) }}" data-confirm="{{ t('Delete this recovery point? It will no longer be available for restore. Unused disk space can be recovered later with “Free unused space”.') }}"><input type="hidden" name="_csrf" value="{{ csrf_token }}"><button class="button-secondary button-danger" type="submit" {{ snapshot.snapshot_state == 'forgetting' ? 'disabled' : '' }}>{{ t("Delete recovery point") }}</button></form>
                 {% endif %}
             </div>
         </div>
@@ -39,5 +39,5 @@
     </section>
 {% endif %}
 
-{% if forgetting_count > 0 %}<div class="alert alert-warning" data-auto-refresh>{{ t("Snapshot removal is running. This page will refresh automatically.") }}</div>{% endif %}
+{% if forgetting_count > 0 %}<div class="alert alert-warning" data-auto-refresh>{{ t("Recovery point deletion is running. This page will refresh automatically.") }}</div>{% endif %}
 {% endblock %}

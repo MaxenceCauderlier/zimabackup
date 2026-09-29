@@ -152,7 +152,7 @@ final class RepositoryController extends AbstractController
             /** @var RepositoryService $repositories */
             $repositories = $this->app->service(RepositoryService::class);
             $repositories->enqueuePrune($uuid);
-            $session->set('flash_success', 'Repository prune queued. Unreferenced Restic data will be reclaimed.');
+            $session->set('flash_success', 'Storage cleanup queued. ZimaBackup will free backup data that is no longer used by any recovery point.');
         } catch (Throwable $exception) {
             $session->set('flash_error', $exception->getMessage());
         }
@@ -174,7 +174,7 @@ final class RepositoryController extends AbstractController
             /** @var RepositoryService $repositories */
             $repositories = $this->app->service(RepositoryService::class);
             $repositories->enqueueReinitialize($uuid);
-            $session->set('flash_success', 'Repository reinitialization queued. A new empty Restic repository will be created with the existing recovery key.');
+            $session->set('flash_success', 'Storage reinitialization queued. New empty encrypted backup storage will be created with the existing recovery key.');
         } catch (Throwable $exception) {
             $session->set('flash_error', $exception->getMessage());
         }

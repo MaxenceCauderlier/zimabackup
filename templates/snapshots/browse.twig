@@ -1,16 +1,16 @@
 {% extends "layout.twig" %}
 
-{% block title %}{{ t("Browse snapshot -") }} {{ APP.name }}{% endblock %}
+{% block title %}{{ t("Browse recovery point -") }} {{ APP.name }}{% endblock %}
 
 {% block content %}
 <header class="page-header">
     <div>
         <a class="back-link" href="{{ ROUTER.generate('snapshots') }}">{{ t("← Restore") }}</a>
         <h1>{{ snapshot.job_name }}</h1>
-        <p class="muted">{{ t("Browse snapshot") }} {{ snapshot.snapshot_id|slice(0, 12) }} {{ t("from") }} {{ snapshot.repository_name }}.</p>
+        <p class="muted">{{ t("Browse recovery point") }} {{ snapshot.snapshot_id|slice(0, 12) }} {{ t("from") }} {{ snapshot.repository_name }}.</p>
     </div>
     <div class="header-actions">
-        <a class="button-secondary" href="{{ ROUTER.generate('restores.create', {runId: snapshot.id}) }}">{{ t("Restore entire snapshot") }}</a>
+        <a class="button-secondary" href="{{ ROUTER.generate('restores.create', {runId: snapshot.id}) }}">{{ t("Restore entire recovery point") }}</a>
         {% if snapshot.configured_app_count|default(0) > 0 %}
             <a class="button-secondary" href="{{ ROUTER.generate('snapshots.applications', {runId: snapshot.id}) }}">{{ t("Applications") }}</a>
         {% endif %}
@@ -21,7 +21,7 @@
 {% if flash_error %}<div class="alert alert-error">{{ flash_error|trans }}</div>{% endif %}
 {% if browse_error %}<div class="alert alert-error">{{ browse_error|trans }}</div>{% endif %}
 
-<nav class="snapshot-breadcrumbs" aria-label="{{ t('Snapshot path') }}">
+<nav class="snapshot-breadcrumbs" aria-label="{{ t('Recovery point path') }}">
     {% for crumb in breadcrumbs %}
         {% if not loop.last %}
             <a href="{{ ROUTER.generate('snapshots.browse', {runId: snapshot.id}) }}?path={{ crumb.path|url_encode }}">{{ crumb.label }}</a><span>/</span>
@@ -34,8 +34,8 @@
 {% if not listing or listing.status in ['queued', 'loading'] %}
     <section class="simple-section" data-auto-refresh>
         <div class="empty-inline">
-            <strong>{{ t(listing and listing.status == 'loading' ? 'Reading snapshot…' : 'Waiting for worker…') }}</strong>
-            <p>{{ t("The worker is reading this directory from the encrypted repository. This page refreshes automatically.") }}</p>
+            <strong>{{ t(listing and listing.status == 'loading' ? 'Reading recovery point…' : 'Waiting for worker…') }}</strong>
+            <p>{{ t("The worker is reading this directory from encrypted backup storage. This page refreshes automatically.") }}</p>
         </div>
     </section>
 {% elseif listing.status == 'failed' %}

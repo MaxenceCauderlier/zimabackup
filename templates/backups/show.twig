@@ -31,7 +31,7 @@
 
 <section class="simple-section">
     <div class="simple-section-head">
-        <h2>{{ t("Retention") }}</h2>
+        <h2>{{ t("Recovery point cleanup") }}</h2>
         {% if job.retention_enabled %}
             <form method="post" action="{{ ROUTER.generate('backups.retention', {uuid: job.uuid}) }}">
                 <input type="hidden" name="_csrf" value="{{ csrf_token }}">
@@ -41,18 +41,18 @@
     </div>
     {% if job.retention_enabled %}
         <div class="simple-row">
-            <div><strong>{{ t("Automatic retention") }}</strong><small>{{ t("Policies are combined: a snapshot is kept if any rule keeps it.") }}</small></div>
+            <div><strong>{{ t("Automatic recovery point cleanup") }}</strong><small>{{ t("The rules are combined: a recovery point is kept if any rule requires it.") }}</small></div>
             <div class="simple-row-meta">{{ t("last") }} {{ job.keep_last }} {{ t("· daily") }} {{ job.keep_daily }} {{ t("· weekly") }} {{ job.keep_weekly }} {{ t("· monthly") }} {{ job.keep_monthly }}</div>
         </div>
         {% if job.retention_runs is not empty %}
             {% set retention = job.retention_runs[0] %}
             <div class="simple-row">
-                <div><strong>{{ t("Last retention run") }}</strong><small>{{ retention.status|status_label }}{% if retention.error %} · {{ (retention.error|trans)|slice(0, 100) }}{% endif %}</small></div>
+                <div><strong>{{ t("Last cleanup") }}</strong><small>{{ retention.status|status_label }}{% if retention.error %} · {{ (retention.error|trans)|slice(0, 100) }}{% endif %}</small></div>
                 <div class="simple-row-meta">{{ (retention.finished_at ?: retention.created_at)|local_datetime }} · {{ retention.removed_count }} {{ t("removed") }}</div>
             </div>
         {% endif %}
     {% else %}
-        <div class="empty-inline"><strong>{{ t("Retention is off.") }}</strong><p>{{ t("Snapshots remain until you forget them manually.") }}</p></div>
+        <div class="empty-inline"><strong>{{ t("Automatic cleanup is off.") }}</strong><p>{{ t("Recovery points remain until you delete them manually.") }}</p></div>
     {% endif %}
 </section>
 
@@ -72,7 +72,7 @@
         <div class="simple-row">
             <div>
                 <strong>{{ run.status|status_label }}</strong>
-                <small>{{ run.error ? (run.error|trans) : (run.snapshot_id ? t('snapshot') ~ ' ' ~ run.snapshot_id|slice(0, 12) : t('No snapshot')) }}</small>
+                <small>{{ run.error ? (run.error|trans) : (run.snapshot_id ? t('recovery point') ~ ' ' ~ run.snapshot_id|slice(0, 12) : t('No recovery point')) }}</small>
             </div>
             <div class="simple-row-meta">{{ (run.finished_at ?: run.started_at)|local_datetime }}{% if run.bytes_processed %}<br>{{ run.bytes_processed|bytes }}{% endif %}</div>
         </div>
@@ -88,7 +88,7 @@
             <input type="hidden" name="_csrf" value="{{ csrf_token }}">
             <button class="button-secondary" type="submit">{{ t(job.enabled ? 'Disable' : 'Enable') }}</button>
         </form>
-        <form method="post" action="{{ ROUTER.generate('backups.delete', {uuid: job.uuid}) }}" data-confirm="{{ t('Delete this backup job? Existing Restic snapshots will be kept.') }}">
+        <form method="post" action="{{ ROUTER.generate('backups.delete', {uuid: job.uuid}) }}" data-confirm="{{ t('Delete this backup job? Existing recovery points will be kept.') }}">
             <input type="hidden" name="_csrf" value="{{ csrf_token }}">
             <button class="button-secondary button-danger" type="submit">{{ t("Delete job") }}</button>
         </form>

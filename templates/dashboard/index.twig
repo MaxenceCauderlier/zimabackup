@@ -6,10 +6,10 @@
 <section class="overview-state">
     {% if attention > 0 %}
         <h1>{{ attention }} {{ t(attention == 1 ? 'item needs attention.' : 'items need attention.') }}</h1>
-        <p>{{ t("Open the relevant backup or repository before relying on the next recovery point.") }}</p>
+        <p>{{ t("Open the relevant backup or storage location before relying on the next recovery point.") }}</p>
     {% elseif repository_count == 0 %}
         <h1>{{ t("No backup destination yet.") }}</h1>
-        <p>{{ t("Create a repository first, then define what ZimaBackup should protect.") }}</p>
+        <p>{{ t("Add a backup storage location first, then define what ZimaBackup should protect.") }}</p>
     {% else %}
         <h1>{{ t("Everything looks quiet.") }}</h1>
         <p>
@@ -21,7 +21,7 @@
     <div class="overview-actions">
         <a class="button" href="{{ ROUTER.generate('backups.create') }}">{{ t("New backup") }}</a>
         <a class="button-secondary" href="{{ ROUTER.generate('snapshots') }}">{{ t("Restore") }}</a>
-        <a class="button-secondary" href="{{ ROUTER.generate('repositories.create') }}">{{ t("Add repository") }}</a>
+        <a class="button-secondary" href="{{ ROUTER.generate('repositories.create') }}">{{ t("Add storage") }}</a>
     </div>
 </section>
 
@@ -41,14 +41,14 @@
             </div>
         </a>
     {% else %}
-        <div class="empty-inline"><strong>{{ t("No backup jobs") }}</strong><p>{{ t("Create one when your first repository is ready.") }}</p></div>
+        <div class="empty-inline"><strong>{{ t("No backup jobs") }}</strong><p>{{ t("Create one when your first backup storage location is ready.") }}</p></div>
     {% endfor %}
 </section>
 
 <section class="simple-section">
     <div class="simple-section-head">
         <h2>{{ t("Recent activity") }}</h2>
-        <span class="muted">{{ t("Restic:") }} {{ restic_version ?: t('unavailable') }}</span>
+        <span class="muted">{{ t("Backup engine:") }} {{ restic_version ?: t('unavailable') }}</span>
     </div>
     {% for run in recent_runs %}
         <a class="simple-row" href="{{ ROUTER.generate('backups.show', {uuid: run.job_uuid}) }}">

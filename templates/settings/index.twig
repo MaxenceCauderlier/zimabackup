@@ -43,12 +43,13 @@
     </section>
 
     <section class="simple-section">
-        <div class="simple-section-head"><h2>{{ t("Repository maintenance") }}</h2></div>
+        <div class="simple-section-head"><h2>{{ t("Storage maintenance") }}</h2></div>
         <div class="panel stack-form">
-            <label class="toggle-line"><input type="checkbox" name="maintenance_auto_check" value="1" {{ values['maintenance.auto_check'] == '1' ? 'checked' : '' }}><span><strong>{{ t("Automatic integrity checks") }}</strong><small>{{ t("Queue Restic check for ready repositories on the interval below.") }}</small></span></label>
+            <label class="toggle-line"><input type="checkbox" name="maintenance_auto_check" value="1" {{ values['maintenance.auto_check'] == '1' ? 'checked' : '' }}><span><strong>{{ t("Automatic backup checks") }}</strong><small>{{ t("Periodically verify that backup storage is readable and internally consistent.") }}</small></span></label>
             <label class="field"><span>{{ t("Check every") }}</span><input type="number" min="1" max="365" name="maintenance_check_interval_days" value="{{ values['maintenance.check_interval_days'] }}"><small>{{ t("Days.") }}</small></label>
-            <label class="toggle-line"><input type="checkbox" name="maintenance_auto_prune" value="1" {{ values['maintenance.auto_prune'] == '1' ? 'checked' : '' }}><span><strong>{{ t("Automatic prune") }}</strong><small>{{ t("Disabled by default. When enabled, only repositories with forgotten snapshots are pruned.") }}</small></span></label>
-            <label class="field"><span>{{ t("Prune every") }}</span><input type="number" min="1" max="365" name="maintenance_prune_interval_days" value="{{ values['maintenance.prune_interval_days'] }}"><small>{{ t("Days. Manual prune remains available from Repositories.") }}</small></label>
+            <label class="toggle-line"><input type="checkbox" name="maintenance_auto_prune" value="1" {{ values['maintenance.auto_prune'] == '1' ? 'checked' : '' }}><span><strong>{{ t("Automatically free unused space") }}</strong><small>{{ t("Disabled by default. When enabled, ZimaBackup periodically removes backup data that is no longer used by any recovery point.") }}</small></span></label>
+            <label class="field"><span>{{ t("Free unused space every") }}</span><input type="number" min="1" max="365" name="maintenance_prune_interval_days" value="{{ values['maintenance.prune_interval_days'] }}"><small>{{ t("Days. You can also free unused space manually from Storage.") }}</small></label>
+            <div class="alert alert-info"><strong>{{ t("What does “Free unused space” do?") }}</strong><div>{{ t("Deleting a recovery point removes it from restore history, but some shared backup data can remain on disk. Freeing unused space permanently removes only data that is no longer needed by any remaining recovery point.") }}</div></div>
         </div>
     </section>
 
@@ -58,7 +59,7 @@
 <section class="simple-section">
     <div class="simple-section-head"><h2>{{ t("Runtime") }}</h2></div>
     <div class="simple-row"><div><strong>ZimaBackup</strong><small>{{ t("Installed application version.") }}</small></div><div class="simple-row-meta">{{ version }}</div></div>
-    <div class="simple-row"><div><strong>Restic</strong><small>{{ t("Backup engine detected by the worker image.") }}</small></div><div class="simple-row-meta">{{ restic_version ?: t('unavailable') }}</div></div>
+    <div class="simple-row"><div><strong>{{ t("Backup engine (Restic)") }}</strong><small>{{ t("Technical component used internally by ZimaBackup.") }}</small></div><div class="simple-row-meta">{{ restic_version ?: t('unavailable') }}</div></div>
     <div class="simple-row"><div><strong>{{ t("Docker socket") }}</strong><small>{{ t("Used only by the privileged worker.") }}</small></div><div class="simple-row-meta"><code>{{ docker_socket }}</code></div></div>
 </section>
 {% endblock %}

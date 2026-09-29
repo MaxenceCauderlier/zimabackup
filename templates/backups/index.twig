@@ -16,9 +16,9 @@
 
 {% if repositories is empty %}
     <div class="empty-inline">
-        <strong>{{ t("A repository is required first.") }}</strong>
+        <strong>{{ t("A backup storage location is required first.") }}</strong>
         <p>{{ t("Create a backup destination before defining a job.") }}</p>
-        <div class="form-actions"><a class="button" href="{{ ROUTER.generate('repositories.create') }}">{{ t("Create repository") }}</a></div>
+        <div class="form-actions"><a class="button" href="{{ ROUTER.generate('repositories.create') }}">{{ t("Add backup storage") }}</a></div>
     </div>
 {% elseif jobs is empty %}
     <div class="empty-inline">

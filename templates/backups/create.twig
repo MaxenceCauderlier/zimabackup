@@ -17,7 +17,7 @@
     <input type="hidden" name="_csrf" value="{{ csrf_token }}">
 
     <section class="panel stack-form">
-        <div class="section-label"><div><strong>{{ t("General") }}</strong><small>{{ t("Name and repository.") }}</small></div></div>
+        <div class="section-label"><div><strong>{{ t("General") }}</strong><small>{{ t("Name and backup storage.") }}</small></div></div>
         <label class="field"><span>{{ t("Name") }}</span><input type="text" name="name" maxlength="100" required value="{{ values.name }}" placeholder="{{ t('Apps and Documents') }}"></label>
         <div class="repo-option-grid">
             {% for repository in repositories %}
@@ -76,7 +76,7 @@
             <label class="field" data-schedule-weekday><span>{{ t("Weekday") }}</span><select name="schedule_weekday"><option value="1" {{ values.schedule_weekday == 1 ? 'selected' : '' }}>{{ t("Monday") }}</option><option value="2" {{ values.schedule_weekday == 2 ? 'selected' : '' }}>{{ t("Tuesday") }}</option><option value="3" {{ values.schedule_weekday == 3 ? 'selected' : '' }}>{{ t("Wednesday") }}</option><option value="4" {{ values.schedule_weekday == 4 ? 'selected' : '' }}>{{ t("Thursday") }}</option><option value="5" {{ values.schedule_weekday == 5 ? 'selected' : '' }}>{{ t("Friday") }}</option><option value="6" {{ values.schedule_weekday == 6 ? 'selected' : '' }}>{{ t("Saturday") }}</option><option value="7" {{ values.schedule_weekday == 7 ? 'selected' : '' }}>{{ t("Sunday") }}</option></select></label>
         </div>
 
-        <label class="toggle-line"><input type="checkbox" name="retention_enabled" value="1" {{ values.retention_enabled ? 'checked' : '' }}><span><strong>{{ t("Automatic retention") }}</strong><small>{{ t("Forget older snapshots after a successful backup. Prune remains a separate repository operation.") }}</small></span></label>
+        <label class="toggle-line"><input type="checkbox" name="retention_enabled" value="1" {{ values.retention_enabled ? 'checked' : '' }}><span><strong>{{ t("Automatic recovery point cleanup") }}</strong><small>{{ t("Automatically delete older recovery points after a successful backup. Recovering unused disk space is handled separately.") }}</small></span></label>
         <div class="retention-grid" data-retention-fields>
             <label class="field"><span>{{ t("Keep last") }}</span><input type="number" min="1" max="1000" name="keep_last" value="{{ values.keep_last }}"></label>
             <label class="field"><span>{{ t("Daily") }}</span><input type="number" min="0" max="1000" name="keep_daily" value="{{ values.keep_daily }}"></label>

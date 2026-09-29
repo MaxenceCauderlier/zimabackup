@@ -18,7 +18,7 @@
 {% if restore.cleanup_error %}<div class="alert alert-error"><strong>{{ t("Cleanup failed") }}</strong><div>{{ restore.cleanup_error|trans }}</div></div>{% endif %}
 
 <section class="summary-cards four-summary-cards">
-    <article class="summary-card"><span>{{ t("Snapshot") }}</span><strong>{{ restore.backup_run_id }}</strong></article>
+    <article class="summary-card"><span>{{ t("Recovery point") }}</span><strong>{{ restore.backup_run_id }}</strong></article>
     <article class="summary-card"><span>{{ t("Mode") }}</span><strong>{{ restore.mode }}</strong></article>
     <article class="summary-card"><span>{{ t("Files restored") }}</span><strong>{{ restore.files_restored|default(0) }}</strong></article>
     <article class="summary-card"><span>{{ t("Data restored") }}</span><strong>{{ restore.bytes_restored|bytes }}</strong></article>
@@ -49,7 +49,7 @@
         <div>
             <span class="status-pill ok"><span class="status-dot"></span>{{ t("Restore complete") }}</span>
             <h2>{{ t(restore.mode == 'original' ? 'Application data returned to original paths' : 'Application staged safely') }}</h2>
-            <p>{{ t("The selected snapshot data was restored and a Docker Compose definition was reconstructed.") }}</p>
+            <p>{{ t("The selected recovery point data was restored and a Docker Compose definition was reconstructed.") }}</p>
         </div>
     </section>
 {% endif %}

@@ -5,8 +5,8 @@
 {% block content %}
 <header class="page-header">
     <div>
-        <a class="back-link" href="{{ ROUTER.generate('snapshots.browse', {runId: snapshot.id}) }}">{{ t("← Browse snapshot") }}</a>
-        <h1>{{ t(selected_paths is empty ? 'Restore snapshot' : 'Restore selected items') }}</h1>
+        <a class="back-link" href="{{ ROUTER.generate('snapshots.browse', {runId: snapshot.id}) }}">{{ t("← Browse recovery point") }}</a>
+        <h1>{{ t(selected_paths is empty ? 'Restore recovery point' : 'Restore selected items') }}</h1>
         <p class="muted">{{ snapshot.job_name }} · {{ snapshot.snapshot_id|slice(0, 12) }} · {{ snapshot.repository_name }}</p>
     </div>
 </header>
@@ -27,7 +27,7 @@
     <section class="simple-section">
         <div class="simple-section-head"><h2>{{ t("Content") }}</h2></div>
         {% if selected_paths is empty %}
-            <div class="simple-row"><div><strong>{{ t("Entire snapshot") }}</strong><small>{{ t("All backed-up /DATA and /media paths in this recovery point.") }}</small></div><div class="simple-row-meta">{{ t("full restore") }}</div></div>
+            <div class="simple-row"><div><strong>{{ t("Entire recovery point") }}</strong><small>{{ t("All backed-up /DATA and /media paths in this recovery point.") }}</small></div><div class="simple-row-meta">{{ t("full restore") }}</div></div>
         {% else %}
             {% for selected in selected_paths %}
                 <div class="simple-row"><div><strong>{{ selected|split('/')|last ?: selected }}</strong><small>{{ selected }}</small></div><div class="simple-row-meta">{{ t("selected") }}</div></div>
@@ -46,12 +46,12 @@
 
     <div class="info-strip">
         <strong>{{ t("Safe restore") }}</strong>
-        <p>{{ t("Restic runs with overwrite mode") }} <code>never</code>{{ t(". Absolute source paths remain below the target, for example") }} <code>/DATA/Documents</code> {{ t("becomes") }} <code>{{ values.target_path }}/DATA/Documents</code>.</p>
+        <p>{{ t("ZimaBackup will not overwrite existing files in the destination. Internal restore mode:") }} <code>never</code>{{ t(". Absolute source paths remain below the target, for example") }} <code>/DATA/Documents</code> {{ t("becomes") }} <code>{{ values.target_path }}/DATA/Documents</code>.</p>
     </div>
 
     <div class="form-actions">
         <a class="button-secondary" href="{{ ROUTER.generate('snapshots.browse', {runId: snapshot.id}) }}">{{ t("Cancel") }}</a>
-        <button class="button" type="submit">{{ t(selected_paths is empty ? 'Restore snapshot' : 'Restore selected') }}</button>
+        <button class="button" type="submit">{{ t(selected_paths is empty ? 'Restore recovery point' : 'Restore selected') }}</button>
     </div>
 </form>
 {% endblock %}

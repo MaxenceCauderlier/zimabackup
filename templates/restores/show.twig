@@ -7,7 +7,7 @@
     <div>
         <a class="back-link" href="{{ ROUTER.generate('restores') }}">{{ t("← Restore history") }}</a>
         <h1>{{ restore.job_name }}</h1>
-        <p class="muted">{{ t("Snapshot") }} {{ restore.snapshot_id|slice(0, 12) }} · {{ restore.repository_name }}</p>
+        <p class="muted">{{ t("Recovery point") }} {{ restore.snapshot_id|slice(0, 12) }} · {{ restore.repository_name }}</p>
     </div>
     <span class="status-pill {{ restore.status == 'success' ? 'ok' : (restore.status in ['pending', 'running'] ? 'warning' : 'error') }}"><span class="status-dot"></span>{{ restore.status|status_label }}</span>
 </header>
@@ -18,7 +18,7 @@
 
 <section class="simple-section">
     <div class="simple-section-head"><h2>{{ t("Restore") }}</h2></div>
-    <div class="simple-row"><div><strong>{{ t("Content") }}</strong><small>{{ restore.selection_mode == 'selected' ? (restore.selected_paths|length ~ ' ' ~ t(restore.selected_paths|length == 1 ? 'selected path' : 'selected paths')) : t('Entire snapshot') }}</small></div><div class="simple-row-meta">{{ restore.overwrite_mode }}</div></div>
+    <div class="simple-row"><div><strong>{{ t("Content") }}</strong><small>{{ restore.selection_mode == 'selected' ? (restore.selected_paths|length ~ ' ' ~ t(restore.selected_paths|length == 1 ? 'selected path' : 'selected paths')) : t('Entire recovery point') }}</small></div><div class="simple-row-meta">{{ restore.overwrite_mode }}</div></div>
     <div class="simple-row"><div><strong>{{ t("Target") }}</strong><small>{{ restore.target_path }}</small></div><div class="simple-row-meta">{{ t(restore.cleaned_at ? 'cleaned' : 'kept') }}</div></div>
     <div class="simple-row"><div><strong>{{ t("Created") }}</strong><small>{{ restore.created_at|local_datetime }}</small></div><div class="simple-row-meta">{{ restore.finished_at ? (restore.finished_at|local_datetime) : '—' }}</div></div>
 </section>
@@ -57,7 +57,7 @@
     <div class="simple-section-head"><h2>{{ t("Cleanup") }}</h2></div>
     <div class="simple-row">
         <div><strong>{{ t("Remove recovered files") }}</strong><small>{{ t("Deletes only this restore target:") }} {{ restore.target_path }}</small></div>
-        <form method="post" action="{{ ROUTER.generate('restores.cleanup', {uuid: restore.uuid}) }}" data-confirm="{{ t('Delete this restore target and all recovered files inside it? The snapshot itself is not deleted.') }}">
+        <form method="post" action="{{ ROUTER.generate('restores.cleanup', {uuid: restore.uuid}) }}" data-confirm="{{ t('Delete this restore target and all recovered files inside it? The recovery point itself is not deleted.') }}">
             <input type="hidden" name="_csrf" value="{{ csrf_token }}">
             <button class="button-secondary button-danger" type="submit">{{ t("Clean restore") }}</button>
         </form>

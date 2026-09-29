@@ -5,6 +5,6 @@
 {% if recovery_key %}
 <section class="panel stack-form"><label class="field"><span>{{ t("Recovery key") }}</span><input id="recovery-key" type="text" readonly value="{{ recovery_key }}"></label><div class="form-actions"><button class="button-secondary" type="button" data-copy="#recovery-key">{{ t("Copy") }}</button><a class="button" href="{{ ROUTER.generate('repositories') }}">{{ t("I saved it") }}</a></div></section>
 {% else %}
-<div class="alert alert-warning"><strong>{{ t("This one-time key is no longer available in the browser session.") }}</strong><div>{{ t("The worker-side secret file is still used by ZimaBackup.") }}</div></div><a class="button-secondary" href="{{ ROUTER.generate('repositories') }}">{{ t("Back to repositories") }}</a>
+<div class="alert alert-warning"><strong>{{ t("This one-time key is no longer available in the browser session.") }}</strong><div>{{ t("The worker-side secret file is still used by ZimaBackup.") }}</div></div><a class="button-secondary" href="{{ ROUTER.generate('repositories') }}">{{ t("Back to storage") }}</a>
 {% endif %}
 {% endblock %}

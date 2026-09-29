@@ -18,7 +18,7 @@
         <nav class="rail-nav" aria-label="{{ t('Primary navigation') }}">
             <a class="{{ CURRENT_PATH == '/' ? 'active' : '' }}" href="{{ ROUTER.generate('dashboard') }}">{{ t("Overview") }}</a>
             <a class="{{ CURRENT_PATH starts with '/backups' ? 'active' : '' }}" href="{{ ROUTER.generate('backups') }}">{{ t("Backups") }}</a>
-            <a class="{{ CURRENT_PATH starts with '/repositories' ? 'active' : '' }}" href="{{ ROUTER.generate('repositories') }}">{{ t("Repositories") }}</a>
+            <a class="{{ CURRENT_PATH starts with '/repositories' ? 'active' : '' }}" href="{{ ROUTER.generate('repositories') }}">{{ t("Storage") }}</a>
             <a class="{{ (CURRENT_PATH starts with '/snapshots' or CURRENT_PATH starts with '/restores' or CURRENT_PATH starts with '/application-restores' or CURRENT_PATH starts with '/snapshot-applications') ? 'active' : '' }}" href="{{ ROUTER.generate('snapshots') }}">{{ t("Restore") }}</a>
             <a class="{{ CURRENT_PATH starts with '/applications' ? 'active' : '' }}" href="{{ ROUTER.generate('applications') }}">{{ t("Applications") }}</a>
             <a class="{{ CURRENT_PATH starts with '/settings' ? 'active' : '' }}" href="{{ ROUTER.generate('settings') }}">{{ t("Settings") }}</a>

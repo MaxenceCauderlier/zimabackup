@@ -1,14 +1,14 @@
 {% extends "layout.twig" %}
 
-{% block title %}{{ t("Applications in snapshot -") }} {{ APP.name }}{% endblock %}
+{% block title %}{{ t("Applications in recovery point -") }} {{ APP.name }}{% endblock %}
 
 {% block content %}
 <header class="page-header compact-header">
     <div>
-        <a class="back-link" href="{{ ROUTER.generate('snapshots') }}">{{ t("← Snapshots") }}</a>
+        <a class="back-link" href="{{ ROUTER.generate('snapshots') }}">{{ t("← Recovery points") }}</a>
         <p class="eyebrow">{{ t("Application restore preview") }}</p>
         <h1>{{ snapshot.job_name }}</h1>
-        <p class="muted">{{ t("Snapshot") }} <strong>{{ snapshot.snapshot_id|slice(0, 12) }}</strong> · {{ snapshot.repository_name }}</p>
+        <p class="muted">{{ t("Recovery point") }} <strong>{{ snapshot.snapshot_id|slice(0, 12) }}</strong> · {{ snapshot.repository_name }}</p>
     </div>
     <div class="header-actions">
         {% if scan %}
@@ -23,12 +23,12 @@
 
 {% if flash_success %}<div class="alert alert-success">{{ flash_success|trans }}</div>{% endif %}
 {% if flash_error %}<div class="alert alert-error"><strong>{{ t("Inspection failed") }}</strong><div>{{ flash_error|trans }}</div></div>{% endif %}
-{% if scan and scan.error %}<div class="alert alert-error"><strong>{{ t("Snapshot inspection failed") }}</strong><div>{{ scan.error|trans }}</div></div>{% endif %}
+{% if scan and scan.error %}<div class="alert alert-error"><strong>{{ t("Recovery point inspection failed") }}</strong><div>{{ scan.error|trans }}</div></div>{% endif %}
 
 <section class="summary-cards four-summary-cards">
     <article class="summary-card"><span>{{ t("Configured apps") }}</span><strong>{{ snapshot.configured_app_count }}</strong></article>
-    <article class="summary-card"><span>{{ t("Found in snapshot") }}</span><strong>{{ scan ? scan.application_count : 0 }}</strong></article>
-    <article class="summary-card"><span>{{ t("Snapshot") }}</span><strong>{{ snapshot.snapshot_id|slice(0, 12) }}</strong></article>
+    <article class="summary-card"><span>{{ t("Found in recovery point") }}</span><strong>{{ scan ? scan.application_count : 0 }}</strong></article>
+    <article class="summary-card"><span>{{ t("Recovery point") }}</span><strong>{{ snapshot.snapshot_id|slice(0, 12) }}</strong></article>
     <article class="summary-card"><span>{{ t("Finished") }}</span><strong>{{ snapshot.finished_at|local_datetime }}</strong></article>
 </section>
 
@@ -38,14 +38,14 @@
         <div>
             <span class="card-kicker">{{ t("Worker inspection") }}</span>
             <h2>{{ t(scan and scan.status == 'scanning' ? 'Reading encrypted application manifests' : 'Waiting for the worker') }}</h2>
-            <p>{{ t("The web interface never opens the Restic repository directly. The worker decrypts manifests, removes secrets, then stores only this safe preview.") }}</p>
+            <p>{{ t("The web interface never reads encrypted backup storage directly. The worker decrypts the application definition, removes secrets, then stores only this safe preview.") }}</p>
         </div>
     </section>
 {% elseif scan.status == 'ready' and applications is empty %}
     <section class="panel empty-state large-empty-state">
         <div class="empty-illustration"><span>∅</span></div>
         <h2>{{ t("No application manifest found") }}</h2>
-        <p>{{ t("This snapshot may come from a folder-only backup or from a ZimaBackup version created before application manifests were included.") }}</p>
+        <p>{{ t("This recovery point may come from a folder-only backup or from a ZimaBackup version created before application definitions were included.") }}</p>
     </section>
 {% elseif applications is not empty %}
     <div class="application-preview-stack">
@@ -90,7 +90,7 @@
 
                 <div class="manifest-source-line">
                     <div>
-                        <span>{{ t("Manifest inside snapshot") }}</span>
+                        <span>{{ t("Application definition in backup") }}</span>
                         <code>{{ application.manifest_path }}</code>
                     </div>
                     <a class="button" href="{{ ROUTER.generate('application-restores.create', {applicationId: application.id}) }}">{{ t("Restore application") }}</a>

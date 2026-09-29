@@ -104,7 +104,7 @@ final class SnapshotController extends AbstractController
             /** @var SnapshotService $snapshots */
             $snapshots = $this->app->service(SnapshotService::class);
             $snapshots->enqueueForget($runId);
-            $session->set('flash_success', 'Snapshot removal queued. Restic will forget the snapshot in the background.');
+            $session->set('flash_success', 'Recovery point deletion queued. ZimaBackup will remove it from backup storage in the background.');
         } catch (Throwable $exception) {
             $session->set('flash_error', $exception->getMessage());
         }

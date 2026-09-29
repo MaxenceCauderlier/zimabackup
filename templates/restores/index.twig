@@ -21,7 +21,7 @@
         <a class="simple-row" href="{{ ROUTER.generate('restores.show', {uuid: restore.uuid}) }}">
             <div>
                 <strong>{{ restore.job_name }}</strong>
-                <small>{{ restore.selection_mode == 'selected' ? (restore.selected_paths|length ~ ' ' ~ t(restore.selected_paths|length == 1 ? 'selected path' : 'selected paths')) : t('Entire snapshot') }} · {{ restore.target_path }}</small>
+                <small>{{ restore.selection_mode == 'selected' ? (restore.selected_paths|length ~ ' ' ~ t(restore.selected_paths|length == 1 ? 'selected path' : 'selected paths')) : t('Entire recovery point') }} · {{ restore.target_path }}</small>
             </div>
             <div class="simple-row-meta">{{ restore.cleaned_at ? t('cleaned') : (restore.status|status_label) }} · {{ restore.progress_percent|default(0)|number_format(0) }}%</div>
         </a>

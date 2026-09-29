@@ -2,9 +2,9 @@
 
 ZimaBackup is a lightweight, application-aware backup and disaster-recovery manager for ZimaOS, built with PHP 8.4, Twig, SQLite and Restic.
 
-## Current milestone — v0.13 Internationalization
+## Current milestone — v0.13.1 Plain-language UX
 
-v0.13 adds first-class internationalization to the whole interface. English remains the source language and French is included as a complete translation, with an English fallback for missing messages. The language is selected from Settings and stored in SQLite. Twig, JavaScript UI messages, statuses and displayed dates all use the same lightweight translation layer. v0.12 made recovery practical with worker-backed snapshot browsing and selective restores.
+v0.13.1 keeps the v0.13 internationalization layer and simplifies user-facing backup terminology. The interface now talks about **Storage**, **Recovery points**, **Delete recovery point** and **Free unused space** instead of requiring users to understand Restic terms such as repository, snapshot, forget and prune. Technical names remain unchanged internally and in diagnostic logs.
 
 ### Scheduling
 
@@ -16,29 +16,29 @@ Backup jobs can run:
 
 The worker calculates `next_run_at` in the configured `TZ`. When a scheduled run becomes due, the backup operation and the next due time are committed together so a worker restart does not normally queue the same occurrence twice.
 
-### Retention
+### Recovery point cleanup
 
-Retention is configured per backup job and can combine:
+Automatic recovery point cleanup is configured per backup job and can combine:
 
 - keep last N snapshots;
 - keep daily snapshots;
 - keep weekly snapshots;
 - keep monthly snapshots.
 
-The rules are inclusive: a snapshot kept by any configured rule is retained. ZimaBackup always keeps at least one snapshot and applies retention only to snapshots known to belong to that backup job. It does not run a repository-wide Restic retention policy that could accidentally affect another job sharing the same repository.
+The rules are inclusive: a recovery point kept by any configured rule is retained. ZimaBackup always keeps at least one recovery point and applies cleanup only to recovery points known to belong to that backup job.
 
-Retention runs separately after a successful backup. It uses exact snapshot IDs with `restic forget`. Disk space is reclaimed separately by `restic prune`.
+Cleanup runs separately after a successful backup. Internally it removes exact Restic snapshot IDs. Disk space that becomes unused is reclaimed separately with **Free unused space**.
 
-### Repository maintenance
+### Storage maintenance
 
-Repositories now support:
+Backup storage now supports:
 
-- manual integrity check;
-- manual prune;
-- automatic integrity checks (enabled by default every 7 days);
-- optional automatic prune (disabled by default, interval configurable in Settings).
+- manual verification;
+- **Free unused space**;
+- automatic backup checks (enabled by default every 7 days);
+- optional automatic freeing of unused space (disabled by default, interval configurable in Settings).
 
-Automatic prune is queued only when ZimaBackup knows that snapshots were forgotten since the previous prune.
+Deleting a recovery point can leave shared or no-longer-referenced backup data on disk. **Free unused space** permanently removes only data no longer required by any remaining recovery point.
 
 ### Minimal interface
 
@@ -46,12 +46,25 @@ The main sections are now:
 
 - **Overview** — overall state, last successful backup, next scheduled backup, jobs and recent activity;
 - **Backups** — simple job list and detail pages;
-- **Repositories** — repository state and maintenance actions;
+- **Storage** — backup storage state and maintenance actions;
 - **Restore** — recovery points and restore history;
 - **Applications** — detected Docker/ZimaOS applications;
-- **Settings** — restore paths, discovery and repository maintenance.
+- **Settings** — restore paths, discovery and storage maintenance.
 
 The redesign intentionally removes the previous dashboard-card style, gradients, large decorative metrics and unnecessary status chrome.
+
+## User-facing terminology
+
+ZimaBackup deliberately hides Restic-specific vocabulary from normal users:
+
+| Interface | Internal Restic term | Meaning |
+| --- | --- | --- |
+| **Storage** | repository | The encrypted location where backups are stored. |
+| **Recovery point** | snapshot | A restorable state created by a successful backup. |
+| **Delete recovery point** | forget | Removes that recovery point from available restores. |
+| **Free unused space** | prune | Permanently removes backup data no longer required by any remaining recovery point. |
+
+The Restic names remain in code, logs and contributor documentation for accurate diagnostics.
 
 ## Existing disaster-recovery workflow
 
@@ -213,6 +226,15 @@ docker compose exec worker restic version
 docker compose logs -f worker
 ```
 
+
+
+## v0.13.1 - Plain-language UX
+
+- Replaced Restic jargon in the normal UI with user-focused backup terminology.
+- Added plain-language explanations for deleting recovery points and freeing unused space.
+- Changed Restic `forgotten` / `forgetting` states to **Deleted** / **Deleting** in the interface.
+- Renamed repository navigation to **Storage** while keeping all internal route/database identifiers unchanged.
+- No database migration is required from v0.13.0.
 
 ## v0.13.0 - Internationalization
 

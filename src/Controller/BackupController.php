@@ -277,7 +277,7 @@ final class BackupController extends AbstractController
             /** @var BackupService $backups */
             $backups = $this->app->service(BackupService::class);
             $backups->delete($uuid);
-            $session->set('flash_success', 'Backup job deleted. Existing Restic snapshots were kept.');
+            $session->set('flash_success', 'Backup job deleted. Existing recovery points were kept.');
             return $this->redirect('backups');
         } catch (Throwable $exception) {
             $session->set('flash_error', $exception->getMessage());

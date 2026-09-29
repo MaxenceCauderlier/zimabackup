@@ -14,6 +14,7 @@ The selected language is stored in SQLite under `ui.language` and can be changed
 1. Copy `translations/fr.php` to `translations/<locale>.php` and translate the values while keeping the English keys unchanged.
 2. Add the locale code and display name to `Translator::supportedLocales()` in `src/Service/Translator.php`.
 3. Keep technical values such as paths, Docker image names, Restic snapshot IDs and confirmation keywords (`RESTORE`, `INSTALL`) unchanged.
-4. Unknown messages should be allowed to fall back to English rather than being replaced with an empty string.
+4. Preserve the user-facing vocabulary: **Storage**, **Recovery point**, **Delete recovery point**, and **Free unused space**. Restic-specific terms such as repository, snapshot, forget and prune belong in technical logs/documentation, not normal UI labels.
+5. Unknown messages should be allowed to fall back to English rather than being replaced with an empty string.
 
 Twig uses `t("Message")` for UI text, `status_label` for application states, `trans` for known runtime errors, and `local_datetime` for localized timestamps. JavaScript messages are generated from the same translator catalog and exposed through `window.ZB_I18N`.

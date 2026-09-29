@@ -1,18 +1,18 @@
 {% extends "layout.twig" %}
 
-{% block title %}{{ t("Repositories -") }} {{ APP.name }}{% endblock %}
+{% block title %}{{ t("Storage -") }} {{ APP.name }}{% endblock %}
 
 {% block content %}
 <header class="page-header">
-    <div><h1>{{ t("Repositories") }}</h1><p class="muted">{{ t("Encrypted destinations used by backup jobs.") }}</p></div>
-    <a class="button" href="{{ ROUTER.generate('repositories.create') }}">{{ t("Add repository") }}</a>
+    <div><h1>{{ t("Storage") }}</h1><p class="muted">{{ t("Encrypted destinations used by backup jobs.") }}</p></div>
+    <a class="button" href="{{ ROUTER.generate('repositories.create') }}">{{ t("Add storage") }}</a>
 </header>
 
 {% if flash_success %}<div class="alert alert-success">{{ flash_success|trans }}</div>{% endif %}
-{% if flash_error %}<div class="alert alert-error"><strong>{{ t("Repository action failed") }}</strong><div>{{ flash_error|trans }}</div></div>{% endif %}
+{% if flash_error %}<div class="alert alert-error"><strong>{{ t("Storage action failed") }}</strong><div>{{ flash_error|trans }}</div></div>{% endif %}
 
 {% if repositories is empty %}
-    <div class="empty-inline"><strong>{{ t("No repositories.") }}</strong><p>{{ t("Create one on a separate disk or storage location.") }}</p></div>
+    <div class="empty-inline"><strong>{{ t("No backup storage locations.") }}</strong><p>{{ t("Create one on a separate disk or storage location.") }}</p></div>
 {% else %}
     {% for repository in repositories %}
         <section class="simple-section">
@@ -21,19 +21,19 @@
                 <span class="status-pill {{ repository.status == 'ready' ? 'ok' : (repository.status in ['initializing','reinitializing'] ? 'warning' : 'error') }}"><span class="status-dot"></span>{{ repository.status|status_label }}</span>
             </div>
             <div class="simple-row"><div><strong>{{ repository.path }}</strong><small>{{ repository.active_jobs }} {{ t(repository.active_jobs == 1 ? 'active job' : 'active jobs') }}</small></div><div class="simple-row-meta">{{ t(repository.storage_present ? 'storage present' : 'storage missing') }}</div></div>
-            <div class="simple-row"><div><strong>{{ t("Integrity") }}</strong><small>{{ repository.last_check_error ? (repository.last_check_error|trans) : t('Repository verification state.') }}</small></div><div class="simple-row-meta">{{ repository.last_check_status ? (repository.last_check_status|status_label) : t('never checked') }}{% if repository.last_check_at %}<br>{{ repository.last_check_at|local_datetime }}{% endif %}</div></div>
-            <div class="simple-row"><div><strong>{{ t("Prune") }}</strong><small>{{ t("Reclaims unreferenced data after forgotten snapshots.") }}</small></div><div class="simple-row-meta">{{ repository.last_prune_status ? (repository.last_prune_status|status_label) : t('never') }}{% if repository.last_prune_at %}<br>{{ repository.last_prune_at|local_datetime }}{% endif %}</div></div>
+            <div class="simple-row"><div><strong>{{ t("Backup health") }}</strong><small>{{ repository.last_check_error ? (repository.last_check_error|trans) : t('Last verification of this backup storage.') }}</small></div><div class="simple-row-meta">{{ repository.last_check_status ? (repository.last_check_status|status_label) : t('never checked') }}{% if repository.last_check_at %}<br>{{ repository.last_check_at|local_datetime }}{% endif %}</div></div>
+            <div class="simple-row"><div><strong>{{ t("Free unused space") }}</strong><small>{{ t("Permanently removes backup data that is no longer used by any recovery point. Existing recovery points are not deleted.") }}</small></div><div class="simple-row-meta">{{ repository.last_prune_status ? (repository.last_prune_status|status_label) : t('never') }}{% if repository.last_prune_at %}<br>{{ repository.last_prune_at|local_datetime }}{% endif %}</div></div>
 
             {% if repository.status == 'missing' %}
-                <div class="alert alert-error"><strong>{{ t("Repository storage is missing.") }}</strong><div>{{ repository.error|trans }}</div></div>
+                <div class="alert alert-error"><strong>{{ t("Backup storage is unavailable.") }}</strong><div>{{ repository.error|trans }}</div></div>
             {% endif %}
 
             <div class="form-actions">
-                <form method="post" action="{{ ROUTER.generate('repositories.check', {uuid: repository.uuid}) }}"><input type="hidden" name="_csrf" value="{{ csrf_token }}"><button class="button-secondary" type="submit" {{ repository.running_operations > 0 or not repository.storage_present ? 'disabled' : '' }}>{{ t("Check") }}</button></form>
-                <form method="post" action="{{ ROUTER.generate('repositories.prune', {uuid: repository.uuid}) }}" data-confirm="{{ t('Prune this repository now? This can take a long time and reclaims data no longer referenced by snapshots.') }}"><input type="hidden" name="_csrf" value="{{ csrf_token }}"><button class="button-secondary" type="submit" {{ repository.status != 'ready' or repository.running_operations > 0 or not repository.storage_present ? 'disabled' : '' }}>{{ t("Prune") }}</button></form>
-                {% if repository.can_reinitialize %}<form method="post" action="{{ ROUTER.generate('repositories.reinitialize', {uuid: repository.uuid}) }}" data-confirm="{{ t('Create a new empty Restic repository here with the existing recovery key? Historical snapshots will become unavailable.') }}"><input type="hidden" name="_csrf" value="{{ csrf_token }}"><button class="button-secondary" type="submit">{{ t("Reinitialize") }}</button></form>{% endif %}
+                <form method="post" action="{{ ROUTER.generate('repositories.check', {uuid: repository.uuid}) }}"><input type="hidden" name="_csrf" value="{{ csrf_token }}"><button class="button-secondary" type="submit" {{ repository.running_operations > 0 or not repository.storage_present ? 'disabled' : '' }}>{{ t("Verify") }}</button></form>
+                <form method="post" action="{{ ROUTER.generate('repositories.prune', {uuid: repository.uuid}) }}" data-confirm="{{ t('Free unused space now? This permanently removes backup data that is no longer used by any recovery point. Existing recovery points are preserved. This can take a long time.') }}"><input type="hidden" name="_csrf" value="{{ csrf_token }}"><button class="button-secondary" type="submit" {{ repository.status != 'ready' or repository.running_operations > 0 or not repository.storage_present ? 'disabled' : '' }}>{{ t("Free unused space") }}</button></form>
+                {% if repository.can_reinitialize %}<form method="post" action="{{ ROUTER.generate('repositories.reinitialize', {uuid: repository.uuid}) }}" data-confirm="{{ t('Create new empty backup storage here using the existing recovery key? Previous recovery points will become unavailable.') }}"><input type="hidden" name="_csrf" value="{{ csrf_token }}"><button class="button-secondary" type="submit">{{ t("Reinitialize") }}</button></form>{% endif %}
                 <a class="button-secondary" href="{{ ROUTER.generate('repositories.edit', {uuid: repository.uuid}) }}">{{ t("Rename") }}</a>
-                <form method="post" action="{{ ROUTER.generate('repositories.remove', {uuid: repository.uuid}) }}" data-confirm="{{ t('Remove this repository from ZimaBackup? Backup data on disk will NOT be deleted.') }}"><input type="hidden" name="_csrf" value="{{ csrf_token }}"><button class="button-secondary button-danger" type="submit" {{ repository.active_jobs > 0 or repository.running_operations > 0 ? 'disabled' : '' }}>{{ t("Remove") }}</button></form>
+                <form method="post" action="{{ ROUTER.generate('repositories.remove', {uuid: repository.uuid}) }}" data-confirm="{{ t('Remove this storage location from ZimaBackup? Backup data on disk will NOT be deleted.') }}"><input type="hidden" name="_csrf" value="{{ csrf_token }}"><button class="button-secondary button-danger" type="submit" {{ repository.active_jobs > 0 or repository.running_operations > 0 ? 'disabled' : '' }}>{{ t("Remove") }}</button></form>
             </div>
         </section>
     {% endfor %}

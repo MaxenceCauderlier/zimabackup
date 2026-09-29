@@ -8,7 +8,7 @@
         <a class="back-link" href="{{ ROUTER.generate('snapshots.applications', {runId: application.backup_run_id}) }}">{{ t("← Application preview") }}</a>
         <p class="eyebrow">{{ t("Application recovery") }}</p>
         <h1>{{ t("Restore") }} {{ application.name }}</h1>
-        <p class="muted">{{ t("Snapshot") }} <strong>{{ application.snapshot_id|slice(0, 12) }}</strong> · {{ application.repository_name }}</p>
+        <p class="muted">{{ t("Recovery point") }} <strong>{{ application.snapshot_id|slice(0, 12) }}</strong> · {{ application.repository_name }}</p>
     </div>
 </header>
 
