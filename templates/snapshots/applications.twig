@@ -63,8 +63,8 @@
                 <div class="preview-grid">
                     <div class="compose-preview-panel">
                         <div class="preview-panel-heading">
-                            <div><span class="card-kicker">{{ t("Reconstructed definition") }}</span><h3>{{ t("Docker Compose preview") }}</h3></div>
-                            <span class="mini-tag eligible">{{ t("secrets masked") }}</span>
+                            <div><span class="card-kicker">{{ t(application.exact_definition ? "Exact ZimaOS definition" : "Reconstructed definition") }}</span><h3>{{ t("Docker Compose preview") }}</h3></div>
+                            <span class="mini-tag eligible">{{ t("secrets masked") }}</span>{% if application.exact_definition %}<span class="mini-tag recommended">{{ t("exact definition") }}</span>{% endif %}
                         </div>
                         <pre class="code-preview"><code>{{ application.compose_preview }}</code></pre>
                     </div>
@@ -90,8 +90,8 @@
 
                 <div class="manifest-source-line">
                     <div>
-                        <span>{{ t("Application definition in backup") }}</span>
-                        <code>{{ application.manifest_path }}</code>
+                        <span>{{ t("Application definition in backup") }} · {{ t(application.exact_definition ? "ZimaOS Compose" : "Docker runtime fallback") }}</span>
+                        <code>{{ application.manifest_path }}</code>{% if application.zimaos_app_id %}<small>{{ application.zimaos_app_id }}</small>{% endif %}
                     </div>
                     <a class="button" href="{{ ROUTER.generate('application-restores.create', {applicationId: application.id}) }}">{{ t("Restore application") }}</a>
                 </div>

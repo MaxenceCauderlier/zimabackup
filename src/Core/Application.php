@@ -31,6 +31,7 @@ use ZimaBackup\Service\SnapshotBrowserService;
 use ZimaBackup\Service\SnapshotApplicationService;
 use ZimaBackup\Service\TaskQueueService;
 use ZimaBackup\Service\Translator;
+use ZimaBackup\Service\ZimaOsAppDefinitionService;
 
 final class Application
 {
@@ -106,10 +107,12 @@ final class Application
         $diagnostics = new DiagnosticsService($this->database, max(2, (int) (getenv('WORKER_INTERVAL') ?: 10)));
         $docker = new DockerEngineClient(getenv('DOCKER_SOCKET') ?: '/var/run/docker.sock');
         $composePreview = new ComposePreviewService();
+        $zimaosDefinitions = new ZimaOsAppDefinitionService(getenv('ZIMAOS_APPS_ROOT') ?: '/var/lib/casaos/apps');
         $appDiscovery = new ApplicationDiscoveryService(
             $this->database,
             $docker,
             $queue,
+            $zimaosDefinitions,
             $this->rootPath . '/storage/manifests',
             getenv('ZIMABACKUP_COMPOSE_PROJECT') ?: 'zimabackup'
         );
@@ -127,6 +130,7 @@ final class Application
             ActivityService::class => $activity,
             DiagnosticsService::class => $diagnostics,
             DockerEngineClient::class => $docker,
+            ZimaOsAppDefinitionService::class => $zimaosDefinitions,
             ApplicationDiscoveryService::class => $appDiscovery,
             ComposePreviewService::class => $composePreview,
         ];

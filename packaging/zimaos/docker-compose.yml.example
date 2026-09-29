@@ -2,7 +2,7 @@ name: zimabackup
 
 services:
   zimabackup:
-    image: ghcr.io/CHANGE_ME/zimabackup:0.14.0
+    image: ghcr.io/CHANGE_ME/zimabackup:0.15.0
     restart: unless-stopped
     labels:
       org.zimabackup.internal: "true"
@@ -21,7 +21,7 @@ services:
       - /media:/media:ro
 
   worker:
-    image: ghcr.io/CHANGE_ME/zimabackup:0.14.0
+    image: ghcr.io/CHANGE_ME/zimabackup:0.15.0
     restart: unless-stopped
     labels:
       org.zimabackup.internal: "true"
@@ -35,11 +35,13 @@ services:
       APP_DISCOVERY_INTERVAL: "120"
       DOCKER_SOCKET: /var/run/docker.sock
       ZIMABACKUP_COMPOSE_PROJECT: zimabackup
+      ZIMAOS_APPS_ROOT: /var/lib/casaos/apps
     volumes:
       - /DATA/AppData/zimabackup:/var/www/html/storage
       - /DATA:/DATA
       - /media:/media
       - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /var/lib/casaos/apps:/var/lib/casaos/apps:ro
 
 x-casaos:
   id: com.zimabackup.app
@@ -59,7 +61,7 @@ x-casaos:
   category: Utilities
   architectures:
     - amd64
-  version: "0.14.0"
-  update_at: "2026-09-16"
+  version: "0.15.0"
+  update_at: "2026-09-29"
   release_notes:
-    en_US: "Management milestone: repository editing/removal and integrity checks, backup-job editing/enabling/deletion, snapshot forget operations, and functional application settings."
+    en_US: "Preserve exact installed ZimaOS Docker Compose and x-casaos application metadata in encrypted backups, with Docker runtime fallback."

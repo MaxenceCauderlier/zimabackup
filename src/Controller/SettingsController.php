@@ -10,6 +10,7 @@ use ZimaBackup\Security\Csrf;
 use ZimaBackup\Service\ResticService;
 use ZimaBackup\Service\SettingsService;
 use ZimaBackup\Service\Translator;
+use ZimaBackup\Service\ZimaOsAppDefinitionService;
 
 final class SettingsController extends AbstractController
 {
@@ -31,6 +32,7 @@ final class SettingsController extends AbstractController
             'restic_version' => $restic->version(),
             'docker_socket' => getenv('DOCKER_SOCKET') ?: '/var/run/docker.sock',
             'languages' => Translator::supportedLocales(),
+            'zimaos_integration' => $this->app->service(ZimaOsAppDefinitionService::class)->status(),
             'flash_success' => $session->pull('flash_success'),
             'flash_error' => $session->pull('flash_error'),
         ]);

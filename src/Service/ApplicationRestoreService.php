@@ -66,7 +66,7 @@ final class ApplicationRestoreService
     public function findByUuid(string $uuid): ?array
     {
         $row = $this->database->fetchOne(
-            'SELECT ar.*, r.name AS repository_name, r.path AS repository_path, sa.compose_preview ' .
+            'SELECT ar.*, r.name AS repository_name, r.path AS repository_path, sa.compose_preview, sa.exact_definition, sa.definition_source, sa.zimaos_app_id ' .
             'FROM application_restore_runs ar ' .
             'JOIN repositories r ON r.id = ar.repository_id ' .
             'JOIN snapshot_applications sa ON sa.id = ar.snapshot_application_id ' .
@@ -295,11 +295,16 @@ final class ApplicationRestoreService
         } catch (JsonException $exception) {
             throw new RuntimeException('The application manifest is invalid JSON.', 0, $exception);
         }
-        if (!is_array($manifest) || ($manifest['schema'] ?? null) !== 'zimabackup.application-manifest.v1') {
+        $schema = (string) ($manifest['schema'] ?? '');
+        if (!is_array($manifest) || !in_array($schema, ['zimabackup.application-manifest.v1', 'zimabackup.application-manifest.v2'], true)) {
             throw new RuntimeException('The application manifest has an unsupported schema.');
         }
 
-        $compose = $this->composePreview->build($manifest)['compose'];
+        $zimaos = is_array($manifest['zimaos'] ?? null) ? $manifest['zimaos'] : [];
+        $exactCompose = is_string($zimaos['compose_yaml'] ?? null) ? trim((string) $zimaos['compose_yaml']) : '';
+        $compose = $exactCompose !== ''
+            ? $exactCompose . (str_ends_with($exactCompose, "\n") ? '' : "\n")
+            : $this->composePreview->build($manifest)['compose'];
         $composePath = rtrim($stagingPath, '/') . '/docker-compose.yml';
         if (file_put_contents($composePath, $compose, LOCK_EX) === false) {
             throw new RuntimeException('Unable to write the reconstructed Docker Compose file.');

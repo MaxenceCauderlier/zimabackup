@@ -23,6 +23,7 @@
         <section class="simple-section">
             <div class="simple-section-head"><h2>{{ application.name }}</h2><span class="status-pill {{ application.status == 'running' ? 'ok' : 'warning' }}"><span class="status-dot"></span>{{ application.status|status_label }}</span></div>
             <div class="simple-row"><div><strong>{{ application.image }}</strong><small>{{ application.project_name }} · {{ application.container_count }} {{ t(application.container_count == 1 ? 'container' : 'containers') }}</small></div><div class="simple-row-meta">{{ recommended_count }} {{ t("recommended ·") }} {{ eligible_count }} {{ t("eligible") }}</div></div>
+            <div class="simple-row"><div><strong>{{ t("Application definition") }}</strong><small>{% if application.exact_definition %}{{ t("Exact ZimaOS Compose and x-casaos metadata available") }}{% else %}{{ t("Docker runtime fallback only") }}{% endif %}{% if application.zimaos_category %} · {{ application.zimaos_category }}{% endif %}</small></div><div class="simple-row-meta">{{ application.exact_definition ? t("Exact") : t("Fallback") }}</div></div>
             {% for mount in application.mounts %}
                 <div class="simple-row"><div><strong>{{ mount.destination }}</strong><small>{{ mount.source }}</small></div><div class="simple-row-meta">{{ t(not mount.eligible ? 'ignored' : (mount.recommended ? 'recommended' : 'optional')) }}</div></div>
             {% endfor %}

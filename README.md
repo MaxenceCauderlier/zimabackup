@@ -2,11 +2,11 @@
 
 ZimaBackup is a lightweight, application-aware backup and disaster-recovery manager for ZimaOS, built with PHP 8.4, Twig, SQLite and Restic.
 
-## Current milestone — v0.14.0 Activity & Diagnostics
+## Current milestone — v0.15.0 ZimaOS application definitions
 
-v0.14.0 adds a persistent, user-readable Activity log and current-state diagnostics. Backups, restores, storage maintenance, application recovery and important failures are recorded in SQLite with plain-language summaries. Raw Docker/Restic output remains available behind **Show technical details**. The worker reports a heartbeat so the interface can distinguish a current background-processing problem from an old historical error.
+v0.15.0 adds a read-only ZimaOS integration layer. When the worker can read `/var/lib/casaos/apps`, ZimaBackup captures the exact installed `docker-compose.yml` together with its `x-casaos` metadata and stores it only inside the encrypted application backup manifest. Docker Inspect remains available as a runtime fallback when an exact ZimaOS definition cannot be found.
 
-Activity history defaults to 30 days and 5,000 events and can be adjusted in Settings. High-frequency, low-value operations such as snapshot browsing and successful periodic Docker discovery are intentionally not logged.
+The browser never receives the raw installed Compose file. Snapshot previews mask environment values, while application restores write the original Compose definition to the protected staging workspace with mode `0600`.
 
 ### Scheduling
 
@@ -229,6 +229,17 @@ docker compose logs -f worker
 ```
 
 
+
+## v0.15.0 - ZimaOS Integration
+
+- Worker can mount ZimaOS installed app definitions read-only from `/var/lib/casaos/apps`.
+- Docker Compose labels are used to locate the exact file first; `/var/lib/casaos/apps/<project>/docker-compose.yml` is the fallback convention.
+- Captures top-level `x-casaos` identity, title, category, icon, version and main-service metadata.
+- Application discovery shows whether recovery has an **Exact ZimaOS definition** or only a **Docker runtime fallback**.
+- Encrypted application manifests move to `zimabackup.application-manifest.v2` and can contain the original Compose YAML.
+- Snapshot inspection displays a sanitized preview of the exact Compose while masking every service environment value.
+- Application restore writes the exact backed-up Compose to staging when available; older v1 manifests remain supported.
+- New migration: `015_zimaos_integration.sql`.
 
 ## v0.14.0 - Activity & Diagnostics
 

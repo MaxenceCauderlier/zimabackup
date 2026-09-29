@@ -17,3 +17,6 @@
 /dev-media/*
 !/dev-data/.gitkeep
 !/dev-media/.gitkeep
+
+/dev-zimaos-apps/*
+!/dev-zimaos-apps/.gitkeep

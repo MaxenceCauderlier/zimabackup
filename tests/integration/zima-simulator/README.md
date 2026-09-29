@@ -9,7 +9,7 @@ It uses two containers (Nginx + Redis) and bind-mounts their persistent data und
 ./tests/integration/zima-simulator/setup.sh
 ```
 
-The script prints the exact `ZIMABACKUP_DATA_PATH` and `ZIMABACKUP_MEDIA_PATH` values to copy into the root `.env` file. Restart ZimaBackup after changing them.
+The script prints the exact `ZIMABACKUP_DATA_PATH`, `ZIMABACKUP_MEDIA_PATH`, and `ZIMAOS_APPS_PATH` values to copy into the root `.env` file. Restart ZimaBackup after changing them.
 
 ## 2. Discover and back up the app
 
@@ -20,7 +20,7 @@ In ZimaBackup:
 3. Create a repository at `/media/Backup/ZimaBackup`.
 4. Create a backup containing `Zima Demo` and both recommended AppData mounts.
 5. Run the backup.
-6. Open Snapshots -> Applications and confirm the Compose preview is generated and secrets are masked.
+6. Open Snapshots -> Applications and confirm the app reports **Exact ZimaOS definition**, keeps the `x-casaos` metadata, and masks `DEMO_PASSWORD` / `DEMO_TOKEN` values in the Compose preview.
 
 ## 3. Simulate a total application loss
 

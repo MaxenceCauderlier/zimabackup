@@ -37,8 +37,10 @@ services:
       APP_DISCOVERY_INTERVAL: "${APP_DISCOVERY_INTERVAL:-120}"
       DOCKER_SOCKET: /var/run/docker.sock
       ZIMABACKUP_COMPOSE_PROJECT: zimabackup
+      ZIMAOS_APPS_ROOT: /var/lib/casaos/apps
     volumes:
       - ./storage:/var/www/html/storage
       - "${ZIMABACKUP_DATA_PATH:-./dev-data}:/DATA"
       - "${ZIMABACKUP_MEDIA_PATH:-./dev-media}:/media"
       - "${DOCKER_SOCKET_PATH:-/var/run/docker.sock}:/var/run/docker.sock:ro"
+      - "${ZIMAOS_APPS_PATH:-./dev-zimaos-apps}:/var/lib/casaos/apps:ro"

@@ -49,7 +49,7 @@
         <div>
             <span class="status-pill ok"><span class="status-dot"></span>{{ t("Restore complete") }}</span>
             <h2>{{ t(restore.mode == 'original' ? 'Application data returned to original paths' : 'Application staged safely') }}</h2>
-            <p>{{ t("The selected recovery point data was restored and a Docker Compose definition was reconstructed.") }}</p>
+            <p>{{ t(restore.exact_definition ? "The selected recovery point data was restored and the exact ZimaOS Compose definition was recovered." : "The selected recovery point data was restored and a Docker Compose definition was reconstructed.") }}</p>
         </div>
     </section>
 {% endif %}
@@ -59,7 +59,7 @@
         <div class="panel-heading"><div><span class="card-kicker">{{ t("Recovered workspace") }}</span><h2>{{ t("Staging") }}</h2></div></div>
         <div class="detail-stack">
             <div class="detail-row-card wide-row-card"><div><strong>{{ t("Staging path") }}</strong><small>{{ restore.staging_path }}</small></div><span class="mini-tag eligible">{{ t("worker only") }}</span></div>
-            <div class="detail-row-card wide-row-card"><div><strong>{{ t("Compose file") }}</strong><small>{{ restore.compose_path ?: t('Generated after data restore') }}</small></div><span class="mini-tag recommended">0600</span></div>
+            <div class="detail-row-card wide-row-card"><div><strong>{{ t("Compose file") }}</strong><small>{{ restore.compose_path ?: t('Generated after data restore') }}{% if restore.exact_definition %} · {{ t("exact ZimaOS definition") }}{% endif %}</small></div><span class="mini-tag recommended">0600</span></div>
         </div>
         <div class="info-strip compact-strip">
             <strong>{{ t("Contains secrets") }}</strong>

@@ -65,6 +65,12 @@
 </form>
 
 <section class="simple-section">
+    <div class="simple-section-head"><h2>{{ t("ZimaOS integration") }}</h2></div>
+    <div class="simple-row"><div><strong>{{ t("Installed application definitions") }}</strong><small><code>{{ zimaos_integration.root }}</code></small></div><div class="simple-row-meta">{{ zimaos_integration.available ? t("Available") : t("Unavailable") }}</div></div>
+    <div class="empty-inline"><p>{{ t("When available, ZimaBackup preserves the exact installed Docker Compose file and x-casaos metadata in the encrypted backup. Docker Inspect remains as a recovery fallback.") }}</p></div>
+</section>
+
+<section class="simple-section">
     <div class="simple-section-head"><h2>{{ t("Runtime") }}</h2></div>
     <div class="simple-row"><div><strong>ZimaBackup</strong><small>{{ t("Installed application version.") }}</small></div><div class="simple-row-meta">{{ version }}</div></div>
     <div class="simple-row"><div><strong>{{ t("Backup engine (Restic)") }}</strong><small>{{ t("Technical component used internally by ZimaBackup.") }}</small></div><div class="simple-row-meta">{{ restic_version ?: t('unavailable') }}</div></div>

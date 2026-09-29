@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace ZimaBackup\Service;
 
+use Symfony\Component\Yaml\Exception\ParseException;
+use Symfony\Component\Yaml\Yaml;
+
 final class ComposePreviewService
 {
     /**
@@ -169,6 +172,91 @@ final class ComposePreviewService
         ];
     }
 
+    /**
+     * Build a safe preview from the exact Compose definition captured from
+     * ZimaOS. The encrypted backup keeps the original YAML; this preview masks
+     * every environment value before it reaches SQLite or the browser.
+     *
+     * @return array{compose: string, warnings: list<string>}
+     */
+    public function buildFromZimaOsCompose(string $yaml): array
+    {
+        try {
+            $document = Yaml::parse($yaml);
+        } catch (ParseException $exception) {
+            return [
+                'compose' => "# Exact ZimaOS Compose definition is stored in the encrypted backup.\n# Preview unavailable because the YAML could not be parsed safely.\n",
+                'warnings' => ['The exact ZimaOS Compose definition was captured, but its safe preview could not be generated.'],
+            ];
+        }
+
+        if (!is_array($document)) {
+            return [
+                'compose' => "# Exact ZimaOS Compose definition is stored in the encrypted backup.\n",
+                'warnings' => ['The exact ZimaOS Compose definition was captured, but its safe preview could not be generated.'],
+            ];
+        }
+
+        $document = $this->sanitizeComposeDocument($document);
+        $preview = Yaml::dump($document, 12, 2, Yaml::DUMP_MULTI_LINE_LITERAL_BLOCK);
+
+        return [
+            'compose' => $preview,
+            'warnings' => ['Exact ZimaOS Compose and x-casaos metadata were captured from the installed application definition. Environment values are hidden in this preview.'],
+        ];
+    }
+
+    /** @return array<mixed> */
+    private function sanitizeComposeDocument(array $document): array
+    {
+        $services = $document['services'] ?? null;
+        if (is_array($services)) {
+            foreach ($services as $name => $service) {
+                if (!is_array($service)) {
+                    continue;
+                }
+                if (isset($service['environment']) && is_array($service['environment'])) {
+                    if (array_is_list($service['environment'])) {
+                        $service['environment'] = array_values(array_map(static function (mixed $entry): string {
+                            $entry = (string) $entry;
+                            if (!str_contains($entry, '=')) {
+                                return $entry;
+                            }
+                            [$key] = explode('=', $entry, 2);
+                            return $key . '=***';
+                        }, $service['environment']));
+                    } else {
+                        foreach ($service['environment'] as $key => $_value) {
+                            $service['environment'][$key] = '***';
+                        }
+                    }
+                }
+                $services[$name] = $this->sanitizeSensitiveMap($service);
+            }
+            $document['services'] = $services;
+        }
+
+        return $this->sanitizeSensitiveMap($document);
+    }
+
+    private function sanitizeSensitiveMap(mixed $value, ?string $key = null): mixed
+    {
+        if ($key !== null && $this->isSensitiveKey($key)) {
+            return '***';
+        }
+        if (!is_array($value)) {
+            return $value;
+        }
+        $result = [];
+        foreach ($value as $childKey => $childValue) {
+            $result[$childKey] = $this->sanitizeSensitiveMap(
+                $childValue,
+                is_string($childKey) ? $childKey : null
+            );
+        }
+        return $result;
+    }
+
     /** Return a copy safe enough to persist in SQLite and display in the UI. */
     public function sanitizeManifest(array $manifest): array
     {
@@ -177,6 +265,9 @@ final class ComposePreviewService
 
     private function sanitizeValue(mixed $value, ?string $key): mixed
     {
+        if ($key === 'compose_yaml') {
+            return '[stored in encrypted backup]';
+        }
         if ($key !== null && $this->isSensitiveKey($key)) {
             return '***';
         }

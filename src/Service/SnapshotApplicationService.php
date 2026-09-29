@@ -155,21 +155,27 @@ final class SnapshotApplicationService
                 } catch (JsonException) {
                     continue;
                 }
-                if (!is_array($manifest) || ($manifest['schema'] ?? null) !== 'zimabackup.application-manifest.v1') {
+                $schema = (string) ($manifest['schema'] ?? '');
+                if (!is_array($manifest) || !in_array($schema, ['zimabackup.application-manifest.v1', 'zimabackup.application-manifest.v2'], true)) {
                     continue;
                 }
 
+                $zimaos = is_array($manifest['zimaos'] ?? null) ? $manifest['zimaos'] : [];
+                $composeYaml = is_string($zimaos['compose_yaml'] ?? null) ? trim((string) $zimaos['compose_yaml']) : '';
                 $sanitized = $this->composePreview->sanitizeManifest($manifest);
-                $preview = $this->composePreview->build($sanitized);
+                $preview = $composeYaml !== ''
+                    ? $this->composePreview->buildFromZimaOsCompose($composeYaml)
+                    : $this->composePreview->build($sanitized);
                 $containers = is_array($manifest['containers'] ?? null) ? $manifest['containers'] : [];
                 $firstContainer = is_array($containers[0] ?? null) ? $containers[0] : [];
                 $appKey = trim((string) ($manifest['app_key'] ?? ''));
                 if ($appKey === '') {
                     $appKey = 'manifest:' . sha1($manifestPath);
                 }
+                $zimaosMetadata = is_array($zimaos['metadata'] ?? null) ? $zimaos['metadata'] : [];
                 $found[$appKey] = [
                     'app_key' => $appKey,
-                    'name' => (string) ($manifest['name'] ?? $manifest['project_name'] ?? $appKey),
+                    'name' => (string) ($zimaosMetadata['title'] ?? $manifest['name'] ?? $manifest['project_name'] ?? $appKey),
                     'project_name' => $manifest['project_name'] ?? null,
                     'image' => (string) ($firstContainer['image'] ?? ''),
                     'manifest_path' => $manifestPath,
@@ -177,6 +183,9 @@ final class SnapshotApplicationService
                     'compose_preview' => $preview['compose'],
                     'manifest_preview_json' => json_encode($sanitized, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR),
                     'warnings_json' => json_encode($preview['warnings'], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR),
+                    'definition_source' => $composeYaml !== '' ? 'zimaos-compose' : 'docker-runtime',
+                    'zimaos_app_id' => $zimaosMetadata['id'] ?? null,
+                    'exact_definition' => $composeYaml !== '' ? 1 : 0,
                 ];
             }
 
@@ -187,8 +196,8 @@ final class SnapshotApplicationService
                 $now = date('c');
                 foreach ($found as $application) {
                     $this->database->execute(
-                        'INSERT INTO snapshot_applications(backup_run_id, app_key, name, project_name, image, manifest_path, container_count, compose_preview, manifest_preview_json, warnings_json, created_at) ' .
-                        'VALUES (:backup_run_id, :app_key, :name, :project_name, :image, :manifest_path, :container_count, :compose_preview, :manifest_preview_json, :warnings_json, :created_at)',
+                        'INSERT INTO snapshot_applications(backup_run_id, app_key, name, project_name, image, manifest_path, container_count, compose_preview, manifest_preview_json, warnings_json, created_at, definition_source, zimaos_app_id, exact_definition) ' .
+                        'VALUES (:backup_run_id, :app_key, :name, :project_name, :image, :manifest_path, :container_count, :compose_preview, :manifest_preview_json, :warnings_json, :created_at, :definition_source, :zimaos_app_id, :exact_definition)',
                         [
                             'backup_run_id' => $runId,
                             ...$application,

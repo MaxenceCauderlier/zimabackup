@@ -314,7 +314,8 @@ final class ApplicationInstallService
         } catch (JsonException $exception) {
             throw new RuntimeException('Restored application manifest is invalid JSON.', 0, $exception);
         }
-        if (!is_array($manifest) || ($manifest['schema'] ?? null) !== 'zimabackup.application-manifest.v1') {
+        $schema = (string) ($manifest['schema'] ?? '');
+        if (!is_array($manifest) || !in_array($schema, ['zimabackup.application-manifest.v1', 'zimabackup.application-manifest.v2'], true)) {
             throw new RuntimeException('Restored application manifest has an unsupported schema.');
         }
         return $manifest;

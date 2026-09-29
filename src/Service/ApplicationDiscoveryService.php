@@ -15,6 +15,7 @@ final class ApplicationDiscoveryService
         private readonly Database $database,
         private readonly DockerEngineClient $docker,
         private readonly TaskQueueService $queue,
+        private readonly ZimaOsAppDefinitionService $zimaosDefinitions,
         private readonly string $manifestDirectory,
         private readonly string $ownComposeProject = 'zimabackup',
     ) {
@@ -138,12 +139,12 @@ final class ApplicationDiscoveryService
                     $manifestJson = json_encode($group['manifest'], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
                     if ($existing === null) {
                         $this->database->execute(
-                            'INSERT INTO discovered_apps(app_key, name, provider, project_name, status, image, container_count, manifest_json, present, discovered_at, updated_at) ' .
-                            'VALUES (:app_key, :name, :provider, :project_name, :status, :image, :container_count, :manifest_json, 1, :discovered_at, :updated_at)',
+                            'INSERT INTO discovered_apps(app_key, name, provider, project_name, status, image, container_count, manifest_json, present, discovered_at, updated_at, definition_source, zimaos_app_id, zimaos_category, zimaos_icon, zimaos_compose_path, exact_definition) ' .
+                            'VALUES (:app_key, :name, :provider, :project_name, :status, :image, :container_count, :manifest_json, 1, :discovered_at, :updated_at, :definition_source, :zimaos_app_id, :zimaos_category, :zimaos_icon, :zimaos_compose_path, :exact_definition)',
                             [
                                 'app_key' => $group['app_key'],
                                 'name' => $group['name'],
-                                'provider' => 'docker-engine',
+                                'provider' => $group['provider'],
                                 'project_name' => $group['project_name'],
                                 'status' => $group['status'],
                                 'image' => $group['image'],
@@ -151,6 +152,12 @@ final class ApplicationDiscoveryService
                                 'manifest_json' => $manifestJson,
                                 'discovered_at' => $now,
                                 'updated_at' => $now,
+                                'definition_source' => $group['definition_source'],
+                                'zimaos_app_id' => $group['zimaos_app_id'],
+                                'zimaos_category' => $group['zimaos_category'],
+                                'zimaos_icon' => $group['zimaos_icon'],
+                                'zimaos_compose_path' => $group['zimaos_compose_path'],
+                                'exact_definition' => $group['exact_definition'] ? 1 : 0,
                             ]
                         );
                         $appId = $this->database->lastInsertId();
@@ -158,16 +165,23 @@ final class ApplicationDiscoveryService
                         $appId = (int) $existing['id'];
                         $this->database->execute(
                             'UPDATE discovered_apps SET name = :name, provider = :provider, project_name = :project_name, status = :status, image = :image, ' .
-                            'container_count = :container_count, manifest_json = :manifest_json, present = 1, updated_at = :updated_at WHERE id = :id',
+                            'container_count = :container_count, manifest_json = :manifest_json, present = 1, updated_at = :updated_at, definition_source = :definition_source, ' .
+                            'zimaos_app_id = :zimaos_app_id, zimaos_category = :zimaos_category, zimaos_icon = :zimaos_icon, zimaos_compose_path = :zimaos_compose_path, exact_definition = :exact_definition WHERE id = :id',
                             [
                                 'name' => $group['name'],
-                                'provider' => 'docker-engine',
+                                'provider' => $group['provider'],
                                 'project_name' => $group['project_name'],
                                 'status' => $group['status'],
                                 'image' => $group['image'],
                                 'container_count' => count($group['containers']),
                                 'manifest_json' => $manifestJson,
                                 'updated_at' => $now,
+                                'definition_source' => $group['definition_source'],
+                                'zimaos_app_id' => $group['zimaos_app_id'],
+                                'zimaos_category' => $group['zimaos_category'],
+                                'zimaos_icon' => $group['zimaos_icon'],
+                                'zimaos_compose_path' => $group['zimaos_compose_path'],
+                                'exact_definition' => $group['exact_definition'] ? 1 : 0,
                                 'id' => $appId,
                             ]
                         );
@@ -260,11 +274,14 @@ final class ApplicationDiscoveryService
 
             $safeName = preg_replace('/[^A-Za-z0-9._-]+/', '-', $appKey) ?: 'application';
             $path = $directory . '/' . $safeName . '.json';
+            $exactDefinition = (bool) ($group['exact_definition'] ?? false);
             $payload = [
-                'schema' => 'zimabackup.application-manifest.v1',
+                'schema' => 'zimabackup.application-manifest.v2',
                 'generated_at' => date('c'),
-                'definition_kind' => 'docker-inspect',
-                'restore_notice' => 'This is a normalized runtime definition. A future restore step will convert it to a ZimaOS/Docker Compose definition.',
+                'definition_kind' => $exactDefinition ? 'zimaos-compose+docker-inspect' : 'docker-inspect',
+                'restore_notice' => $exactDefinition
+                    ? 'The exact installed ZimaOS Compose definition is preserved together with a Docker runtime fallback.'
+                    : 'No ZimaOS Compose definition was available. Recovery uses the normalized Docker runtime definition.',
                 ...$group['manifest'],
             ];
 
@@ -341,8 +358,10 @@ final class ApplicationDiscoveryService
                     'image' => (string) ($config['Image'] ?? $container['Image'] ?? ''),
                     'containers' => [],
                     'mounts' => [],
+                    'compose_label_sets' => [],
                 ];
             }
+            $groups[$appKey]['compose_label_sets'][] = $inspectLabels;
 
             $state = is_array($inspect['State'] ?? null) ? $inspect['State'] : [];
             if (($state['Running'] ?? false) === true) {
@@ -363,14 +382,54 @@ final class ApplicationDiscoveryService
         $result = [];
         foreach ($groups as $group) {
             $group['mounts'] = $this->deduplicateMounts($group['mounts']);
+
+            $definition = null;
+            if (is_string($group['project_name']) && $group['project_name'] !== '') {
+                $definition = $this->zimaosDefinitions->find(
+                    $group['project_name'],
+                    is_array($group['compose_label_sets'] ?? null) ? $group['compose_label_sets'] : []
+                );
+            }
+
+            $metadata = is_array($definition['metadata'] ?? null) ? $definition['metadata'] : [];
+            $exact = $definition !== null;
+            if ($exact && trim((string) ($metadata['title'] ?? '')) !== '') {
+                $group['name'] = (string) $metadata['title'];
+            }
+
+            $group['provider'] = $exact ? 'zimaos-compose' : 'docker-engine';
+            $group['definition_source'] = $exact ? 'zimaos-compose' : 'docker-runtime';
+            $group['zimaos_app_id'] = $metadata['id'] ?? null;
+            $group['zimaos_category'] = $metadata['category'] ?? null;
+            $group['zimaos_icon'] = $metadata['icon'] ?? null;
+            $group['zimaos_compose_path'] = $definition['path'] ?? null;
+            $group['exact_definition'] = $exact;
+
+            $zimaosManifest = null;
+            if ($exact) {
+                $zimaosManifest = [
+                    'compose_path' => $definition['path'],
+                    'compose_sha256' => $definition['sha256'],
+                    'metadata' => $metadata,
+                ];
+                if ($includeSecrets) {
+                    // The installed Compose can contain credentials. It exists
+                    // only in the temporary 0600 manifest and then encrypted Restic storage.
+                    $zimaosManifest['compose_yaml'] = $definition['yaml'];
+                }
+            }
+
             $group['manifest'] = [
                 'app_key' => $group['app_key'],
                 'name' => $group['name'],
-                'provider' => 'docker-engine',
+                'provider' => $group['provider'],
+                'definition_source' => $group['definition_source'],
                 'project_name' => $group['project_name'],
                 'status' => $group['status'],
+                'zimaos' => $zimaosManifest,
                 'containers' => $group['containers'],
             ];
+            unset($group['compose_label_sets']);
             $result[] = $group;
         }
 
