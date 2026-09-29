@@ -25,6 +25,7 @@ final class SettingsService
             'maintenance.check_interval_days' => '7',
             'maintenance.auto_prune' => '0',
             'maintenance.prune_interval_days' => '30',
+            'ui.language' => 'en',
         ];
     }
 
@@ -70,6 +71,8 @@ final class SettingsService
             throw new InvalidArgumentException('Repository prune interval must be between 1 and 365 days.');
         }
 
+        $language = Translator::normalizeLocale((string) ($input['ui.language'] ?? 'en'));
+
         $values = [
             'restore.default_root' => $restoreRoot,
             'application_restore.default_root' => $applicationRestoreRoot,
@@ -78,6 +81,7 @@ final class SettingsService
             'maintenance.check_interval_days' => (string) $checkInterval,
             'maintenance.auto_prune' => !empty($input['maintenance.auto_prune']) ? '1' : '0',
             'maintenance.prune_interval_days' => (string) $pruneInterval,
+            'ui.language' => $language,
         ];
 
         $now = date('c');

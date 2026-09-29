@@ -1,31 +1,31 @@
 {% extends "layout.twig" %}
 
-{% block title %}Restore - {{ APP.name }}{% endblock %}
+{% block title %}{{ t("Restore -") }} {{ APP.name }}{% endblock %}
 
 {% block content %}
 <header class="page-header">
     <div>
-        <a class="back-link" href="{{ ROUTER.generate('restores') }}">← Restore history</a>
+        <a class="back-link" href="{{ ROUTER.generate('restores') }}">{{ t("← Restore history") }}</a>
         <h1>{{ restore.job_name }}</h1>
-        <p class="muted">Snapshot {{ restore.snapshot_id|slice(0, 12) }} · {{ restore.repository_name }}</p>
+        <p class="muted">{{ t("Snapshot") }} {{ restore.snapshot_id|slice(0, 12) }} · {{ restore.repository_name }}</p>
     </div>
-    <span class="status-pill {{ restore.status == 'success' ? 'ok' : (restore.status in ['pending', 'running'] ? 'warning' : 'error') }}"><span class="status-dot"></span>{{ restore.status }}</span>
+    <span class="status-pill {{ restore.status == 'success' ? 'ok' : (restore.status in ['pending', 'running'] ? 'warning' : 'error') }}"><span class="status-dot"></span>{{ restore.status|status_label }}</span>
 </header>
 
-{% if flash_success %}<div class="alert alert-success">{{ flash_success }}</div>{% endif %}
-{% if flash_error %}<div class="alert alert-error">{{ flash_error }}</div>{% endif %}
-{% if restore.cleanup_error %}<div class="alert alert-error"><strong>Cleanup failed</strong><div>{{ restore.cleanup_error }}</div></div>{% endif %}
+{% if flash_success %}<div class="alert alert-success">{{ flash_success|trans }}</div>{% endif %}
+{% if flash_error %}<div class="alert alert-error">{{ flash_error|trans }}</div>{% endif %}
+{% if restore.cleanup_error %}<div class="alert alert-error"><strong>{{ t("Cleanup failed") }}</strong><div>{{ restore.cleanup_error|trans }}</div></div>{% endif %}
 
 <section class="simple-section">
-    <div class="simple-section-head"><h2>Restore</h2></div>
-    <div class="simple-row"><div><strong>Content</strong><small>{{ restore.selection_mode == 'selected' ? restore.selected_paths|length ~ ' selected path(s)' : 'Entire snapshot' }}</small></div><div class="simple-row-meta">{{ restore.overwrite_mode }}</div></div>
-    <div class="simple-row"><div><strong>Target</strong><small>{{ restore.target_path }}</small></div><div class="simple-row-meta">{{ restore.cleaned_at ? 'cleaned' : 'kept' }}</div></div>
-    <div class="simple-row"><div><strong>Created</strong><small>{{ restore.created_at }}</small></div><div class="simple-row-meta">{{ restore.finished_at ?: '—' }}</div></div>
+    <div class="simple-section-head"><h2>{{ t("Restore") }}</h2></div>
+    <div class="simple-row"><div><strong>{{ t("Content") }}</strong><small>{{ restore.selection_mode == 'selected' ? (restore.selected_paths|length ~ ' ' ~ t(restore.selected_paths|length == 1 ? 'selected path' : 'selected paths')) : t('Entire snapshot') }}</small></div><div class="simple-row-meta">{{ restore.overwrite_mode }}</div></div>
+    <div class="simple-row"><div><strong>{{ t("Target") }}</strong><small>{{ restore.target_path }}</small></div><div class="simple-row-meta">{{ t(restore.cleaned_at ? 'cleaned' : 'kept') }}</div></div>
+    <div class="simple-row"><div><strong>{{ t("Created") }}</strong><small>{{ restore.created_at|local_datetime }}</small></div><div class="simple-row-meta">{{ restore.finished_at ? (restore.finished_at|local_datetime) : '—' }}</div></div>
 </section>
 
 {% if restore.selection_mode == 'selected' and restore.selected_paths is not empty %}
 <section class="simple-section">
-    <div class="simple-section-head"><h2>Selected paths</h2></div>
+    <div class="simple-section-head"><h2>{{ t("Selected paths") }}</h2></div>
     {% for selected in restore.selected_paths %}
         <div class="simple-row"><div><strong>{{ selected|split('/')|last ?: selected }}</strong><small>{{ selected }}</small></div></div>
     {% endfor %}
@@ -34,32 +34,32 @@
 
 {% if restore.status in ['pending', 'running'] %}
 <section class="simple-section" data-auto-refresh>
-    <div class="simple-section-head"><h2>{{ restore.status == 'pending' ? 'Waiting for worker' : 'Restoring' }}</h2><strong>{{ restore.progress_percent|default(0)|number_format(0) }}%</strong></div>
+    <div class="simple-section-head"><h2>{{ t(restore.status == 'pending' ? 'Waiting for worker' : 'Restoring') }}</h2><strong>{{ restore.progress_percent|default(0)|number_format(0) }}%</strong></div>
     <div class="progress-track"><span style="width: {{ restore.progress_percent|default(0) }}%"></span></div>
-    <div class="simple-row"><div><strong>Files</strong><small>{{ restore.files_restored|default(0) }} restored · {{ restore.files_skipped|default(0) }} skipped</small></div><div class="simple-row-meta">{{ restore.bytes_restored|bytes }} / {{ restore.total_bytes|bytes }}</div></div>
+    <div class="simple-row"><div><strong>{{ t("Files") }}</strong><small>{{ restore.files_restored|default(0) }} {{ t("restored ·") }} {{ restore.files_skipped|default(0) }} {{ t("skipped") }}</small></div><div class="simple-row-meta">{{ restore.bytes_restored|bytes }} / {{ restore.total_bytes|bytes }}</div></div>
 </section>
 {% elseif restore.status == 'failed' %}
-<div class="alert alert-error"><strong>Restore failed safely</strong><div>{{ restore.error }}</div></div>
+<div class="alert alert-error"><strong>{{ t("Restore failed safely") }}</strong><div>{{ restore.error|trans }}</div></div>
 {% elseif restore.status == 'success' %}
-<div class="alert alert-success"><strong>Restore complete</strong><div>{{ restore.files_restored|default(0) }} files · {{ restore.bytes_restored|bytes }} restored.</div></div>
+<div class="alert alert-success"><strong>{{ t("Restore complete") }}</strong><div>{{ restore.files_restored|default(0) }} {{ t("files ·") }} {{ restore.bytes_restored|bytes }} {{ t("restored.") }}</div></div>
 {% endif %}
 
 {% if restore.cleanup_status in ['queued', 'running'] %}
 <section class="simple-section" data-auto-refresh>
-    <div class="empty-inline"><strong>Cleaning restore target…</strong><p>The worker is removing only {{ restore.target_path }}.</p></div>
+    <div class="empty-inline"><strong>{{ t("Cleaning restore target…") }}</strong><p>{{ t("The worker is removing only") }} {{ restore.target_path }}.</p></div>
 </section>
 {% elseif restore.cleaned_at %}
 <section class="simple-section">
-    <div class="empty-inline"><strong>Recovered files cleaned</strong><p>The temporary restore target was removed on {{ restore.cleaned_at }}. The restore history remains available.</p></div>
+    <div class="empty-inline"><strong>{{ t("Recovered files cleaned") }}</strong><p>{{ t("The temporary restore target was removed on") }} {{ restore.cleaned_at|local_datetime }}{{ t(". The restore history remains available.") }}</p></div>
 </section>
 {% elseif restore.status in ['success', 'failed'] %}
 <section class="simple-section">
-    <div class="simple-section-head"><h2>Cleanup</h2></div>
+    <div class="simple-section-head"><h2>{{ t("Cleanup") }}</h2></div>
     <div class="simple-row">
-        <div><strong>Remove recovered files</strong><small>Deletes only this restore target: {{ restore.target_path }}</small></div>
-        <form method="post" action="{{ ROUTER.generate('restores.cleanup', {uuid: restore.uuid}) }}" data-confirm="Delete this restore target and all recovered files inside it? The snapshot itself is not deleted.">
+        <div><strong>{{ t("Remove recovered files") }}</strong><small>{{ t("Deletes only this restore target:") }} {{ restore.target_path }}</small></div>
+        <form method="post" action="{{ ROUTER.generate('restores.cleanup', {uuid: restore.uuid}) }}" data-confirm="{{ t('Delete this restore target and all recovered files inside it? The snapshot itself is not deleted.') }}">
             <input type="hidden" name="_csrf" value="{{ csrf_token }}">
-            <button class="button-secondary button-danger" type="submit">Clean restore</button>
+            <button class="button-secondary button-danger" type="submit">{{ t("Clean restore") }}</button>
         </form>
     </div>
 </section>

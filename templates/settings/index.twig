@@ -1,48 +1,64 @@
 {% extends "layout.twig" %}
 
-{% block title %}Settings - {{ APP.name }}{% endblock %}
+{% block title %}{{ t("Settings -") }} {{ APP.name }}{% endblock %}
 
 {% block content %}
-<header class="page-header"><div><h1>Settings</h1><p class="muted">Defaults and background maintenance. Changes are read by the worker automatically.</p></div></header>
+<header class="page-header"><div><h1>{{ t("Settings") }}</h1><p class="muted">{{ t("Defaults and background maintenance. Changes are read by the worker automatically.") }}</p></div></header>
 
-{% if flash_success %}<div class="alert alert-success">{{ flash_success }}</div>{% endif %}
-{% if flash_error %}<div class="alert alert-error"><strong>Unable to save</strong><div>{{ flash_error }}</div></div>{% endif %}
+{% if flash_success %}<div class="alert alert-success">{{ flash_success|trans }}</div>{% endif %}
+{% if flash_error %}<div class="alert alert-error"><strong>{{ t("Unable to save") }}</strong><div>{{ flash_error|trans }}</div></div>{% endif %}
 
 <form method="post" action="{{ ROUTER.generate('settings.update') }}" class="stack-form">
     <input type="hidden" name="_csrf" value="{{ csrf_token }}">
 
+
     <section class="simple-section">
-        <div class="simple-section-head"><h2>Restore paths</h2></div>
+        <div class="simple-section-head"><h2>{{ t("Interface") }}</h2></div>
         <div class="panel stack-form">
-            <label class="field"><span>File restore root</span><input type="text" name="restore_default_root" value="{{ values['restore.default_root'] }}"><small>New file restores are created below this directory.</small></label>
-            <label class="field"><span>Application staging root</span><input type="text" name="application_restore_default_root" value="{{ values['application_restore.default_root'] }}"><small>Safe staging area used before original-path application restores.</small></label>
+            <label class="field">
+                <span>{{ t("Language") }}</span>
+                <select name="ui_language">
+                    {% for code, label in languages %}
+                        <option value="{{ code }}" {{ values['ui.language'] == code ? 'selected' : '' }}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+                <small>{{ t("The interface language changes after saving settings. Missing translations fall back to English.") }}</small>
+            </label>
         </div>
     </section>
 
     <section class="simple-section">
-        <div class="simple-section-head"><h2>Discovery</h2></div>
+        <div class="simple-section-head"><h2>{{ t("Restore paths") }}</h2></div>
         <div class="panel stack-form">
-            <label class="field"><span>Application discovery interval</span><input type="number" min="30" max="3600" name="apps_discovery_interval" value="{{ values['apps.discovery.interval'] }}"><small>Seconds between automatic Docker discovery passes.</small></label>
+            <label class="field"><span>{{ t("File restore root") }}</span><input type="text" name="restore_default_root" value="{{ values['restore.default_root'] }}"><small>{{ t("New file restores are created below this directory.") }}</small></label>
+            <label class="field"><span>{{ t("Application staging root") }}</span><input type="text" name="application_restore_default_root" value="{{ values['application_restore.default_root'] }}"><small>{{ t("Safe staging area used before original-path application restores.") }}</small></label>
         </div>
     </section>
 
     <section class="simple-section">
-        <div class="simple-section-head"><h2>Repository maintenance</h2></div>
+        <div class="simple-section-head"><h2>{{ t("Discovery") }}</h2></div>
         <div class="panel stack-form">
-            <label class="toggle-line"><input type="checkbox" name="maintenance_auto_check" value="1" {{ values['maintenance.auto_check'] == '1' ? 'checked' : '' }}><span><strong>Automatic integrity checks</strong><small>Queue Restic check for ready repositories on the interval below.</small></span></label>
-            <label class="field"><span>Check every</span><input type="number" min="1" max="365" name="maintenance_check_interval_days" value="{{ values['maintenance.check_interval_days'] }}"><small>Days.</small></label>
-            <label class="toggle-line"><input type="checkbox" name="maintenance_auto_prune" value="1" {{ values['maintenance.auto_prune'] == '1' ? 'checked' : '' }}><span><strong>Automatic prune</strong><small>Disabled by default. When enabled, only repositories with forgotten snapshots are pruned.</small></span></label>
-            <label class="field"><span>Prune every</span><input type="number" min="1" max="365" name="maintenance_prune_interval_days" value="{{ values['maintenance.prune_interval_days'] }}"><small>Days. Manual prune remains available from Repositories.</small></label>
+            <label class="field"><span>{{ t("Application discovery interval") }}</span><input type="number" min="30" max="3600" name="apps_discovery_interval" value="{{ values['apps.discovery.interval'] }}"><small>{{ t("Seconds between automatic Docker discovery passes.") }}</small></label>
         </div>
     </section>
 
-    <div class="form-actions"><button class="button" type="submit">Save settings</button></div>
+    <section class="simple-section">
+        <div class="simple-section-head"><h2>{{ t("Repository maintenance") }}</h2></div>
+        <div class="panel stack-form">
+            <label class="toggle-line"><input type="checkbox" name="maintenance_auto_check" value="1" {{ values['maintenance.auto_check'] == '1' ? 'checked' : '' }}><span><strong>{{ t("Automatic integrity checks") }}</strong><small>{{ t("Queue Restic check for ready repositories on the interval below.") }}</small></span></label>
+            <label class="field"><span>{{ t("Check every") }}</span><input type="number" min="1" max="365" name="maintenance_check_interval_days" value="{{ values['maintenance.check_interval_days'] }}"><small>{{ t("Days.") }}</small></label>
+            <label class="toggle-line"><input type="checkbox" name="maintenance_auto_prune" value="1" {{ values['maintenance.auto_prune'] == '1' ? 'checked' : '' }}><span><strong>{{ t("Automatic prune") }}</strong><small>{{ t("Disabled by default. When enabled, only repositories with forgotten snapshots are pruned.") }}</small></span></label>
+            <label class="field"><span>{{ t("Prune every") }}</span><input type="number" min="1" max="365" name="maintenance_prune_interval_days" value="{{ values['maintenance.prune_interval_days'] }}"><small>{{ t("Days. Manual prune remains available from Repositories.") }}</small></label>
+        </div>
+    </section>
+
+    <div class="form-actions"><button class="button" type="submit">{{ t("Save settings") }}</button></div>
 </form>
 
 <section class="simple-section">
-    <div class="simple-section-head"><h2>Runtime</h2></div>
-    <div class="simple-row"><div><strong>ZimaBackup</strong><small>Installed application version.</small></div><div class="simple-row-meta">{{ version }}</div></div>
-    <div class="simple-row"><div><strong>Restic</strong><small>Backup engine detected by the worker image.</small></div><div class="simple-row-meta">{{ restic_version ?: 'unavailable' }}</div></div>
-    <div class="simple-row"><div><strong>Docker socket</strong><small>Used only by the privileged worker.</small></div><div class="simple-row-meta"><code>{{ docker_socket }}</code></div></div>
+    <div class="simple-section-head"><h2>{{ t("Runtime") }}</h2></div>
+    <div class="simple-row"><div><strong>ZimaBackup</strong><small>{{ t("Installed application version.") }}</small></div><div class="simple-row-meta">{{ version }}</div></div>
+    <div class="simple-row"><div><strong>Restic</strong><small>{{ t("Backup engine detected by the worker image.") }}</small></div><div class="simple-row-meta">{{ restic_version ?: t('unavailable') }}</div></div>
+    <div class="simple-row"><div><strong>{{ t("Docker socket") }}</strong><small>{{ t("Used only by the privileged worker.") }}</small></div><div class="simple-row-meta"><code>{{ docker_socket }}</code></div></div>
 </section>
 {% endblock %}

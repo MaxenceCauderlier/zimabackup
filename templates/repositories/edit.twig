@@ -1,7 +1,7 @@
 {% extends "layout.twig" %}
-{% block title %}Rename repository - {{ APP.name }}{% endblock %}
+{% block title %}{{ t("Rename repository -") }} {{ APP.name }}{% endblock %}
 {% block content %}
-<header class="page-header"><div><a class="back-link" href="{{ ROUTER.generate('repositories') }}">← Repositories</a><h1>Rename repository</h1><p class="muted">The storage path is intentionally immutable.</p></div></header>
-{% if errors %}<div class="alert alert-error">{% for error in errors %}<div>{{ error }}</div>{% endfor %}</div>{% endif %}
-<form method="post" action="{{ ROUTER.generate('repositories.update', {uuid: repository.uuid}) }}" class="panel stack-form"><input type="hidden" name="_csrf" value="{{ csrf_token }}"><label class="field"><span>Name</span><input type="text" name="name" value="{{ repository.name }}" maxlength="100" required></label><label class="field"><span>Path</span><input type="text" value="{{ repository.path }}" disabled></label><div class="form-actions"><a class="button-secondary" href="{{ ROUTER.generate('repositories') }}">Cancel</a><button class="button" type="submit">Save</button></div></form>
+<header class="page-header"><div><a class="back-link" href="{{ ROUTER.generate('repositories') }}">{{ t("← Repositories") }}</a><h1>{{ t("Rename repository") }}</h1><p class="muted">{{ t("The storage path is intentionally immutable.") }}</p></div></header>
+{% if errors %}<div class="alert alert-error">{% for error in errors %}<div>{{ error|trans }}</div>{% endfor %}</div>{% endif %}
+<form method="post" action="{{ ROUTER.generate('repositories.update', {uuid: repository.uuid}) }}" class="panel stack-form"><input type="hidden" name="_csrf" value="{{ csrf_token }}"><label class="field"><span>{{ t("Name") }}</span><input type="text" name="name" value="{{ repository.name }}" maxlength="100" required></label><label class="field"><span>{{ t("Path") }}</span><input type="text" value="{{ repository.path }}" disabled></label><div class="form-actions"><a class="button-secondary" href="{{ ROUTER.generate('repositories') }}">{{ t("Cancel") }}</a><button class="button" type="submit">{{ t("Save") }}</button></div></form>
 {% endblock %}

@@ -1,39 +1,39 @@
 {% extends "layout.twig" %}
 
-{% block title %}New backup - {{ APP.name }}{% endblock %}
+{% block title %}{{ t("New backup -") }} {{ APP.name }}{% endblock %}
 
 {% block content %}
 <header class="page-header">
     <div>
-        <a class="back-link" href="{{ ROUTER.generate('backups') }}">← Backups</a>
-        <h1>New backup</h1>
-        <p class="muted">Choose the data, destination and automation. Nothing runs until the job is saved.</p>
+        <a class="back-link" href="{{ ROUTER.generate('backups') }}">{{ t("← Backups") }}</a>
+        <h1>{{ t("New backup") }}</h1>
+        <p class="muted">{{ t("Choose the data, destination and automation. Nothing runs until the job is saved.") }}</p>
     </div>
 </header>
 
-{% if errors %}<div class="alert alert-error"><strong>Unable to create backup</strong>{% for error in errors %}<div>{{ error }}</div>{% endfor %}</div>{% endif %}
+{% if errors %}<div class="alert alert-error"><strong>{{ t("Unable to create backup") }}</strong>{% for error in errors %}<div>{{ error|trans }}</div>{% endfor %}</div>{% endif %}
 
 <form method="post" action="{{ ROUTER.generate('backups.store') }}" class="stack-form" data-automation-form>
     <input type="hidden" name="_csrf" value="{{ csrf_token }}">
 
     <section class="panel stack-form">
-        <div class="section-label"><div><strong>General</strong><small>Name and repository.</small></div></div>
-        <label class="field"><span>Name</span><input type="text" name="name" maxlength="100" required value="{{ values.name }}" placeholder="Apps and Documents"></label>
+        <div class="section-label"><div><strong>{{ t("General") }}</strong><small>{{ t("Name and repository.") }}</small></div></div>
+        <label class="field"><span>{{ t("Name") }}</span><input type="text" name="name" maxlength="100" required value="{{ values.name }}" placeholder="{{ t('Apps and Documents') }}"></label>
         <div class="repo-option-grid">
             {% for repository in repositories %}
                 <label class="repo-option">
                     <input type="radio" name="repository_id" value="{{ repository.id }}" {{ values.repository_id == (repository.id ~ '') ? 'checked' : '' }} required>
                     <div><strong>{{ repository.name }}</strong><small>{{ repository.path }}</small></div>
-                    <span class="status-pill ok"><span class="status-dot"></span>ready</span>
+                    <span class="status-pill ok"><span class="status-dot"></span>{{ t("ready") }}</span>
                 </label>
             {% endfor %}
         </div>
     </section>
 
     <section class="panel stack-form">
-        <div class="section-label"><div><strong>Applications</strong><small>Select applications and eligible bind mounts.</small></div></div>
+        <div class="section-label"><div><strong>{{ t("Applications") }}</strong><small>{{ t("Select applications and eligible bind mounts.") }}</small></div></div>
         {% if applications is empty %}
-            <div class="empty-inline"><strong>No applications discovered.</strong><p>You can still create a folder-only backup, or refresh Applications first.</p></div>
+            <div class="empty-inline"><strong>{{ t("No applications discovered.") }}</strong><p>{{ t("You can still create a folder-only backup, or refresh Applications first.") }}</p></div>
         {% else %}
             <div class="app-picker-grid">
                 {% for application in applications %}
@@ -41,14 +41,14 @@
                         <div class="app-picker-header">
                             <input class="app-select-checkbox" type="checkbox" name="application_ids[]" value="{{ application.id }}" {{ application.id in values.application_ids ? 'checked' : '' }}>
                             <div><strong>{{ application.name }}</strong><small>{{ application.image }}</small></div>
-                            <span class="status-pill {{ application.status == 'running' ? 'ok' : 'warning' }}"><span class="status-dot"></span>{{ application.status }}</span>
+                            <span class="status-pill {{ application.status == 'running' ? 'ok' : 'warning' }}"><span class="status-dot"></span>{{ application.status|status_label }}</span>
                         </div>
                         <div class="mount-checklist">
                             {% for mount in application.mounts %}
                                 <label class="mount-check-row {{ not mount.eligible ? 'mount-disabled' : '' }}">
                                     <input type="checkbox" name="app_mounts[{{ application.id }}][]" value="{{ mount.id }}" {{ mount.id in (values.app_mounts[application.id ~ '']|default([])) ? 'checked' : (mount.recommended ? 'checked' : '') }} {{ not mount.eligible ? 'disabled' : '' }}>
                                     <div><strong>{{ mount.destination }}</strong><small>{{ mount.source }}</small></div>
-                                    <span class="mini-tag">{{ mount.recommended ? 'recommended' : (mount.eligible ? 'optional' : 'ignored') }}</span>
+                                    <span class="mini-tag">{{ t(mount.recommended ? 'recommended' : (mount.eligible ? 'optional' : 'ignored')) }}</span>
                                 </label>
                             {% endfor %}
                         </div>
@@ -59,32 +59,32 @@
     </section>
 
     <section class="panel stack-form">
-        <div class="section-label"><div><strong>Folders</strong><small>Optional extra logical paths under /DATA or /media.</small></div></div>
+        <div class="section-label"><div><strong>{{ t("Folders") }}</strong><small>{{ t("Optional extra logical paths under /DATA or /media.") }}</small></div></div>
         <div class="source-list" data-source-list>
             {% for source in values.sources %}
-                <div class="source-row"><input type="text" name="sources[]" value="{{ source }}" placeholder="/DATA/Documents"><button type="button" class="icon-button" data-remove-source aria-label="Remove source">×</button></div>
+                <div class="source-row"><input type="text" name="sources[]" value="{{ source }}" placeholder="/DATA/Documents"><button type="button" class="icon-button" data-remove-source aria-label="{{ t('Remove source') }}">×</button></div>
             {% endfor %}
         </div>
-        <div><button type="button" class="button-secondary" data-add-source>Add folder</button></div>
+        <div><button type="button" class="button-secondary" data-add-source>{{ t("Add folder") }}</button></div>
     </section>
 
     <section class="panel stack-form">
-        <div class="section-label"><div><strong>Automation</strong><small>Manual, daily or weekly execution.</small></div></div>
+        <div class="section-label"><div><strong>{{ t("Automation") }}</strong><small>{{ t("Manual, daily or weekly execution.") }}</small></div></div>
         <div class="schedule-fields">
-            <label class="field"><span>Schedule</span><select name="schedule_type"><option value="manual" {{ values.schedule_type == 'manual' ? 'selected' : '' }}>Manual</option><option value="daily" {{ values.schedule_type == 'daily' ? 'selected' : '' }}>Daily</option><option value="weekly" {{ values.schedule_type == 'weekly' ? 'selected' : '' }}>Weekly</option></select></label>
-            <label class="field" data-schedule-time><span>Time</span><input type="time" name="schedule_time" value="{{ values.schedule_time }}"></label>
-            <label class="field" data-schedule-weekday><span>Weekday</span><select name="schedule_weekday"><option value="1" {{ values.schedule_weekday == 1 ? 'selected' : '' }}>Monday</option><option value="2" {{ values.schedule_weekday == 2 ? 'selected' : '' }}>Tuesday</option><option value="3" {{ values.schedule_weekday == 3 ? 'selected' : '' }}>Wednesday</option><option value="4" {{ values.schedule_weekday == 4 ? 'selected' : '' }}>Thursday</option><option value="5" {{ values.schedule_weekday == 5 ? 'selected' : '' }}>Friday</option><option value="6" {{ values.schedule_weekday == 6 ? 'selected' : '' }}>Saturday</option><option value="7" {{ values.schedule_weekday == 7 ? 'selected' : '' }}>Sunday</option></select></label>
+            <label class="field"><span>{{ t("Schedule") }}</span><select name="schedule_type"><option value="manual" {{ values.schedule_type == 'manual' ? 'selected' : '' }}>{{ t("Manual") }}</option><option value="daily" {{ values.schedule_type == 'daily' ? 'selected' : '' }}>{{ t("Daily") }}</option><option value="weekly" {{ values.schedule_type == 'weekly' ? 'selected' : '' }}>{{ t("Weekly") }}</option></select></label>
+            <label class="field" data-schedule-time><span>{{ t("Time") }}</span><input type="time" name="schedule_time" value="{{ values.schedule_time }}"></label>
+            <label class="field" data-schedule-weekday><span>{{ t("Weekday") }}</span><select name="schedule_weekday"><option value="1" {{ values.schedule_weekday == 1 ? 'selected' : '' }}>{{ t("Monday") }}</option><option value="2" {{ values.schedule_weekday == 2 ? 'selected' : '' }}>{{ t("Tuesday") }}</option><option value="3" {{ values.schedule_weekday == 3 ? 'selected' : '' }}>{{ t("Wednesday") }}</option><option value="4" {{ values.schedule_weekday == 4 ? 'selected' : '' }}>{{ t("Thursday") }}</option><option value="5" {{ values.schedule_weekday == 5 ? 'selected' : '' }}>{{ t("Friday") }}</option><option value="6" {{ values.schedule_weekday == 6 ? 'selected' : '' }}>{{ t("Saturday") }}</option><option value="7" {{ values.schedule_weekday == 7 ? 'selected' : '' }}>{{ t("Sunday") }}</option></select></label>
         </div>
 
-        <label class="toggle-line"><input type="checkbox" name="retention_enabled" value="1" {{ values.retention_enabled ? 'checked' : '' }}><span><strong>Automatic retention</strong><small>Forget older snapshots after a successful backup. Prune remains a separate repository operation.</small></span></label>
+        <label class="toggle-line"><input type="checkbox" name="retention_enabled" value="1" {{ values.retention_enabled ? 'checked' : '' }}><span><strong>{{ t("Automatic retention") }}</strong><small>{{ t("Forget older snapshots after a successful backup. Prune remains a separate repository operation.") }}</small></span></label>
         <div class="retention-grid" data-retention-fields>
-            <label class="field"><span>Keep last</span><input type="number" min="1" max="1000" name="keep_last" value="{{ values.keep_last }}"></label>
-            <label class="field"><span>Daily</span><input type="number" min="0" max="1000" name="keep_daily" value="{{ values.keep_daily }}"></label>
-            <label class="field"><span>Weekly</span><input type="number" min="0" max="1000" name="keep_weekly" value="{{ values.keep_weekly }}"></label>
-            <label class="field"><span>Monthly</span><input type="number" min="0" max="1000" name="keep_monthly" value="{{ values.keep_monthly }}"></label>
+            <label class="field"><span>{{ t("Keep last") }}</span><input type="number" min="1" max="1000" name="keep_last" value="{{ values.keep_last }}"></label>
+            <label class="field"><span>{{ t("Daily") }}</span><input type="number" min="0" max="1000" name="keep_daily" value="{{ values.keep_daily }}"></label>
+            <label class="field"><span>{{ t("Weekly") }}</span><input type="number" min="0" max="1000" name="keep_weekly" value="{{ values.keep_weekly }}"></label>
+            <label class="field"><span>{{ t("Monthly") }}</span><input type="number" min="0" max="1000" name="keep_monthly" value="{{ values.keep_monthly }}"></label>
         </div>
     </section>
 
-    <div class="form-actions"><a class="button-secondary" href="{{ ROUTER.generate('backups') }}">Cancel</a><button class="button" type="submit">Create backup</button></div>
+    <div class="form-actions"><a class="button-secondary" href="{{ ROUTER.generate('backups') }}">{{ t("Cancel") }}</a><button class="button" type="submit">{{ t("Create backup") }}</button></div>
 </form>
 {% endblock %}

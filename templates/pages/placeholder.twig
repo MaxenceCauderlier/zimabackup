@@ -5,15 +5,15 @@
 {% block content %}
 <header class="page-header compact-header">
     <div>
-        <p class="eyebrow">Coming next</p>
+        <p class="eyebrow">{{ t("Coming next") }}</p>
         <h1>{{ title }}</h1>
-        <p class="muted">This area is reserved for a later milestone.</p>
+        <p class="muted">{{ t("This area is reserved for a later milestone.") }}</p>
     </div>
 </header>
 
 <section class="panel empty-state large-empty-state">
     <div class="empty-illustration"><span>⌁</span></div>
-    <h2>{{ title }} is not implemented yet</h2>
+    <h2>{{ title }} {{ t("is not implemented yet") }}</h2>
     <p>{{ message }}</p>
 </section>
 {% endblock %}

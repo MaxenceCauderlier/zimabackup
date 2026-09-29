@@ -5,8 +5,8 @@
 {% block content %}
 <section class="panel empty-state large-empty-state top-gap">
     <div class="empty-illustration"><span>404</span></div>
-    <h1>Page not found</h1>
-    <p>The requested page does not exist.</p>
-    <a class="button" href="{{ ROUTER.generate('dashboard') }}">Back to dashboard</a>
+    <h1>{{ t("Page not found") }}</h1>
+    <p>{{ t("The requested page does not exist.") }}</p>
+    <a class="button" href="{{ ROUTER.generate('dashboard') }}">{{ t("Back to dashboard") }}</a>
 </section>
 {% endblock %}

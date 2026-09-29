@@ -1,3 +1,5 @@
+const I18N = window.ZB_I18N || {};
+
 document.addEventListener('click', async (event) => {
     const button = event.target.closest('[data-copy]');
     if (!button) {
@@ -13,11 +15,11 @@ document.addEventListener('click', async (event) => {
 
     try {
         await navigator.clipboard.writeText(input.value);
-        button.textContent = 'Copied ✓';
+        button.textContent = I18N.copied || 'Copied ✓';
     } catch {
         input.select();
         document.execCommand('copy');
-        button.textContent = 'Copied ✓';
+        button.textContent = I18N.copied || 'Copied ✓';
     }
 
     setTimeout(() => {
@@ -45,7 +47,7 @@ if (sourceList && addSourceButton) {
         row.className = 'source-row';
         row.innerHTML = `
             <input type="text" name="sources[]" value="" placeholder="/DATA/Documents">
-            <button type="button" class="icon-button" data-remove-source aria-label="Remove source">×</button>
+            <button type="button" class="icon-button" data-remove-source aria-label="${I18N.removeSource || 'Remove source'}">×</button>
         `;
         sourceList.appendChild(row);
         row.querySelector('input').focus();
@@ -112,7 +114,7 @@ document.querySelectorAll('[data-restore-mode-form]').forEach((form) => {
 // require an explicit browser confirmation before the POST is submitted.
 document.querySelectorAll('form[data-confirm]').forEach((form) => {
     form.addEventListener('submit', (event) => {
-        const message = form.dataset.confirm || 'Are you sure?';
+        const message = form.dataset.confirm || I18N.confirm || 'Are you sure?';
         if (!window.confirm(message)) {
             event.preventDefault();
         }

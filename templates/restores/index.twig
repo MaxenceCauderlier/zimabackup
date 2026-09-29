@@ -1,6 +1,6 @@
 {% extends "layout.twig" %}
 
-{% block title %}Restore history - {{ APP.name }}{% endblock %}
+{% block title %}{{ t("Restore history -") }} {{ APP.name }}{% endblock %}
 
 {% block content %}
 {% set running_count = 0 %}
@@ -8,35 +8,35 @@
 {% for restore in application_restores %}{% if restore.status in ['pending','running'] %}{% set running_count = running_count + 1 %}{% endif %}{% endfor %}
 
 <header class="page-header">
-    <div><a class="back-link" href="{{ ROUTER.generate('snapshots') }}">← Restore</a><h1>Restore history</h1><p class="muted">Recovery operations and temporary data created by them.</p></div>
-    <a class="button" href="{{ ROUTER.generate('snapshots') }}">Choose recovery point</a>
+    <div><a class="back-link" href="{{ ROUTER.generate('snapshots') }}">{{ t("← Restore") }}</a><h1>{{ t("Restore history") }}</h1><p class="muted">{{ t("Recovery operations and temporary data created by them.") }}</p></div>
+    <a class="button" href="{{ ROUTER.generate('snapshots') }}">{{ t("Choose recovery point") }}</a>
 </header>
 
-{% if flash_success %}<div class="alert alert-success">{{ flash_success }}</div>{% endif %}
-{% if flash_error %}<div class="alert alert-error">{{ flash_error }}</div>{% endif %}
+{% if flash_success %}<div class="alert alert-success">{{ flash_success|trans }}</div>{% endif %}
+{% if flash_error %}<div class="alert alert-error">{{ flash_error|trans }}</div>{% endif %}
 
 <section class="simple-section">
-    <div class="simple-section-head"><h2>File restores</h2></div>
+    <div class="simple-section-head"><h2>{{ t("File restores") }}</h2></div>
     {% for restore in restores %}
         <a class="simple-row" href="{{ ROUTER.generate('restores.show', {uuid: restore.uuid}) }}">
             <div>
                 <strong>{{ restore.job_name }}</strong>
-                <small>{{ restore.selection_mode == 'selected' ? restore.selected_paths|length ~ ' selected path(s)' : 'Entire snapshot' }} · {{ restore.target_path }}</small>
+                <small>{{ restore.selection_mode == 'selected' ? (restore.selected_paths|length ~ ' ' ~ t(restore.selected_paths|length == 1 ? 'selected path' : 'selected paths')) : t('Entire snapshot') }} · {{ restore.target_path }}</small>
             </div>
-            <div class="simple-row-meta">{{ restore.cleaned_at ? 'cleaned' : restore.status }} · {{ restore.progress_percent|default(0)|number_format(0) }}%</div>
+            <div class="simple-row-meta">{{ restore.cleaned_at ? t('cleaned') : (restore.status|status_label) }} · {{ restore.progress_percent|default(0)|number_format(0) }}%</div>
         </a>
-    {% else %}<div class="empty-inline"><strong>No file restores.</strong></div>{% endfor %}
+    {% else %}<div class="empty-inline"><strong>{{ t("No file restores.") }}</strong></div>{% endfor %}
 </section>
 
 <section class="simple-section">
-    <div class="simple-section-head"><h2>Application restores</h2></div>
+    <div class="simple-section-head"><h2>{{ t("Application restores") }}</h2></div>
     {% for restore in application_restores %}
         <a class="simple-row" href="{{ ROUTER.generate('application-restores.show', {uuid: restore.uuid}) }}">
             <div><strong>{{ restore.app_name }}</strong><small>{{ restore.repository_name }} · {{ restore.mode }} · {{ restore.staging_path }}</small></div>
-            <div class="simple-row-meta">{{ restore.cleaned_at ? 'staging cleaned' : restore.status }} · {{ restore.progress_percent|default(0)|number_format(0) }}%</div>
+            <div class="simple-row-meta">{{ restore.cleaned_at ? t('staging cleaned') : (restore.status|status_label) }} · {{ restore.progress_percent|default(0)|number_format(0) }}%</div>
         </a>
-    {% else %}<div class="empty-inline"><strong>No application restores.</strong></div>{% endfor %}
+    {% else %}<div class="empty-inline"><strong>{{ t("No application restores.") }}</strong></div>{% endfor %}
 </section>
 
-{% if running_count > 0 %}<div class="alert alert-warning" data-auto-refresh>A restore is active. This page will refresh automatically.</div>{% endif %}
+{% if running_count > 0 %}<div class="alert alert-warning" data-auto-refresh>{{ t("A restore is active. This page will refresh automatically.") }}</div>{% endif %}
 {% endblock %}

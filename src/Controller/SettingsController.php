@@ -9,6 +9,7 @@ use ZimaBackup\Core\Session;
 use ZimaBackup\Security\Csrf;
 use ZimaBackup\Service\ResticService;
 use ZimaBackup\Service\SettingsService;
+use ZimaBackup\Service\Translator;
 
 final class SettingsController extends AbstractController
 {
@@ -29,6 +30,7 @@ final class SettingsController extends AbstractController
             'version' => $version,
             'restic_version' => $restic->version(),
             'docker_socket' => getenv('DOCKER_SOCKET') ?: '/var/run/docker.sock',
+            'languages' => Translator::supportedLocales(),
             'flash_success' => $session->pull('flash_success'),
             'flash_error' => $session->pull('flash_error'),
         ]);
@@ -56,6 +58,7 @@ final class SettingsController extends AbstractController
                 'maintenance.check_interval_days' => $_POST['maintenance_check_interval_days'] ?? 7,
                 'maintenance.auto_prune' => isset($_POST['maintenance_auto_prune']),
                 'maintenance.prune_interval_days' => $_POST['maintenance_prune_interval_days'] ?? 30,
+                'ui.language' => $_POST['ui_language'] ?? 'en',
             ]);
             $session->set('flash_success', 'Settings saved. The worker will use the new values automatically.');
         } catch (InvalidArgumentException $exception) {

@@ -1,60 +1,60 @@
 {% extends "layout.twig" %}
 
-{% block title %}Edit {{ job.name }} - {{ APP.name }}{% endblock %}
+{% block title %}{{ t("Edit") }} {{ job.name }} - {{ APP.name }}{% endblock %}
 
 {% block content %}
 <header class="page-header">
     <div>
         <a class="back-link" href="{{ ROUTER.generate('backups.show', {uuid: job.uuid}) }}">← {{ job.name }}</a>
-        <h1>Edit backup</h1>
-        <p class="muted">Change the schedule, retention, repository state and folder sources.</p>
+        <h1>{{ t("Edit backup") }}</h1>
+        <p class="muted">{{ t("Change the schedule, retention, repository state and folder sources.") }}</p>
     </div>
 </header>
 
-{% if errors %}<div class="alert alert-error"><strong>Unable to save</strong>{% for error in errors %}<div>{{ error }}</div>{% endfor %}</div>{% endif %}
+{% if errors %}<div class="alert alert-error"><strong>{{ t("Unable to save") }}</strong>{% for error in errors %}<div>{{ error|trans }}</div>{% endfor %}</div>{% endif %}
 
 <form method="post" action="{{ ROUTER.generate('backups.update', {uuid: job.uuid}) }}" class="stack-form" data-automation-form>
     <input type="hidden" name="_csrf" value="{{ csrf_token }}">
 
     <section class="panel stack-form">
-        <div class="section-label"><div><strong>General</strong><small>Job identity and destination.</small></div></div>
-        <label class="field"><span>Name</span><input type="text" name="name" maxlength="100" value="{{ job.name }}" required></label>
-        <label class="toggle-line"><input type="checkbox" name="enabled" value="1" {{ job.enabled ? 'checked' : '' }}><span><strong>Enabled</strong><small>Disabled jobs do not run manually or on schedule.</small></span></label>
-        <label class="field"><span>Repository</span><select name="repository_id" required>{% for repository in repositories %}<option value="{{ repository.id }}" {{ job.repository_id == repository.id ? 'selected' : '' }}>{{ repository.name }} — {{ repository.path }}</option>{% endfor %}</select><small>After a job has run, its repository cannot be changed.</small></label>
+        <div class="section-label"><div><strong>{{ t("General") }}</strong><small>{{ t("Job identity and destination.") }}</small></div></div>
+        <label class="field"><span>{{ t("Name") }}</span><input type="text" name="name" maxlength="100" value="{{ job.name }}" required></label>
+        <label class="toggle-line"><input type="checkbox" name="enabled" value="1" {{ job.enabled ? 'checked' : '' }}><span><strong>{{ t("Enabled") }}</strong><small>{{ t("Disabled jobs do not run manually or on schedule.") }}</small></span></label>
+        <label class="field"><span>{{ t("Repository") }}</span><select name="repository_id" required>{% for repository in repositories %}<option value="{{ repository.id }}" {{ job.repository_id == repository.id ? 'selected' : '' }}>{{ repository.name }} — {{ repository.path }}</option>{% endfor %}</select><small>{{ t("After a job has run, its repository cannot be changed.") }}</small></label>
     </section>
 
     <section class="panel stack-form">
-        <div class="section-label"><div><strong>Schedule</strong><small>The worker calculates and queues the next run.</small></div></div>
+        <div class="section-label"><div><strong>{{ t("Schedule") }}</strong><small>{{ t("The worker calculates and queues the next run.") }}</small></div></div>
         <div class="schedule-fields">
-            <label class="field"><span>Schedule</span><select name="schedule_type"><option value="manual" {{ job.schedule_type == 'manual' ? 'selected' : '' }}>Manual</option><option value="daily" {{ job.schedule_type == 'daily' ? 'selected' : '' }}>Daily</option><option value="weekly" {{ job.schedule_type == 'weekly' ? 'selected' : '' }}>Weekly</option></select></label>
-            <label class="field" data-schedule-time><span>Time</span><input type="time" name="schedule_time" value="{{ job.schedule_form.time }}"></label>
-            <label class="field" data-schedule-weekday><span>Weekday</span><select name="schedule_weekday"><option value="1" {{ job.schedule_form.weekday == 1 ? 'selected' : '' }}>Monday</option><option value="2" {{ job.schedule_form.weekday == 2 ? 'selected' : '' }}>Tuesday</option><option value="3" {{ job.schedule_form.weekday == 3 ? 'selected' : '' }}>Wednesday</option><option value="4" {{ job.schedule_form.weekday == 4 ? 'selected' : '' }}>Thursday</option><option value="5" {{ job.schedule_form.weekday == 5 ? 'selected' : '' }}>Friday</option><option value="6" {{ job.schedule_form.weekday == 6 ? 'selected' : '' }}>Saturday</option><option value="7" {{ job.schedule_form.weekday == 7 ? 'selected' : '' }}>Sunday</option></select></label>
+            <label class="field"><span>{{ t("Schedule") }}</span><select name="schedule_type"><option value="manual" {{ job.schedule_type == 'manual' ? 'selected' : '' }}>{{ t("Manual") }}</option><option value="daily" {{ job.schedule_type == 'daily' ? 'selected' : '' }}>{{ t("Daily") }}</option><option value="weekly" {{ job.schedule_type == 'weekly' ? 'selected' : '' }}>{{ t("Weekly") }}</option></select></label>
+            <label class="field" data-schedule-time><span>{{ t("Time") }}</span><input type="time" name="schedule_time" value="{{ job.schedule_form.time }}"></label>
+            <label class="field" data-schedule-weekday><span>{{ t("Weekday") }}</span><select name="schedule_weekday"><option value="1" {{ job.schedule_form.weekday == 1 ? 'selected' : '' }}>{{ t("Monday") }}</option><option value="2" {{ job.schedule_form.weekday == 2 ? 'selected' : '' }}>{{ t("Tuesday") }}</option><option value="3" {{ job.schedule_form.weekday == 3 ? 'selected' : '' }}>{{ t("Wednesday") }}</option><option value="4" {{ job.schedule_form.weekday == 4 ? 'selected' : '' }}>{{ t("Thursday") }}</option><option value="5" {{ job.schedule_form.weekday == 5 ? 'selected' : '' }}>{{ t("Friday") }}</option><option value="6" {{ job.schedule_form.weekday == 6 ? 'selected' : '' }}>{{ t("Saturday") }}</option><option value="7" {{ job.schedule_form.weekday == 7 ? 'selected' : '' }}>{{ t("Sunday") }}</option></select></label>
         </div>
     </section>
 
     <section class="panel stack-form">
-        <div class="section-label"><div><strong>Retention</strong><small>Applied after successful backups and available manually from the job page.</small></div></div>
-        <label class="toggle-line"><input type="checkbox" name="retention_enabled" value="1" {{ job.retention_enabled ? 'checked' : '' }}><span><strong>Automatic retention</strong><small>Always keeps at least one snapshot. Rules are inclusive.</small></span></label>
+        <div class="section-label"><div><strong>{{ t("Retention") }}</strong><small>{{ t("Applied after successful backups and available manually from the job page.") }}</small></div></div>
+        <label class="toggle-line"><input type="checkbox" name="retention_enabled" value="1" {{ job.retention_enabled ? 'checked' : '' }}><span><strong>{{ t("Automatic retention") }}</strong><small>{{ t("Always keeps at least one snapshot. Rules are inclusive.") }}</small></span></label>
         <div class="retention-grid" data-retention-fields>
-            <label class="field"><span>Keep last</span><input type="number" min="1" max="1000" name="keep_last" value="{{ job.keep_last }}"></label>
-            <label class="field"><span>Daily</span><input type="number" min="0" max="1000" name="keep_daily" value="{{ job.keep_daily }}"></label>
-            <label class="field"><span>Weekly</span><input type="number" min="0" max="1000" name="keep_weekly" value="{{ job.keep_weekly }}"></label>
-            <label class="field"><span>Monthly</span><input type="number" min="0" max="1000" name="keep_monthly" value="{{ job.keep_monthly }}"></label>
+            <label class="field"><span>{{ t("Keep last") }}</span><input type="number" min="1" max="1000" name="keep_last" value="{{ job.keep_last }}"></label>
+            <label class="field"><span>{{ t("Daily") }}</span><input type="number" min="0" max="1000" name="keep_daily" value="{{ job.keep_daily }}"></label>
+            <label class="field"><span>{{ t("Weekly") }}</span><input type="number" min="0" max="1000" name="keep_weekly" value="{{ job.keep_weekly }}"></label>
+            <label class="field"><span>{{ t("Monthly") }}</span><input type="number" min="0" max="1000" name="keep_monthly" value="{{ job.keep_monthly }}"></label>
         </div>
     </section>
 
     <section class="panel stack-form">
-        <div class="section-label"><div><strong>Folder sources</strong><small>Protected application mounts are preserved unchanged.</small></div></div>
+        <div class="section-label"><div><strong>{{ t("Folder sources") }}</strong><small>{{ t("Protected application mounts are preserved unchanged.") }}</small></div></div>
         <div class="source-list" data-source-list>
             {% for source in job.sources %}
-                <div class="source-row"><input type="text" name="sources[]" value="{{ source.path }}" placeholder="/DATA/Documents"><button type="button" class="icon-button" data-remove-source aria-label="Remove source">×</button></div>
+                <div class="source-row"><input type="text" name="sources[]" value="{{ source.path }}" placeholder="/DATA/Documents"><button type="button" class="icon-button" data-remove-source aria-label="{{ t('Remove source') }}">×</button></div>
             {% else %}
-                <div class="source-row"><input type="text" name="sources[]" value="" placeholder="/DATA/Documents"><button type="button" class="icon-button" data-remove-source aria-label="Remove source">×</button></div>
+                <div class="source-row"><input type="text" name="sources[]" value="" placeholder="/DATA/Documents"><button type="button" class="icon-button" data-remove-source aria-label="{{ t('Remove source') }}">×</button></div>
             {% endfor %}
         </div>
-        <div><button type="button" class="button-secondary" data-add-source>Add folder</button></div>
+        <div><button type="button" class="button-secondary" data-add-source>{{ t("Add folder") }}</button></div>
     </section>
 
-    <div class="form-actions"><a class="button-secondary" href="{{ ROUTER.generate('backups.show', {uuid: job.uuid}) }}">Cancel</a><button class="button" type="submit">Save changes</button></div>
+    <div class="form-actions"><a class="button-secondary" href="{{ ROUTER.generate('backups.show', {uuid: job.uuid}) }}">{{ t("Cancel") }}</a><button class="button" type="submit">{{ t("Save changes") }}</button></div>
 </form>
 {% endblock %}

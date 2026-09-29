@@ -1,29 +1,29 @@
 {% extends "layout.twig" %}
 
-{% block title %}Backups - {{ APP.name }}{% endblock %}
+{% block title %}{{ t("Backups -") }} {{ APP.name }}{% endblock %}
 
 {% block content %}
 <header class="page-header">
     <div>
-        <h1>Backups</h1>
-        <p class="muted">What is protected, where it goes, and when it runs.</p>
+        <h1>{{ t("Backups") }}</h1>
+        <p class="muted">{{ t("What is protected, where it goes, and when it runs.") }}</p>
     </div>
-    {% if repositories is not empty %}<a class="button" href="{{ ROUTER.generate('backups.create') }}">New backup</a>{% endif %}
+    {% if repositories is not empty %}<a class="button" href="{{ ROUTER.generate('backups.create') }}">{{ t("New backup") }}</a>{% endif %}
 </header>
 
-{% if flash_success %}<div class="alert alert-success">{{ flash_success }}</div>{% endif %}
-{% if flash_error %}<div class="alert alert-error"><strong>Backup action failed</strong><div>{{ flash_error }}</div></div>{% endif %}
+{% if flash_success %}<div class="alert alert-success">{{ flash_success|trans }}</div>{% endif %}
+{% if flash_error %}<div class="alert alert-error"><strong>{{ t("Backup action failed") }}</strong><div>{{ flash_error|trans }}</div></div>{% endif %}
 
 {% if repositories is empty %}
     <div class="empty-inline">
-        <strong>A repository is required first.</strong>
-        <p>Create a backup destination before defining a job.</p>
-        <div class="form-actions"><a class="button" href="{{ ROUTER.generate('repositories.create') }}">Create repository</a></div>
+        <strong>{{ t("A repository is required first.") }}</strong>
+        <p>{{ t("Create a backup destination before defining a job.") }}</p>
+        <div class="form-actions"><a class="button" href="{{ ROUTER.generate('repositories.create') }}">{{ t("Create repository") }}</a></div>
     </div>
 {% elseif jobs is empty %}
     <div class="empty-inline">
-        <strong>No backup jobs yet.</strong>
-        <p>Create one to protect applications, folders, or both.</p>
+        <strong>{{ t("No backup jobs yet.") }}</strong>
+        <p>{{ t("Create one to protect applications, folders, or both.") }}</p>
     </div>
 {% else %}
     <section class="panel">
@@ -32,16 +32,16 @@
                 <div>
                     <strong>{{ job.name }}</strong>
                     <small>
-                        {{ job.repository_name }} · {{ job.source_count }} folder{{ job.source_count == 1 ? '' : 's' }} · {{ job.app_count }} app{{ job.app_count == 1 ? '' : 's' }}
+                        {{ job.repository_name }} · {{ job.source_count }} {{ t(job.source_count == 1 ? 'folder' : 'folders') }} · {{ job.app_count }} {{ t(job.app_count == 1 ? 'app' : 'apps') }}
                     </small>
                 </div>
                 <div class="simple-row-meta">
                     {% if not job.enabled %}
-                        disabled
+                        {{ 'disabled'|status_label }}
                     {% elseif job.schedule_type == 'manual' %}
-                        manual
+                        {{ t("manual") }}
                     {% else %}
-                        {{ job.schedule_type }} · {{ job.next_run_at ?: 'not scheduled' }}
+                        {{ job.schedule_type|status_label }} · {{ job.next_run_at ? (job.next_run_at|local_datetime) : t('not scheduled') }}
                     {% endif %}
                     {% if job.latest_status %}<br>{{ job.latest_status }}{% endif %}
                 </div>

@@ -1,10 +1,10 @@
 {% extends "layout.twig" %}
-{% block title %}Recovery key - {{ APP.name }}{% endblock %}
+{% block title %}{{ t("Recovery key -") }} {{ APP.name }}{% endblock %}
 {% block content %}
-<header class="page-header"><div><h1>Save the recovery key</h1><p class="muted">This key unlocks {{ repository.name }}. Keep a copy outside this machine.</p></div></header>
+<header class="page-header"><div><h1>{{ t("Save the recovery key") }}</h1><p class="muted">{{ t("This key unlocks") }} {{ repository.name }}{{ t(". Keep a copy outside this machine.") }}</p></div></header>
 {% if recovery_key %}
-<section class="panel stack-form"><label class="field"><span>Recovery key</span><input id="recovery-key" type="text" readonly value="{{ recovery_key }}"></label><div class="form-actions"><button class="button-secondary" type="button" data-copy="#recovery-key">Copy</button><a class="button" href="{{ ROUTER.generate('repositories') }}">I saved it</a></div></section>
+<section class="panel stack-form"><label class="field"><span>{{ t("Recovery key") }}</span><input id="recovery-key" type="text" readonly value="{{ recovery_key }}"></label><div class="form-actions"><button class="button-secondary" type="button" data-copy="#recovery-key">{{ t("Copy") }}</button><a class="button" href="{{ ROUTER.generate('repositories') }}">{{ t("I saved it") }}</a></div></section>
 {% else %}
-<div class="alert alert-warning"><strong>This one-time key is no longer available in the browser session.</strong><div>The worker-side secret file is still used by ZimaBackup.</div></div><a class="button-secondary" href="{{ ROUTER.generate('repositories') }}">Back to repositories</a>
+<div class="alert alert-warning"><strong>{{ t("This one-time key is no longer available in the browser session.") }}</strong><div>{{ t("The worker-side secret file is still used by ZimaBackup.") }}</div></div><a class="button-secondary" href="{{ ROUTER.generate('repositories') }}">{{ t("Back to repositories") }}</a>
 {% endif %}
 {% endblock %}

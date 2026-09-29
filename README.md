@@ -2,9 +2,9 @@
 
 ZimaBackup is a lightweight, application-aware backup and disaster-recovery manager for ZimaOS, built with PHP 8.4, Twig, SQLite and Restic.
 
-## Current milestone — v0.12 Restore Maturity
+## Current milestone — v0.13 Internationalization
 
-v0.12 makes recovery practical with worker-backed snapshot browsing, selective file/folder restores, cleanup of temporary recovery data, and a clearer restore history. v0.11 introduced day-to-day automation and deliberately simplified the interface. The UI now behaves more like a quiet system utility than a generic SaaS dashboard: text-first navigation, compact actions, simple lists and details, and much less decorative chrome.
+v0.13 adds first-class internationalization to the whole interface. English remains the source language and French is included as a complete translation, with an English fallback for missing messages. The language is selected from Settings and stored in SQLite. Twig, JavaScript UI messages, statuses and displayed dates all use the same lightweight translation layer. v0.12 made recovery practical with worker-backed snapshot browsing and selective restores.
 
 ### Scheduling
 
@@ -212,6 +212,17 @@ docker compose exec app php bin/migrate.php
 docker compose exec worker restic version
 docker compose logs -f worker
 ```
+
+
+## v0.13.0 - Internationalization
+
+- English source interface with automatic fallback.
+- Complete French UI translation.
+- Language selector in Settings (`English` / `Français`).
+- Locale stored in SQLite under `ui.language`.
+- Shared Twig `t()` helper, translated statuses/errors, localized dates, and JavaScript messages generated from the same catalog.
+- New languages can be added by creating `translations/<locale>.php` and registering the locale in `Translator::supportedLocales()`.
+- Low-level Restic/Docker output remains unchanged when no safe application-level translation is known.
 
 ## v0.12.0 - Restore maturity
 

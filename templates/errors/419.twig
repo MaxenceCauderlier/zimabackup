@@ -1,12 +1,12 @@
 {% extends "layout.twig" %}
 
-{% block title %}Session expired - {{ APP.name }}{% endblock %}
+{% block title %}{{ t("Session expired -") }} {{ APP.name }}{% endblock %}
 
 {% block content %}
 <section class="panel empty-state large-empty-state top-gap">
     <div class="empty-illustration"><span>419</span></div>
-    <h1>Session expired</h1>
-    <p>Please go back and try your action again.</p>
-    <a class="button" href="{{ ROUTER.generate('dashboard') }}">Back to dashboard</a>
+    <h1>{{ t("Session expired") }}</h1>
+    <p>{{ t("Please go back and try your action again.") }}</p>
+    <a class="button" href="{{ ROUTER.generate('dashboard') }}">{{ t("Back to dashboard") }}</a>
 </section>
 {% endblock %}

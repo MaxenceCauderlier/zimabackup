@@ -1,12 +1,12 @@
 {% extends "layout.twig" %}
-{% block title %}New repository - {{ APP.name }}{% endblock %}
+{% block title %}{{ t("New repository -") }} {{ APP.name }}{% endblock %}
 {% block content %}
-<header class="page-header"><div><a class="back-link" href="{{ ROUTER.generate('repositories') }}">← Repositories</a><h1>New repository</h1><p class="muted">The destination must be absent or empty. ZimaBackup will initialize Restic there.</p></div></header>
-{% if errors %}<div class="alert alert-error">{% for error in errors %}<div>{{ error }}</div>{% endfor %}</div>{% endif %}
+<header class="page-header"><div><a class="back-link" href="{{ ROUTER.generate('repositories') }}">{{ t("← Repositories") }}</a><h1>{{ t("New repository") }}</h1><p class="muted">{{ t("The destination must be absent or empty. ZimaBackup will initialize Restic there.") }}</p></div></header>
+{% if errors %}<div class="alert alert-error">{% for error in errors %}<div>{{ error|trans }}</div>{% endfor %}</div>{% endif %}
 <form method="post" action="{{ ROUTER.generate('repositories.store') }}" class="panel stack-form">
 <input type="hidden" name="_csrf" value="{{ csrf_token }}">
-<label class="field"><span>Name</span><input type="text" name="name" value="{{ values.name }}" maxlength="100" required placeholder="USB Backup"></label>
-<label class="field"><span>Path</span><input type="text" name="path" value="{{ values.path }}" required><small>Example: /media/Backup/ZimaBackup</small></label>
-<div class="form-actions"><a class="button-secondary" href="{{ ROUTER.generate('repositories') }}">Cancel</a><button class="button" type="submit">Create repository</button></div>
+<label class="field"><span>{{ t("Name") }}</span><input type="text" name="name" value="{{ values.name }}" maxlength="100" required placeholder="{{ t('USB Backup') }}"></label>
+<label class="field"><span>{{ t("Path") }}</span><input type="text" name="path" value="{{ values.path }}" required><small>{{ t("Example: /media/Backup/ZimaBackup") }}</small></label>
+<div class="form-actions"><a class="button-secondary" href="{{ ROUTER.generate('repositories') }}">{{ t("Cancel") }}</a><button class="button" type="submit">{{ t("Create repository") }}</button></div>
 </form>
 {% endblock %}

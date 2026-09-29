@@ -1,48 +1,48 @@
 {% extends "layout.twig" %}
 
-{% block title %}Restore {{ application.name }} - {{ APP.name }}{% endblock %}
+{% block title %}{{ t("Restore") }} {{ application.name }} - {{ APP.name }}{% endblock %}
 
 {% block content %}
 <header class="page-header compact-header">
     <div>
-        <a class="back-link" href="{{ ROUTER.generate('snapshots.applications', {runId: application.backup_run_id}) }}">← Application preview</a>
-        <p class="eyebrow">Application recovery</p>
-        <h1>Restore {{ application.name }}</h1>
-        <p class="muted">Snapshot <strong>{{ application.snapshot_id|slice(0, 12) }}</strong> · {{ application.repository_name }}</p>
+        <a class="back-link" href="{{ ROUTER.generate('snapshots.applications', {runId: application.backup_run_id}) }}">{{ t("← Application preview") }}</a>
+        <p class="eyebrow">{{ t("Application recovery") }}</p>
+        <h1>{{ t("Restore") }} {{ application.name }}</h1>
+        <p class="muted">{{ t("Snapshot") }} <strong>{{ application.snapshot_id|slice(0, 12) }}</strong> · {{ application.repository_name }}</p>
     </div>
 </header>
 
 {% if errors %}
     <div class="alert alert-error">
-        <strong>Application restore cannot start.</strong>
-        {% for error in errors %}<div>{{ error }}</div>{% endfor %}
+        <strong>{{ t("Application restore cannot start.") }}</strong>
+        {% for error in errors %}<div>{{ error|trans }}</div>{% endfor %}
     </div>
 {% endif %}
 
 <div class="content-grid two-col-grid">
     <section class="panel">
-        <span class="card-kicker">Data selected in this backup</span>
+        <span class="card-kicker">{{ t("Data selected in this backup") }}</span>
         <h2>{{ application.name }}</h2>
         <div class="detail-stack">
             {% for mount in application.selected_mounts %}
                 <div class="detail-row-card wide-row-card">
                     <div>
-                        <strong>{{ mount.destination ?: 'Container mount' }}</strong>
+                        <strong>{{ mount.destination ?: t('Container mount') }}</strong>
                         <small>{{ mount.source }}</small>
                     </div>
-                    <span class="mini-tag recommended">included</span>
+                    <span class="mini-tag recommended">{{ t("included") }}</span>
                 </div>
             {% else %}
                 <div class="empty-inline">
-                    <strong>Definition only</strong>
-                    <p>No bind-mounted application data was selected in this backup. The reconstructed Compose file can still be staged.</p>
+                    <strong>{{ t("Definition only") }}</strong>
+                    <p>{{ t("No bind-mounted application data was selected in this backup. The reconstructed Compose file can still be staged.") }}</p>
                 </div>
             {% endfor %}
         </div>
         {% if application.warnings %}
             <div class="info-strip compact-strip">
-                <strong>Compatibility notes remain important</strong>
-                <p>{{ application.warnings|length }} warning{{ application.warnings|length == 1 ? '' : 's' }} were generated during Compose reconstruction. Review the preview before deployment.</p>
+                <strong>{{ t("Compatibility notes remain important") }}</strong>
+                <p>{{ application.warnings|length }} {{ t(application.warnings|length == 1 ? 'warning' : 'warnings') }} {{ t("were generated during Compose reconstruction. Review the preview before deployment.") }}</p>
             </div>
         {% endif %}
     </section>
@@ -50,39 +50,39 @@
     <section class="panel">
         <form method="post" action="{{ ROUTER.generate('application-restores.store', {applicationId: application.id}) }}" class="stack-form" data-restore-mode-form>
             <input type="hidden" name="_csrf" value="{{ csrf_token }}">
-            <span class="card-kicker">Restore mode</span>
-            <h2>Choose how far to go</h2>
+            <span class="card-kicker">{{ t("Restore mode") }}</span>
+            <h2>{{ t("Choose how far to go") }}</h2>
 
             <label class="restore-mode-card">
                 <input type="radio" name="mode" value="staging" {{ values.mode == 'staging' ? 'checked' : '' }}>
                 <div>
-                    <strong>Safe staging</strong>
-                    <small>Restore only under <code>/DATA/ZimaBackup/ApplicationRestores</code>. Existing application paths remain untouched.</small>
+                    <strong>{{ t("Safe staging") }}</strong>
+                    <small>{{ t("Restore only under") }} <code>/DATA/ZimaBackup/ApplicationRestores</code>{{ t(". Existing application paths remain untouched.") }}</small>
                 </div>
             </label>
 
             <label class="restore-mode-card danger-mode-card">
                 <input type="radio" name="mode" value="original" {{ values.mode == 'original' ? 'checked' : '' }}>
                 <div>
-                    <strong>Restore original paths</strong>
-                    <small>Stage first, then copy selected AppData back to its original paths only if they are missing or empty. Existing files are never overwritten.</small>
+                    <strong>{{ t("Restore original paths") }}</strong>
+                    <small>{{ t("Stage first, then copy selected AppData back to its original paths only if they are missing or empty. Existing files are never overwritten.") }}</small>
                 </div>
             </label>
 
             <label class="field restore-confirm-field">
-                <span>Confirmation for original paths</span>
-                <input type="text" name="confirm" value="{{ values.confirm }}" placeholder="Type RESTORE">
-                <small>Required only for original-path restoration.</small>
+                <span>{{ t("Confirmation for original paths") }}</span>
+                <input type="text" name="confirm" value="{{ values.confirm }}" placeholder="{{ t('Type RESTORE') }}">
+                <small>{{ t("Required only for original-path restoration.") }}</small>
             </label>
 
             <div class="info-strip">
-                <strong>Restore first, install second</strong>
-                <p>This step only restores data and reconstructs <code>docker-compose.yml</code>. After a successful Original paths restore, ZimaBackup can recreate and start the application in a separate confirmed step.</p>
+                <strong>{{ t("Restore first, install second") }}</strong>
+                <p>{{ t("This step only restores data and reconstructs") }} <code>docker-compose.yml</code>{{ t(". After a successful Original paths restore, ZimaBackup can recreate and start the application in a separate confirmed step.") }}</p>
             </div>
 
             <div class="form-actions">
-                <a class="button button-secondary" href="{{ ROUTER.generate('snapshots.applications', {runId: application.backup_run_id}) }}">Cancel</a>
-                <button class="button" type="submit">Start restore</button>
+                <a class="button button-secondary" href="{{ ROUTER.generate('snapshots.applications', {runId: application.backup_run_id}) }}">{{ t("Cancel") }}</a>
+                <button class="button" type="submit">{{ t("Start restore") }}</button>
             </div>
         </form>
     </section>

@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="{{ LOCALE }}">
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -15,18 +15,18 @@
             <span>{{ APP.name }}</span>
         </a>
 
-        <nav class="rail-nav" aria-label="Primary navigation">
-            <a class="{{ CURRENT_PATH == '/' ? 'active' : '' }}" href="{{ ROUTER.generate('dashboard') }}">Overview</a>
-            <a class="{{ CURRENT_PATH starts with '/backups' ? 'active' : '' }}" href="{{ ROUTER.generate('backups') }}">Backups</a>
-            <a class="{{ CURRENT_PATH starts with '/repositories' ? 'active' : '' }}" href="{{ ROUTER.generate('repositories') }}">Repositories</a>
-            <a class="{{ (CURRENT_PATH starts with '/snapshots' or CURRENT_PATH starts with '/restores' or CURRENT_PATH starts with '/application-restores' or CURRENT_PATH starts with '/snapshot-applications') ? 'active' : '' }}" href="{{ ROUTER.generate('snapshots') }}">Restore</a>
-            <a class="{{ CURRENT_PATH starts with '/applications' ? 'active' : '' }}" href="{{ ROUTER.generate('applications') }}">Applications</a>
-            <a class="{{ CURRENT_PATH starts with '/settings' ? 'active' : '' }}" href="{{ ROUTER.generate('settings') }}">Settings</a>
+        <nav class="rail-nav" aria-label="{{ t('Primary navigation') }}">
+            <a class="{{ CURRENT_PATH == '/' ? 'active' : '' }}" href="{{ ROUTER.generate('dashboard') }}">{{ t("Overview") }}</a>
+            <a class="{{ CURRENT_PATH starts with '/backups' ? 'active' : '' }}" href="{{ ROUTER.generate('backups') }}">{{ t("Backups") }}</a>
+            <a class="{{ CURRENT_PATH starts with '/repositories' ? 'active' : '' }}" href="{{ ROUTER.generate('repositories') }}">{{ t("Repositories") }}</a>
+            <a class="{{ (CURRENT_PATH starts with '/snapshots' or CURRENT_PATH starts with '/restores' or CURRENT_PATH starts with '/application-restores' or CURRENT_PATH starts with '/snapshot-applications') ? 'active' : '' }}" href="{{ ROUTER.generate('snapshots') }}">{{ t("Restore") }}</a>
+            <a class="{{ CURRENT_PATH starts with '/applications' ? 'active' : '' }}" href="{{ ROUTER.generate('applications') }}">{{ t("Applications") }}</a>
+            <a class="{{ CURRENT_PATH starts with '/settings' ? 'active' : '' }}" href="{{ ROUTER.generate('settings') }}">{{ t("Settings") }}</a>
         </nav>
 
         <div class="rail-foot">
             <span class="quiet-dot"></span>
-            <span>local worker</span>
+            <span>{{ t("local worker") }}</span>
         </div>
     </aside>
 
@@ -36,6 +36,7 @@
         </div>
     </main>
 </div>
+<script>window.ZB_I18N = {{ JS_I18N|json_encode|raw }};</script>
 <script src="/assets/js/app.js" defer></script>
 </body>
 </html>

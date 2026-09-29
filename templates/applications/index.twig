@@ -1,34 +1,34 @@
 {% extends "layout.twig" %}
 
-{% block title %}Applications - {{ APP.name }}{% endblock %}
+{% block title %}{{ t("Applications -") }} {{ APP.name }}{% endblock %}
 
 {% block content %}
 <header class="page-header">
-    <div><h1>Applications</h1><p class="muted">Docker Compose projects visible to the worker.</p></div>
-    <form method="post" action="{{ ROUTER.generate('applications.refresh') }}"><input type="hidden" name="_csrf" value="{{ csrf_token }}"><button class="button" type="submit">Refresh</button></form>
+    <div><h1>{{ t("Applications") }}</h1><p class="muted">{{ t("Docker Compose projects visible to the worker.") }}</p></div>
+    <form method="post" action="{{ ROUTER.generate('applications.refresh') }}"><input type="hidden" name="_csrf" value="{{ csrf_token }}"><button class="button" type="submit">{{ t("Refresh") }}</button></form>
 </header>
 
-{% if flash_success %}<div class="alert alert-success">{{ flash_success }}</div>{% endif %}
-{% if flash_error %}<div class="alert alert-error"><strong>Scan failed</strong><div>{{ flash_error }}</div></div>{% endif %}
-{% if discovery.error %}<div class="alert alert-error"><strong>Discovery error</strong><div>{{ discovery.error }}</div></div>{% endif %}
+{% if flash_success %}<div class="alert alert-success">{{ flash_success|trans }}</div>{% endif %}
+{% if flash_error %}<div class="alert alert-error"><strong>{{ t("Scan failed") }}</strong><div>{{ flash_error|trans }}</div></div>{% endif %}
+{% if discovery.error %}<div class="alert alert-error"><strong>{{ t("Discovery error") }}</strong><div>{{ discovery.error|trans }}</div></div>{% endif %}
 
-<div class="simple-row"><div><strong>Discovery</strong><small>Last scan: {{ discovery.last_scan ?: 'never' }}</small></div><div class="simple-row-meta">{{ discovery.status }}</div></div>
+<div class="simple-row"><div><strong>{{ t("Discovery") }}</strong><small>{{ t("Last scan:") }} {{ discovery.last_scan ? (discovery.last_scan|local_datetime) : t('never') }}</small></div><div class="simple-row-meta">{{ discovery.status|status_label }}</div></div>
 
 {% if applications is empty %}
-    <div class="empty-inline"><strong>No applications discovered.</strong><p>Make sure the worker can access the Docker socket, then refresh.</p></div>
+    <div class="empty-inline"><strong>{{ t("No applications discovered.") }}</strong><p>{{ t("Make sure the worker can access the Docker socket, then refresh.") }}</p></div>
 {% else %}
     {% for application in applications %}
         {% set eligible_count = 0 %}{% set recommended_count = 0 %}
         {% for mount in application.mounts %}{% if mount.eligible %}{% set eligible_count = eligible_count + 1 %}{% endif %}{% if mount.recommended %}{% set recommended_count = recommended_count + 1 %}{% endif %}{% endfor %}
         <section class="simple-section">
-            <div class="simple-section-head"><h2>{{ application.name }}</h2><span class="status-pill {{ application.status == 'running' ? 'ok' : 'warning' }}"><span class="status-dot"></span>{{ application.status }}</span></div>
-            <div class="simple-row"><div><strong>{{ application.image }}</strong><small>{{ application.project_name }} · {{ application.container_count }} container{{ application.container_count == 1 ? '' : 's' }}</small></div><div class="simple-row-meta">{{ recommended_count }} recommended · {{ eligible_count }} eligible</div></div>
+            <div class="simple-section-head"><h2>{{ application.name }}</h2><span class="status-pill {{ application.status == 'running' ? 'ok' : 'warning' }}"><span class="status-dot"></span>{{ application.status|status_label }}</span></div>
+            <div class="simple-row"><div><strong>{{ application.image }}</strong><small>{{ application.project_name }} · {{ application.container_count }} {{ t(application.container_count == 1 ? 'container' : 'containers') }}</small></div><div class="simple-row-meta">{{ recommended_count }} {{ t("recommended ·") }} {{ eligible_count }} {{ t("eligible") }}</div></div>
             {% for mount in application.mounts %}
-                <div class="simple-row"><div><strong>{{ mount.destination }}</strong><small>{{ mount.source }}</small></div><div class="simple-row-meta">{{ not mount.eligible ? 'ignored' : (mount.recommended ? 'recommended' : 'optional') }}</div></div>
+                <div class="simple-row"><div><strong>{{ mount.destination }}</strong><small>{{ mount.source }}</small></div><div class="simple-row-meta">{{ t(not mount.eligible ? 'ignored' : (mount.recommended ? 'recommended' : 'optional')) }}</div></div>
             {% endfor %}
         </section>
     {% endfor %}
 {% endif %}
 
-{% if discovery.status in ['queued', 'scanning'] %}<div class="alert alert-warning" data-auto-refresh>Application discovery is running. This page will refresh automatically.</div>{% endif %}
+{% if discovery.status in ['queued', 'scanning'] %}<div class="alert alert-warning" data-auto-refresh>{{ t("Application discovery is running. This page will refresh automatically.") }}</div>{% endif %}
 {% endblock %}

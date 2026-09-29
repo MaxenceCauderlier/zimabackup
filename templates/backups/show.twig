@@ -5,92 +5,92 @@
 {% block content %}
 <header class="page-header">
     <div>
-        <a class="back-link" href="{{ ROUTER.generate('backups') }}">← Backups</a>
+        <a class="back-link" href="{{ ROUTER.generate('backups') }}">{{ t("← Backups") }}</a>
         <h1>{{ job.name }}</h1>
         <p class="muted">{{ job.repository_name }} · {{ job.repository_path }}</p>
     </div>
     <div class="header-actions">
         <form method="post" action="{{ ROUTER.generate('backups.run', {uuid: job.uuid}) }}">
             <input type="hidden" name="_csrf" value="{{ csrf_token }}">
-            <button class="button" type="submit" {{ not job.enabled or job.repository_status != 'ready' ? 'disabled' : '' }}>Run now</button>
+            <button class="button" type="submit" {{ not job.enabled or job.repository_status != 'ready' ? 'disabled' : '' }}>{{ t("Run now") }}</button>
         </form>
-        <a class="button-secondary" href="{{ ROUTER.generate('backups.edit', {uuid: job.uuid}) }}">Edit</a>
+        <a class="button-secondary" href="{{ ROUTER.generate('backups.edit', {uuid: job.uuid}) }}">{{ t("Edit") }}</a>
     </div>
 </header>
 
-{% if flash_success %}<div class="alert alert-success">{{ flash_success }}</div>{% endif %}
-{% if flash_error %}<div class="alert alert-error"><strong>Action failed</strong><div>{{ flash_error }}</div></div>{% endif %}
+{% if flash_success %}<div class="alert alert-success">{{ flash_success|trans }}</div>{% endif %}
+{% if flash_error %}<div class="alert alert-error"><strong>{{ t("Action failed") }}</strong><div>{{ flash_error|trans }}</div></div>{% endif %}
 
 <section class="simple-section">
-    <div class="simple-section-head"><h2>Schedule</h2><span class="status-pill {{ job.enabled ? 'ok' : 'warning' }}"><span class="status-dot"></span>{{ job.enabled ? 'enabled' : 'disabled' }}</span></div>
+    <div class="simple-section-head"><h2>{{ t("Schedule") }}</h2><span class="status-pill {{ job.enabled ? 'ok' : 'warning' }}"><span class="status-dot"></span>{{ (job.enabled ? 'enabled' : 'disabled')|status_label }}</span></div>
     <div class="simple-row">
-        <div><strong>{{ job.schedule_type == 'manual' ? 'Manual' : job.schedule_type|capitalize }}</strong><small>{{ job.schedule_type == 'manual' ? 'Runs only when requested.' : 'Next run is calculated by the worker.' }}</small></div>
-        <div class="simple-row-meta">{{ job.next_run_at ?: '—' }}</div>
+        <div><strong>{{ job.schedule_type|status_label }}</strong><small>{{ t(job.schedule_type == 'manual' ? 'Runs only when requested.' : 'Next run is calculated by the worker.') }}</small></div>
+        <div class="simple-row-meta">{{ job.next_run_at ? (job.next_run_at|local_datetime) : '—' }}</div>
     </div>
 </section>
 
 <section class="simple-section">
     <div class="simple-section-head">
-        <h2>Retention</h2>
+        <h2>{{ t("Retention") }}</h2>
         {% if job.retention_enabled %}
             <form method="post" action="{{ ROUTER.generate('backups.retention', {uuid: job.uuid}) }}">
                 <input type="hidden" name="_csrf" value="{{ csrf_token }}">
-                <button class="button-secondary" type="submit">Apply now</button>
+                <button class="button-secondary" type="submit">{{ t("Apply now") }}</button>
             </form>
         {% endif %}
     </div>
     {% if job.retention_enabled %}
         <div class="simple-row">
-            <div><strong>Automatic retention</strong><small>Policies are combined: a snapshot is kept if any rule keeps it.</small></div>
-            <div class="simple-row-meta">last {{ job.keep_last }} · daily {{ job.keep_daily }} · weekly {{ job.keep_weekly }} · monthly {{ job.keep_monthly }}</div>
+            <div><strong>{{ t("Automatic retention") }}</strong><small>{{ t("Policies are combined: a snapshot is kept if any rule keeps it.") }}</small></div>
+            <div class="simple-row-meta">{{ t("last") }} {{ job.keep_last }} {{ t("· daily") }} {{ job.keep_daily }} {{ t("· weekly") }} {{ job.keep_weekly }} {{ t("· monthly") }} {{ job.keep_monthly }}</div>
         </div>
         {% if job.retention_runs is not empty %}
             {% set retention = job.retention_runs[0] %}
             <div class="simple-row">
-                <div><strong>Last retention run</strong><small>{{ retention.status }}{% if retention.error %} · {{ retention.error|slice(0, 100) }}{% endif %}</small></div>
-                <div class="simple-row-meta">{{ retention.finished_at ?: retention.created_at }} · {{ retention.removed_count }} removed</div>
+                <div><strong>{{ t("Last retention run") }}</strong><small>{{ retention.status|status_label }}{% if retention.error %} · {{ (retention.error|trans)|slice(0, 100) }}{% endif %}</small></div>
+                <div class="simple-row-meta">{{ (retention.finished_at ?: retention.created_at)|local_datetime }} · {{ retention.removed_count }} {{ t("removed") }}</div>
             </div>
         {% endif %}
     {% else %}
-        <div class="empty-inline"><strong>Retention is off.</strong><p>Snapshots remain until you forget them manually.</p></div>
+        <div class="empty-inline"><strong>{{ t("Retention is off.") }}</strong><p>{{ t("Snapshots remain until you forget them manually.") }}</p></div>
     {% endif %}
 </section>
 
 <section class="simple-section">
-    <div class="simple-section-head"><h2>Protected data</h2><a class="text-link" href="{{ ROUTER.generate('backups.edit', {uuid: job.uuid}) }}">Edit</a></div>
+    <div class="simple-section-head"><h2>{{ t("Protected data") }}</h2><a class="text-link" href="{{ ROUTER.generate('backups.edit', {uuid: job.uuid}) }}">{{ t("Edit") }}</a></div>
     {% for application in job.applications %}
-        <div class="simple-row"><div><strong>{{ application.app_name }}</strong><small>Application · {{ application.selected_mounts|length }} selected mount{{ application.selected_mounts|length == 1 ? '' : 's' }}</small></div><div class="simple-row-meta">app</div></div>
+        <div class="simple-row"><div><strong>{{ application.app_name }}</strong><small>{{ t("Application ·") }} {{ application.selected_mounts|length }} {{ t(application.selected_mounts|length == 1 ? 'selected mount' : 'selected mounts') }}</small></div><div class="simple-row-meta">{{ t("app") }}</div></div>
     {% endfor %}
     {% for source in job.sources %}
-        <div class="simple-row"><div><strong>{{ source.path }}</strong><small>Folder source</small></div><div class="simple-row-meta">folder</div></div>
+        <div class="simple-row"><div><strong>{{ source.path }}</strong><small>{{ t("Folder source") }}</small></div><div class="simple-row-meta">{{ t("folder") }}</div></div>
     {% endfor %}
 </section>
 
 <section class="simple-section">
-    <div class="simple-section-head"><h2>Recent runs</h2><a class="text-link" href="{{ ROUTER.generate('snapshots') }}">Recovery points</a></div>
+    <div class="simple-section-head"><h2>{{ t("Recent runs") }}</h2><a class="text-link" href="{{ ROUTER.generate('snapshots') }}">{{ t("Recovery points") }}</a></div>
     {% for run in job.runs %}
         <div class="simple-row">
             <div>
-                <strong>{{ run.status }}</strong>
-                <small>{{ run.error ?: (run.snapshot_id ? 'snapshot ' ~ run.snapshot_id|slice(0, 12) : 'No snapshot') }}</small>
+                <strong>{{ run.status|status_label }}</strong>
+                <small>{{ run.error ? (run.error|trans) : (run.snapshot_id ? t('snapshot') ~ ' ' ~ run.snapshot_id|slice(0, 12) : t('No snapshot')) }}</small>
             </div>
-            <div class="simple-row-meta">{{ run.finished_at ?: run.started_at }}{% if run.bytes_processed %}<br>{{ run.bytes_processed|bytes }}{% endif %}</div>
+            <div class="simple-row-meta">{{ (run.finished_at ?: run.started_at)|local_datetime }}{% if run.bytes_processed %}<br>{{ run.bytes_processed|bytes }}{% endif %}</div>
         </div>
     {% else %}
-        <div class="empty-inline"><strong>No runs yet.</strong><p>Run the job to create its first recovery point.</p></div>
+        <div class="empty-inline"><strong>{{ t("No runs yet.") }}</strong><p>{{ t("Run the job to create its first recovery point.") }}</p></div>
     {% endfor %}
 </section>
 
 <section class="simple-section">
-    <div class="simple-section-head"><h2>Job actions</h2></div>
+    <div class="simple-section-head"><h2>{{ t("Job actions") }}</h2></div>
     <div class="form-actions">
         <form method="post" action="{{ ROUTER.generate('backups.toggle', {uuid: job.uuid}) }}">
             <input type="hidden" name="_csrf" value="{{ csrf_token }}">
-            <button class="button-secondary" type="submit">{{ job.enabled ? 'Disable' : 'Enable' }}</button>
+            <button class="button-secondary" type="submit">{{ t(job.enabled ? 'Disable' : 'Enable') }}</button>
         </form>
-        <form method="post" action="{{ ROUTER.generate('backups.delete', {uuid: job.uuid}) }}" data-confirm="Delete this backup job? Existing Restic snapshots will be kept.">
+        <form method="post" action="{{ ROUTER.generate('backups.delete', {uuid: job.uuid}) }}" data-confirm="{{ t('Delete this backup job? Existing Restic snapshots will be kept.') }}">
             <input type="hidden" name="_csrf" value="{{ csrf_token }}">
-            <button class="button-secondary button-danger" type="submit">Delete job</button>
+            <button class="button-secondary button-danger" type="submit">{{ t("Delete job") }}</button>
         </form>
     </div>
 </section>

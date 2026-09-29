@@ -1,27 +1,27 @@
 {% extends "layout.twig" %}
 
-{% block title %}Browse snapshot - {{ APP.name }}{% endblock %}
+{% block title %}{{ t("Browse snapshot -") }} {{ APP.name }}{% endblock %}
 
 {% block content %}
 <header class="page-header">
     <div>
-        <a class="back-link" href="{{ ROUTER.generate('snapshots') }}">← Restore</a>
+        <a class="back-link" href="{{ ROUTER.generate('snapshots') }}">{{ t("← Restore") }}</a>
         <h1>{{ snapshot.job_name }}</h1>
-        <p class="muted">Browse snapshot {{ snapshot.snapshot_id|slice(0, 12) }} from {{ snapshot.repository_name }}.</p>
+        <p class="muted">{{ t("Browse snapshot") }} {{ snapshot.snapshot_id|slice(0, 12) }} {{ t("from") }} {{ snapshot.repository_name }}.</p>
     </div>
     <div class="header-actions">
-        <a class="button-secondary" href="{{ ROUTER.generate('restores.create', {runId: snapshot.id}) }}">Restore entire snapshot</a>
+        <a class="button-secondary" href="{{ ROUTER.generate('restores.create', {runId: snapshot.id}) }}">{{ t("Restore entire snapshot") }}</a>
         {% if snapshot.configured_app_count|default(0) > 0 %}
-            <a class="button-secondary" href="{{ ROUTER.generate('snapshots.applications', {runId: snapshot.id}) }}">Applications</a>
+            <a class="button-secondary" href="{{ ROUTER.generate('snapshots.applications', {runId: snapshot.id}) }}">{{ t("Applications") }}</a>
         {% endif %}
     </div>
 </header>
 
-{% if flash_success %}<div class="alert alert-success">{{ flash_success }}</div>{% endif %}
-{% if flash_error %}<div class="alert alert-error">{{ flash_error }}</div>{% endif %}
-{% if browse_error %}<div class="alert alert-error">{{ browse_error }}</div>{% endif %}
+{% if flash_success %}<div class="alert alert-success">{{ flash_success|trans }}</div>{% endif %}
+{% if flash_error %}<div class="alert alert-error">{{ flash_error|trans }}</div>{% endif %}
+{% if browse_error %}<div class="alert alert-error">{{ browse_error|trans }}</div>{% endif %}
 
-<nav class="snapshot-breadcrumbs" aria-label="Snapshot path">
+<nav class="snapshot-breadcrumbs" aria-label="{{ t('Snapshot path') }}">
     {% for crumb in breadcrumbs %}
         {% if not loop.last %}
             <a href="{{ ROUTER.generate('snapshots.browse', {runId: snapshot.id}) }}?path={{ crumb.path|url_encode }}">{{ crumb.label }}</a><span>/</span>
@@ -34,20 +34,20 @@
 {% if not listing or listing.status in ['queued', 'loading'] %}
     <section class="simple-section" data-auto-refresh>
         <div class="empty-inline">
-            <strong>{{ listing and listing.status == 'loading' ? 'Reading snapshot…' : 'Waiting for worker…' }}</strong>
-            <p>The worker is reading this directory from the encrypted repository. This page refreshes automatically.</p>
+            <strong>{{ t(listing and listing.status == 'loading' ? 'Reading snapshot…' : 'Waiting for worker…') }}</strong>
+            <p>{{ t("The worker is reading this directory from the encrypted repository. This page refreshes automatically.") }}</p>
         </div>
     </section>
 {% elseif listing.status == 'failed' %}
     <section class="simple-section">
         <div class="alert alert-error">
-            <strong>Unable to read this directory</strong>
-            <div>{{ listing.error }}</div>
+            <strong>{{ t("Unable to read this directory") }}</strong>
+            <div>{{ listing.error|trans }}</div>
         </div>
         <form method="post" action="{{ ROUTER.generate('snapshots.browse.refresh', {runId: snapshot.id}) }}">
             <input type="hidden" name="_csrf" value="{{ csrf_token }}">
             <input type="hidden" name="path" value="{{ path }}">
-            <button class="button-secondary" type="submit">Try again</button>
+            <button class="button-secondary" type="submit">{{ t("Try again") }}</button>
         </form>
     </section>
 {% else %}
@@ -59,17 +59,17 @@
             <div class="simple-section-head">
                 <div>
                     <h2>{{ path }}</h2>
-                    <p class="muted">{{ listing.entry_count }} item{{ listing.entry_count == 1 ? '' : 's' }}</p>
+                    <p class="muted">{{ listing.entry_count }} {{ t(listing.entry_count == 1 ? 'item' : 'items') }}</p>
                 </div>
                 {% if listing.entries is not empty %}
-                    <label class="select-all-line"><input type="checkbox" data-select-all> Select this page</label>
+                    <label class="select-all-line"><input type="checkbox" data-select-all> {{ t("Select this page") }}</label>
                 {% endif %}
             </div>
 
             {% if listing.truncated %}
                 <div class="alert alert-warning">
-                    <strong>Large directory</strong>
-                    <div>Only the first {{ listing.entries|length }} items are shown. Select the parent directory from the previous level to restore everything inside it.</div>
+                    <strong>{{ t("Large directory") }}</strong>
+                    <div>{{ t("Only the first") }} {{ listing.entries|length }} {{ t("items are shown. Select the parent directory from the previous level to restore everything inside it.") }}</div>
                 </div>
             {% endif %}
 
@@ -94,15 +94,15 @@
                         </div>
                     </div>
                 {% else %}
-                    <div class="empty-inline"><strong>This directory is empty.</strong></div>
+                    <div class="empty-inline"><strong>{{ t("This directory is empty.") }}</strong></div>
                 {% endfor %}
             </div>
         </section>
 
         {% if listing.entries is not empty %}
             <div class="browser-action-bar">
-                <span class="muted">Choose files or folders from this level.</span>
-                <button class="button" type="submit">Restore selected</button>
+                <span class="muted">{{ t("Choose files or folders from this level.") }}</span>
+                <button class="button" type="submit">{{ t("Restore selected") }}</button>
             </div>
         {% endif %}
     </form>

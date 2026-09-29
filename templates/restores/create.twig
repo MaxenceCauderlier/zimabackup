@@ -1,20 +1,20 @@
 {% extends "layout.twig" %}
 
-{% block title %}Restore - {{ APP.name }}{% endblock %}
+{% block title %}{{ t("Restore -") }} {{ APP.name }}{% endblock %}
 
 {% block content %}
 <header class="page-header">
     <div>
-        <a class="back-link" href="{{ ROUTER.generate('snapshots.browse', {runId: snapshot.id}) }}">← Browse snapshot</a>
-        <h1>{{ selected_paths is empty ? 'Restore snapshot' : 'Restore selected items' }}</h1>
+        <a class="back-link" href="{{ ROUTER.generate('snapshots.browse', {runId: snapshot.id}) }}">{{ t("← Browse snapshot") }}</a>
+        <h1>{{ t(selected_paths is empty ? 'Restore snapshot' : 'Restore selected items') }}</h1>
         <p class="muted">{{ snapshot.job_name }} · {{ snapshot.snapshot_id|slice(0, 12) }} · {{ snapshot.repository_name }}</p>
     </div>
 </header>
 
 {% if errors %}
     <div class="alert alert-error">
-        <strong>Unable to start restore</strong>
-        {% for error in errors %}<div>{{ error }}</div>{% endfor %}
+        <strong>{{ t("Unable to start restore") }}</strong>
+        {% for error in errors %}<div>{{ error|trans }}</div>{% endfor %}
     </div>
 {% endif %}
 
@@ -25,33 +25,33 @@
     {% endfor %}
 
     <section class="simple-section">
-        <div class="simple-section-head"><h2>Content</h2></div>
+        <div class="simple-section-head"><h2>{{ t("Content") }}</h2></div>
         {% if selected_paths is empty %}
-            <div class="simple-row"><div><strong>Entire snapshot</strong><small>All backed-up /DATA and /media paths in this recovery point.</small></div><div class="simple-row-meta">full restore</div></div>
+            <div class="simple-row"><div><strong>{{ t("Entire snapshot") }}</strong><small>{{ t("All backed-up /DATA and /media paths in this recovery point.") }}</small></div><div class="simple-row-meta">{{ t("full restore") }}</div></div>
         {% else %}
             {% for selected in selected_paths %}
-                <div class="simple-row"><div><strong>{{ selected|split('/')|last ?: selected }}</strong><small>{{ selected }}</small></div><div class="simple-row-meta">selected</div></div>
+                <div class="simple-row"><div><strong>{{ selected|split('/')|last ?: selected }}</strong><small>{{ selected }}</small></div><div class="simple-row-meta">{{ t("selected") }}</div></div>
             {% endfor %}
         {% endif %}
     </section>
 
     <section class="simple-section">
-        <div class="simple-section-head"><h2>Destination</h2></div>
+        <div class="simple-section-head"><h2>{{ t("Destination") }}</h2></div>
         <label class="field">
-            <span>Restore target</span>
+            <span>{{ t("Restore target") }}</span>
             <input type="text" name="target_path" required spellcheck="false" autocomplete="off" value="{{ values.target_path }}" placeholder="/DATA/ZimaBackup/Restores/my-restore">
-            <small>ZimaBackup restores into a new or empty directory. Original source files are never overwritten by this workflow.</small>
+            <small>{{ t("ZimaBackup restores into a new or empty directory. Original source files are never overwritten by this workflow.") }}</small>
         </label>
     </section>
 
     <div class="info-strip">
-        <strong>Safe restore</strong>
-        <p>Restic runs with overwrite mode <code>never</code>. Absolute source paths remain below the target, for example <code>/DATA/Documents</code> becomes <code>{{ values.target_path }}/DATA/Documents</code>.</p>
+        <strong>{{ t("Safe restore") }}</strong>
+        <p>{{ t("Restic runs with overwrite mode") }} <code>never</code>{{ t(". Absolute source paths remain below the target, for example") }} <code>/DATA/Documents</code> {{ t("becomes") }} <code>{{ values.target_path }}/DATA/Documents</code>.</p>
     </div>
 
     <div class="form-actions">
-        <a class="button-secondary" href="{{ ROUTER.generate('snapshots.browse', {runId: snapshot.id}) }}">Cancel</a>
-        <button class="button" type="submit">{{ selected_paths is empty ? 'Restore snapshot' : 'Restore selected' }}</button>
+        <a class="button-secondary" href="{{ ROUTER.generate('snapshots.browse', {runId: snapshot.id}) }}">{{ t("Cancel") }}</a>
+        <button class="button" type="submit">{{ t(selected_paths is empty ? 'Restore snapshot' : 'Restore selected') }}</button>
     </div>
 </form>
 {% endblock %}

@@ -9,6 +9,7 @@ use RuntimeException;
 use Twig\Environment;
 use Twig\Loader\FilesystemLoader;
 use Twig\TwigFilter;
+use Twig\TwigFunction;
 use ZimaBackup\Security\Csrf;
 use ZimaBackup\Service\ApplicationDiscoveryService;
 use ZimaBackup\Service\ApplicationInstallService;
@@ -27,6 +28,7 @@ use ZimaBackup\Service\SnapshotService;
 use ZimaBackup\Service\SnapshotBrowserService;
 use ZimaBackup\Service\SnapshotApplicationService;
 use ZimaBackup\Service\TaskQueueService;
+use ZimaBackup\Service\Translator;
 
 final class Application
 {
@@ -46,6 +48,14 @@ final class Application
 
         $this->router = new AltoRouter();
 
+        $pathConfig = require $this->rootPath . '/config/paths.php';
+        $pathService = new PathService($pathConfig['container_roots']);
+        $settings = new SettingsService($this->database, $pathService);
+        $translator = new Translator(
+            $settings->get('ui.language', 'en'),
+            $this->rootPath . '/translations'
+        );
+
         $loader = new FilesystemLoader($this->rootPath . '/templates');
         $cache = $this->config['env'] === 'prod'
             ? $this->rootPath . '/storage/cache/twig'
@@ -58,6 +68,13 @@ final class Application
         ]);
 
         $this->twig->addGlobal('APP', $this->config);
+        $this->twig->addGlobal('LOCALE', $translator->locale());
+        $this->twig->addGlobal('SUPPORTED_LANGUAGES', Translator::supportedLocales());
+        $this->twig->addGlobal('JS_I18N', $translator->javascriptMessages());
+        $this->twig->addFunction(new TwigFunction('t', static fn (string $message, array $parameters = []): string => $translator->translate($message, $parameters)));
+        $this->twig->addFilter(new TwigFilter('trans', static fn (?string $message): string => $translator->message($message)));
+        $this->twig->addFilter(new TwigFilter('status_label', static fn (?string $status): string => $translator->status($status)));
+        $this->twig->addFilter(new TwigFilter('local_datetime', static fn (mixed $value, bool $withTime = true): string => $translator->dateTime($value, $withTime)));
         $this->twig->addFilter(new TwigFilter('bytes', static function (mixed $bytes): string {
             if ($bytes === null || $bytes === '') {
                 return '—';
@@ -78,13 +95,10 @@ final class Application
             parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/'
         );
 
-        $pathConfig = require $this->rootPath . '/config/paths.php';
-        $pathService = new PathService($pathConfig['container_roots']);
         $resticService = new ResticService('restic');
         $session = new Session();
         $csrf = new Csrf($session);
         $queue = new TaskQueueService($this->database);
-        $settings = new SettingsService($this->database, $pathService);
         $scheduler = new SchedulerService($this->database);
         $docker = new DockerEngineClient(getenv('DOCKER_SOCKET') ?: '/var/run/docker.sock');
         $composePreview = new ComposePreviewService();
@@ -104,6 +118,7 @@ final class Application
             Csrf::class => $csrf,
             TaskQueueService::class => $queue,
             SettingsService::class => $settings,
+            Translator::class => $translator,
             SchedulerService::class => $scheduler,
             DockerEngineClient::class => $docker,
             ApplicationDiscoveryService::class => $appDiscovery,

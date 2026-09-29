@@ -1,51 +1,51 @@
 {% extends "layout.twig" %}
 
-{% block title %}Applications in snapshot - {{ APP.name }}{% endblock %}
+{% block title %}{{ t("Applications in snapshot -") }} {{ APP.name }}{% endblock %}
 
 {% block content %}
 <header class="page-header compact-header">
     <div>
-        <a class="back-link" href="{{ ROUTER.generate('snapshots') }}">← Snapshots</a>
-        <p class="eyebrow">Application restore preview</p>
+        <a class="back-link" href="{{ ROUTER.generate('snapshots') }}">{{ t("← Snapshots") }}</a>
+        <p class="eyebrow">{{ t("Application restore preview") }}</p>
         <h1>{{ snapshot.job_name }}</h1>
-        <p class="muted">Snapshot <strong>{{ snapshot.snapshot_id|slice(0, 12) }}</strong> · {{ snapshot.repository_name }}</p>
+        <p class="muted">{{ t("Snapshot") }} <strong>{{ snapshot.snapshot_id|slice(0, 12) }}</strong> · {{ snapshot.repository_name }}</p>
     </div>
     <div class="header-actions">
         {% if scan %}
-            <span class="status-pill {{ scan.status == 'ready' ? 'ok' : (scan.status in ['queued', 'scanning'] ? 'warning' : 'error') }}"><span class="status-dot"></span>{{ scan.status }}</span>
+            <span class="status-pill {{ scan.status == 'ready' ? 'ok' : (scan.status in ['queued', 'scanning'] ? 'warning' : 'error') }}"><span class="status-dot"></span>{{ scan.status|status_label }}</span>
         {% endif %}
         <form method="post" action="{{ ROUTER.generate('snapshots.applications.inspect', {runId: snapshot.id}) }}">
             <input type="hidden" name="_csrf" value="{{ csrf_token }}">
-            <button class="button button-secondary" type="submit">Inspect again</button>
+            <button class="button button-secondary" type="submit">{{ t("Inspect again") }}</button>
         </form>
     </div>
 </header>
 
-{% if flash_success %}<div class="alert alert-success">{{ flash_success }}</div>{% endif %}
-{% if flash_error %}<div class="alert alert-error"><strong>Inspection failed</strong><div>{{ flash_error }}</div></div>{% endif %}
-{% if scan and scan.error %}<div class="alert alert-error"><strong>Snapshot inspection failed</strong><div>{{ scan.error }}</div></div>{% endif %}
+{% if flash_success %}<div class="alert alert-success">{{ flash_success|trans }}</div>{% endif %}
+{% if flash_error %}<div class="alert alert-error"><strong>{{ t("Inspection failed") }}</strong><div>{{ flash_error|trans }}</div></div>{% endif %}
+{% if scan and scan.error %}<div class="alert alert-error"><strong>{{ t("Snapshot inspection failed") }}</strong><div>{{ scan.error|trans }}</div></div>{% endif %}
 
 <section class="summary-cards four-summary-cards">
-    <article class="summary-card"><span>Configured apps</span><strong>{{ snapshot.configured_app_count }}</strong></article>
-    <article class="summary-card"><span>Found in snapshot</span><strong>{{ scan ? scan.application_count : 0 }}</strong></article>
-    <article class="summary-card"><span>Snapshot</span><strong>{{ snapshot.snapshot_id|slice(0, 12) }}</strong></article>
-    <article class="summary-card"><span>Finished</span><strong>{{ snapshot.finished_at }}</strong></article>
+    <article class="summary-card"><span>{{ t("Configured apps") }}</span><strong>{{ snapshot.configured_app_count }}</strong></article>
+    <article class="summary-card"><span>{{ t("Found in snapshot") }}</span><strong>{{ scan ? scan.application_count : 0 }}</strong></article>
+    <article class="summary-card"><span>{{ t("Snapshot") }}</span><strong>{{ snapshot.snapshot_id|slice(0, 12) }}</strong></article>
+    <article class="summary-card"><span>{{ t("Finished") }}</span><strong>{{ snapshot.finished_at|local_datetime }}</strong></article>
 </section>
 
 {% if not scan or scan.status in ['queued', 'scanning'] %}
     <section class="panel inspect-progress" data-auto-refresh>
         <div class="spinner large-spinner"></div>
         <div>
-            <span class="card-kicker">Worker inspection</span>
-            <h2>{{ scan and scan.status == 'scanning' ? 'Reading encrypted application manifests' : 'Waiting for the worker' }}</h2>
-            <p>The web interface never opens the Restic repository directly. The worker decrypts manifests, removes secrets, then stores only this safe preview.</p>
+            <span class="card-kicker">{{ t("Worker inspection") }}</span>
+            <h2>{{ t(scan and scan.status == 'scanning' ? 'Reading encrypted application manifests' : 'Waiting for the worker') }}</h2>
+            <p>{{ t("The web interface never opens the Restic repository directly. The worker decrypts manifests, removes secrets, then stores only this safe preview.") }}</p>
         </div>
     </section>
 {% elseif scan.status == 'ready' and applications is empty %}
     <section class="panel empty-state large-empty-state">
         <div class="empty-illustration"><span>∅</span></div>
-        <h2>No application manifest found</h2>
-        <p>This snapshot may come from a folder-only backup or from a ZimaBackup version created before application manifests were included.</p>
+        <h2>{{ t("No application manifest found") }}</h2>
+        <p>{{ t("This snapshot may come from a folder-only backup or from a ZimaBackup version created before application manifests were included.") }}</p>
     </section>
 {% elseif applications is not empty %}
     <div class="application-preview-stack">
@@ -55,45 +55,45 @@
                     <div>
                         <span class="card-kicker">{{ application.project_name ?: application.app_key }}</span>
                         <h2>{{ application.name }}</h2>
-                        <p class="muted">{{ application.image ?: 'Image is defined per service below' }}</p>
+                        <p class="muted">{{ application.image ?: t('Image is defined per service below') }}</p>
                     </div>
-                    <span class="status-pill ok"><span class="status-dot"></span>{{ application.container_count }} service{{ application.container_count == 1 ? '' : 's' }}</span>
+                    <span class="status-pill ok"><span class="status-dot"></span>{{ application.container_count }} {{ t(application.container_count == 1 ? 'service' : 'services') }}</span>
                 </div>
 
                 <div class="preview-grid">
                     <div class="compose-preview-panel">
                         <div class="preview-panel-heading">
-                            <div><span class="card-kicker">Reconstructed definition</span><h3>Docker Compose preview</h3></div>
-                            <span class="mini-tag eligible">secrets masked</span>
+                            <div><span class="card-kicker">{{ t("Reconstructed definition") }}</span><h3>{{ t("Docker Compose preview") }}</h3></div>
+                            <span class="mini-tag eligible">{{ t("secrets masked") }}</span>
                         </div>
                         <pre class="code-preview"><code>{{ application.compose_preview }}</code></pre>
                     </div>
 
                     <aside class="preview-warnings-panel">
-                        <span class="card-kicker">Review before install</span>
-                        <h3>Compatibility notes</h3>
+                        <span class="card-kicker">{{ t("Review before install") }}</span>
+                        <h3>{{ t("Compatibility notes") }}</h3>
                         {% if application.warnings is empty %}
-                            <div class="empty-inline"><strong>No warning generated</strong><p>The reconstructed runtime definition looks straightforward.</p></div>
+                            <div class="empty-inline"><strong>{{ t("No warning generated") }}</strong><p>{{ t("The reconstructed runtime definition looks straightforward.") }}</p></div>
                         {% else %}
                             <div class="warning-list">
                                 {% for warning in application.warnings %}
-                                    <div><span>!</span><p>{{ warning }}</p></div>
+                                    <div><span>!</span><p>{{ warning|trans }}</p></div>
                                 {% endfor %}
                             </div>
                         {% endif %}
                         <div class="info-strip compact-strip">
-                            <strong>Preview only</strong>
-                            <p>This is a review preview only. Docker changes happen later, after an explicit application restore and an INSTALL confirmation.</p>
+                            <strong>{{ t("Preview only") }}</strong>
+                            <p>{{ t("This is a review preview only. Docker changes happen later, after an explicit application restore and an INSTALL confirmation.") }}</p>
                         </div>
                     </aside>
                 </div>
 
                 <div class="manifest-source-line">
                     <div>
-                        <span>Manifest inside snapshot</span>
+                        <span>{{ t("Manifest inside snapshot") }}</span>
                         <code>{{ application.manifest_path }}</code>
                     </div>
-                    <a class="button" href="{{ ROUTER.generate('application-restores.create', {applicationId: application.id}) }}">Restore application</a>
+                    <a class="button" href="{{ ROUTER.generate('application-restores.create', {applicationId: application.id}) }}">{{ t("Restore application") }}</a>
                 </div>
             </section>
         {% endfor %}
