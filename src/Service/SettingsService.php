@@ -26,6 +26,8 @@ final class SettingsService
             'maintenance.auto_prune' => '0',
             'maintenance.prune_interval_days' => '30',
             'ui.language' => 'en',
+            'activity.retention_days' => '30',
+            'activity.max_events' => '5000',
         ];
     }
 
@@ -71,6 +73,15 @@ final class SettingsService
             throw new InvalidArgumentException('Repository prune interval must be between 1 and 365 days.');
         }
 
+        $activityRetentionDays = (int) ($input['activity.retention_days'] ?? 30);
+        if ($activityRetentionDays < 1 || $activityRetentionDays > 3650) {
+            throw new InvalidArgumentException('Activity retention must be between 1 and 3650 days.');
+        }
+        $activityMaxEvents = (int) ($input['activity.max_events'] ?? 5000);
+        if ($activityMaxEvents < 100 || $activityMaxEvents > 100000) {
+            throw new InvalidArgumentException('Activity event limit must be between 100 and 100000.');
+        }
+
         $language = Translator::normalizeLocale((string) ($input['ui.language'] ?? 'en'));
 
         $values = [
@@ -82,6 +93,8 @@ final class SettingsService
             'maintenance.auto_prune' => !empty($input['maintenance.auto_prune']) ? '1' : '0',
             'maintenance.prune_interval_days' => (string) $pruneInterval,
             'ui.language' => $language,
+            'activity.retention_days' => (string) $activityRetentionDays,
+            'activity.max_events' => (string) $activityMaxEvents,
         ];
 
         $now = date('c');

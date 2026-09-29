@@ -6,6 +6,7 @@ use ZimaBackup\Core\Application;
 use ZimaBackup\Service\ApplicationDiscoveryService;
 use ZimaBackup\Service\ApplicationInstallService;
 use ZimaBackup\Service\ApplicationRestoreService;
+use ZimaBackup\Service\ActivityService;
 use ZimaBackup\Service\BackupService;
 use ZimaBackup\Service\RepositoryService;
 use ZimaBackup\Service\RetentionService;
@@ -47,19 +48,33 @@ $snapshots = $app->service(SnapshotService::class);
 $snapshotBrowser = $app->service(SnapshotBrowserService::class);
 /** @var SettingsService $settings */
 $settings = $app->service(SettingsService::class);
+/** @var ActivityService $activity */
+$activity = $app->service(ActivityService::class);
 
 $interval = max(2, (int) (getenv('WORKER_INTERVAL') ?: 10));
 $discoveryInterval = max(30, $settings->getInt('apps.discovery.interval', (int) (getenv('APP_DISCOVERY_INTERVAL') ?: 120)));
 $lastDiscovery = 0;
 $lastMaintenance = 0;
+$lastActivityCleanup = 0;
+
+$safeActivity = static function (callable $callback): void {
+    try {
+        $callback();
+    } catch (Throwable $exception) {
+        fwrite(STDERR, sprintf("%s - Activity logging failed: %s\n", date('c'), $exception->getMessage()));
+    }
+};
 
 echo sprintf(
     "ZimaBackup worker started (interval: %d seconds, app discovery: %d seconds).\n",
     $interval,
     $discoveryInterval
 );
+$safeActivity(static fn () => $activity->heartbeat());
+$safeActivity(static fn () => $activity->record("info", "system", "Backup worker started", "Background backup and restore processing is available."));
 
 while (true) {
+    $safeActivity(static fn () => $activity->heartbeat());
     while (($operation = $queue->claimNext()) !== null) {
         echo sprintf("%s - Running %s (%s).\n", date('c'), $operation['type'], $operation['uuid']);
 
@@ -292,9 +307,11 @@ while (true) {
                     throw new RuntimeException(sprintf('Unsupported operation type: %s', $operation['type']));
             }
 
+            $safeActivity(static fn () => $activity->recordOperation($operation, true));
             echo sprintf("%s - Operation completed.\n", date('c'));
         } catch (Throwable $exception) {
             $queue->fail((int) $operation['id'], $exception->getMessage());
+            $safeActivity(static fn () => $activity->recordOperation($operation, false, $exception->getMessage()));
             fwrite(STDERR, sprintf("%s - Operation failed: %s\n", date('c'), $exception->getMessage()));
         }
     }
@@ -316,8 +333,10 @@ while (true) {
         try {
             $nextRunAt = $scheduler->nextForJob($job);
             $backups->enqueueScheduledRunByUuid((string) $job['uuid'], $nextRunAt);
+            $safeActivity(static fn () => $activity->record("info", "backup", "Scheduled backup queued", "The backup is waiting for the worker to start it.", (string) $job['name']));
             echo sprintf("%s - Scheduled backup queued: %s.\n", date('c'), $job['name']);
         } catch (Throwable $exception) {
+            $safeActivity(static fn () => $activity->record("error", "backup", "Scheduled backup could not be queued", "ZimaBackup could not queue the scheduled backup.", (string) $job['name'], $exception->getMessage()));
             fwrite(STDERR, sprintf("%s - Scheduled backup queue failed for %s: %s\n", date('c'), $job['name'], $exception->getMessage()));
         }
     }
@@ -336,9 +355,22 @@ while (true) {
         try {
             $repositories->enqueueDueMaintenance($checkDays, $autoPrune, $pruneDays);
         } catch (Throwable $exception) {
+            $safeActivity(static fn () => $activity->record("error", "maintenance", "Automatic maintenance scheduling failed", "ZimaBackup could not schedule storage maintenance.", null, $exception->getMessage()));
             fwrite(STDERR, sprintf("%s - Repository maintenance scheduling failed: %s\n", date('c'), $exception->getMessage()));
         }
         $lastMaintenance = time();
+    }
+
+    if ((time() - $lastActivityCleanup) >= 600) {
+        try {
+            $activity->cleanup(
+                max(1, $settings->getInt('activity.retention_days', 30)),
+                max(100, $settings->getInt('activity.max_events', 5000))
+            );
+        } catch (Throwable $exception) {
+            fwrite(STDERR, sprintf("%s - Activity cleanup failed: %s\n", date('c'), $exception->getMessage()));
+        }
+        $lastActivityCleanup = time();
     }
 
     sleep($interval);

@@ -2,9 +2,11 @@
 
 ZimaBackup is a lightweight, application-aware backup and disaster-recovery manager for ZimaOS, built with PHP 8.4, Twig, SQLite and Restic.
 
-## Current milestone — v0.13.1 Plain-language UX
+## Current milestone — v0.14.0 Activity & Diagnostics
 
-v0.13.1 keeps the v0.13 internationalization layer and simplifies user-facing backup terminology. The interface now talks about **Storage**, **Recovery points**, **Delete recovery point** and **Free unused space** instead of requiring users to understand Restic terms such as repository, snapshot, forget and prune. Technical names remain unchanged internally and in diagnostic logs.
+v0.14.0 adds a persistent, user-readable Activity log and current-state diagnostics. Backups, restores, storage maintenance, application recovery and important failures are recorded in SQLite with plain-language summaries. Raw Docker/Restic output remains available behind **Show technical details**. The worker reports a heartbeat so the interface can distinguish a current background-processing problem from an old historical error.
+
+Activity history defaults to 30 days and 5,000 events and can be adjusted in Settings. High-frequency, low-value operations such as snapshot browsing and successful periodic Docker discovery are intentionally not logged.
 
 ### Scheduling
 
@@ -227,6 +229,17 @@ docker compose logs -f worker
 ```
 
 
+
+## v0.14.0 - Activity & Diagnostics
+
+- New **Activity** page with severity and category filters.
+- Persistent SQLite event history for backups, restores, application recovery, storage maintenance and background errors.
+- Plain-language event summaries with optional raw technical details and operation UUIDs.
+- Worker heartbeat with **Online / Busy / Offline** diagnostics.
+- Overview now reports current problems instead of counting every historical failed backup forever.
+- Diagnostics detect missing/failed storage, latest backup failures, Docker discovery failure and very long-running operations.
+- Configurable Activity retention (default 30 days / 5,000 events).
+- New migration: `014_activity_diagnostics.sql`.
 
 ## v0.13.1 - Plain-language UX
 

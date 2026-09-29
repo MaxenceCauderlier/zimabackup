@@ -43,6 +43,14 @@
     </section>
 
     <section class="simple-section">
+        <div class="simple-section-head"><h2>{{ t("Activity history") }}</h2></div>
+        <div class="panel stack-form">
+            <label class="field"><span>{{ t("Keep activity for") }}</span><input type="number" min="1" max="3650" name="activity_retention_days" value="{{ values['activity.retention_days'] }}"><small>{{ t("Days. Older events are removed automatically by the worker.") }}</small></label>
+            <label class="field"><span>{{ t("Maximum events") }}</span><input type="number" min="100" max="100000" name="activity_max_events" value="{{ values['activity.max_events'] }}"><small>{{ t("A second safety limit prevents the activity database from growing indefinitely.") }}</small></label>
+        </div>
+    </section>
+
+    <section class="simple-section">
         <div class="simple-section-head"><h2>{{ t("Storage maintenance") }}</h2></div>
         <div class="panel stack-form">
             <label class="toggle-line"><input type="checkbox" name="maintenance_auto_check" value="1" {{ values['maintenance.auto_check'] == '1' ? 'checked' : '' }}><span><strong>{{ t("Automatic backup checks") }}</strong><small>{{ t("Periodically verify that backup storage is readable and internally consistent.") }}</small></span></label>

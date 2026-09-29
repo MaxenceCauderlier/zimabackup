@@ -150,6 +150,15 @@ final class Translator
             'loading' => 'Loading',
             'stopped' => 'Stopped',
             'unknown' => 'Unknown',
+            'online' => 'Online',
+            'offline' => 'Offline',
+            'busy' => 'Busy',
+            'backup' => 'Backups',
+            'restore' => 'Restores',
+            'storage' => 'Storage',
+            'applications' => 'Applications',
+            'maintenance' => 'Maintenance',
+            'system' => 'System',
             default => ucfirst(str_replace('_', ' ', $status)),
         };
 

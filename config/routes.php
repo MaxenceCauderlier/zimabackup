@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use ZimaBackup\Controller\ApplicationController;
 use ZimaBackup\Controller\ApplicationRestoreController;
+use ZimaBackup\Controller\ActivityController;
 use ZimaBackup\Controller\BackupController;
 use ZimaBackup\Controller\DashboardController;
 use ZimaBackup\Controller\PageController;
@@ -22,6 +23,7 @@ return static function (Application $app): void {
     ]);
 
     $router->map('GET', '/', [DashboardController::class, 'index'], 'dashboard');
+    $router->map('GET', '/activity', [ActivityController::class, 'index'], 'activity');
 
     $router->map('GET', '/applications', [ApplicationController::class, 'index'], 'applications');
     $router->map('POST', '/applications/refresh', [ApplicationController::class, 'refresh'], 'applications.refresh');

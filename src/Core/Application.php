@@ -14,6 +14,8 @@ use ZimaBackup\Security\Csrf;
 use ZimaBackup\Service\ApplicationDiscoveryService;
 use ZimaBackup\Service\ApplicationInstallService;
 use ZimaBackup\Service\ApplicationRestoreService;
+use ZimaBackup\Service\ActivityService;
+use ZimaBackup\Service\DiagnosticsService;
 use ZimaBackup\Service\ComposePreviewService;
 use ZimaBackup\Service\BackupService;
 use ZimaBackup\Service\DockerEngineClient;
@@ -100,6 +102,8 @@ final class Application
         $csrf = new Csrf($session);
         $queue = new TaskQueueService($this->database);
         $scheduler = new SchedulerService($this->database);
+        $activity = new ActivityService($this->database);
+        $diagnostics = new DiagnosticsService($this->database, max(2, (int) (getenv('WORKER_INTERVAL') ?: 10)));
         $docker = new DockerEngineClient(getenv('DOCKER_SOCKET') ?: '/var/run/docker.sock');
         $composePreview = new ComposePreviewService();
         $appDiscovery = new ApplicationDiscoveryService(
@@ -120,6 +124,8 @@ final class Application
             SettingsService::class => $settings,
             Translator::class => $translator,
             SchedulerService::class => $scheduler,
+            ActivityService::class => $activity,
+            DiagnosticsService::class => $diagnostics,
             DockerEngineClient::class => $docker,
             ApplicationDiscoveryService::class => $appDiscovery,
             ComposePreviewService::class => $composePreview,

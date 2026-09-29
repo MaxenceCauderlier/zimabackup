@@ -1,0 +1,90 @@
+{% extends "layout.twig" %}
+
+{% block title %}{{ t("Activity -") }} {{ APP.name }}{% endblock %}
+
+{% block content %}
+<header class="page-header">
+    <div>
+        <h1>{{ t("Activity") }}</h1>
+        <p class="muted">{{ t("A readable history of backups, restores, storage maintenance and background problems.") }}</p>
+    </div>
+</header>
+
+<section class="diagnostic-strip diagnostic-{{ diagnostics.status }}">
+    <div>
+        {% if diagnostics.status == 'healthy' %}
+            <strong>{{ t("Everything is working normally") }}</strong>
+            <small>{{ t("The backup worker is responding and no current problem was detected.") }}</small>
+        {% elseif diagnostics.status == 'warning' %}
+            <strong>{{ t("Some items need attention") }}</strong>
+            <small>{{ t("ZimaBackup found something worth checking, but backups may still be usable.") }}</small>
+        {% else %}
+            <strong>{{ t("ZimaBackup needs attention") }}</strong>
+            <small>{{ t("One or more current problems can prevent reliable backups or restores.") }}</small>
+        {% endif %}
+    </div>
+    <div class="diagnostic-worker">
+        <span class="status-dot"></span>
+        {{ t("Worker") }}: {{ diagnostics.worker_state|status_label }}
+        {% if diagnostics.worker_last_seen %}<small>{{ diagnostics.worker_last_seen|local_datetime }}</small>{% endif %}
+    </div>
+</section>
+
+{% if diagnostics.issues %}
+<section class="simple-section">
+    <div class="simple-section-head"><h2>{{ t("Needs attention") }}</h2></div>
+    {% for issue in diagnostics.issues %}
+        <a class="diagnostic-row diagnostic-row-{{ issue.severity }}" href="{{ ROUTER.generate(issue.route) }}">
+            <div><strong>{{ issue.title|trans }}</strong><small>{{ issue.detail|trans }}</small></div>
+            <span>→</span>
+        </a>
+    {% endfor %}
+</section>
+{% endif %}
+
+<section class="simple-section">
+    <div class="activity-toolbar">
+        <div class="activity-filters">
+            <a class="filter-link {{ selected_severity is null ? 'active' : '' }}" href="{{ ROUTER.generate('activity') }}">{{ t("All") }} <span>{{ counts.all }}</span></a>
+            <a class="filter-link {{ selected_severity == 'info' ? 'active' : '' }}" href="{{ ROUTER.generate('activity') }}?severity=info">{{ t("Information") }} <span>{{ counts.info }}</span></a>
+            <a class="filter-link {{ selected_severity == 'success' ? 'active' : '' }}" href="{{ ROUTER.generate('activity') }}?severity=success">{{ t("Completed") }} <span>{{ counts.success }}</span></a>
+            <a class="filter-link {{ selected_severity == 'warning' ? 'active' : '' }}" href="{{ ROUTER.generate('activity') }}?severity=warning">{{ t("Warnings") }} <span>{{ counts.warning }}</span></a>
+            <a class="filter-link {{ selected_severity == 'error' ? 'active' : '' }}" href="{{ ROUTER.generate('activity') }}?severity=error">{{ t("Errors") }} <span>{{ counts.error }}</span></a>
+        </div>
+        <form method="get" class="activity-category-filter">
+            {% if selected_severity %}<input type="hidden" name="severity" value="{{ selected_severity }}">{% endif %}
+            <select name="category" onchange="this.form.submit()">
+                <option value="">{{ t("All activity") }}</option>
+                {% for category in categories %}<option value="{{ category }}" {{ selected_category == category ? 'selected' : '' }}>{{ category|status_label }}</option>{% endfor %}
+            </select>
+        </form>
+    </div>
+
+    <div class="activity-timeline">
+    {% for event in events %}
+        <article class="activity-event activity-event-{{ event.severity }}">
+            <div class="activity-event-marker"><span></span></div>
+            <div class="activity-event-body">
+                <div class="activity-event-head">
+                    <div>
+                        <strong>{{ event.title|trans }}</strong>
+                        {% if event.subject %}<span class="activity-subject">{{ event.subject }}</span>{% endif %}
+                    </div>
+                    <time>{{ event.created_at|local_datetime }}</time>
+                </div>
+                {% if event.summary %}<p>{{ event.summary|trans }}</p>{% endif %}
+                {% if event.technical_details %}
+                    <details class="technical-details">
+                        <summary>{{ t("Show technical details") }}</summary>
+                        <pre>{{ event.technical_details }}</pre>
+                        {% if event.operation_uuid %}<small>{{ t("Operation") }}: <code>{{ event.operation_uuid }}</code></small>{% endif %}
+                    </details>
+                {% endif %}
+            </div>
+        </article>
+    {% else %}
+        <div class="empty-inline"><strong>{{ t("No activity to show") }}</strong><p>{{ t("Completed backups, restores, maintenance and errors will appear here.") }}</p></div>
+    {% endfor %}
+    </div>
+</section>
+{% endblock %}

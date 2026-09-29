@@ -59,6 +59,8 @@ final class SettingsController extends AbstractController
                 'maintenance.auto_prune' => isset($_POST['maintenance_auto_prune']),
                 'maintenance.prune_interval_days' => $_POST['maintenance_prune_interval_days'] ?? 30,
                 'ui.language' => $_POST['ui_language'] ?? 'en',
+                'activity.retention_days' => $_POST['activity_retention_days'] ?? 30,
+                'activity.max_events' => $_POST['activity_max_events'] ?? 5000,
             ]);
             $session->set('flash_success', 'Settings saved. The worker will use the new values automatically.');
         } catch (InvalidArgumentException $exception) {

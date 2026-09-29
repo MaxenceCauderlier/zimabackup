@@ -21,6 +21,7 @@
             <a class="{{ CURRENT_PATH starts with '/repositories' ? 'active' : '' }}" href="{{ ROUTER.generate('repositories') }}">{{ t("Storage") }}</a>
             <a class="{{ (CURRENT_PATH starts with '/snapshots' or CURRENT_PATH starts with '/restores' or CURRENT_PATH starts with '/application-restores' or CURRENT_PATH starts with '/snapshot-applications') ? 'active' : '' }}" href="{{ ROUTER.generate('snapshots') }}">{{ t("Restore") }}</a>
             <a class="{{ CURRENT_PATH starts with '/applications' ? 'active' : '' }}" href="{{ ROUTER.generate('applications') }}">{{ t("Applications") }}</a>
+            <a class="{{ CURRENT_PATH starts with '/activity' ? 'active' : '' }}" href="{{ ROUTER.generate('activity') }}">{{ t("Activity") }}</a>
             <a class="{{ CURRENT_PATH starts with '/settings' ? 'active' : '' }}" href="{{ ROUTER.generate('settings') }}">{{ t("Settings") }}</a>
         </nav>
 

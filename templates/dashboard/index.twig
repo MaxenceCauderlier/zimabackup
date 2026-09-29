@@ -4,14 +4,17 @@
 
 {% block content %}
 <section class="overview-state">
-    {% if attention > 0 %}
-        <h1>{{ attention }} {{ t(attention == 1 ? 'item needs attention.' : 'items need attention.') }}</h1>
-        <p>{{ t("Open the relevant backup or storage location before relying on the next recovery point.") }}</p>
+    {% if diagnostics.status == 'error' %}
+        <h1>{{ t("ZimaBackup needs attention.") }}</h1>
+        <p>{{ t("One or more current problems can prevent reliable backups or restores.") }}</p>
+    {% elseif diagnostics.status == 'warning' %}
+        <h1>{{ t("Some items need attention.") }}</h1>
+        <p>{{ t("ZimaBackup found something worth checking before you rely on the next recovery point.") }}</p>
     {% elseif repository_count == 0 %}
         <h1>{{ t("No backup destination yet.") }}</h1>
         <p>{{ t("Add a backup storage location first, then define what ZimaBackup should protect.") }}</p>
     {% else %}
-        <h1>{{ t("Everything looks quiet.") }}</h1>
+        <h1>{{ t("Everything is working normally.") }}</h1>
         <p>
             {% if last_success %}{{ t("Last successful backup:") }} {{ last_success.job_name }} · {{ last_success.finished_at|local_datetime }}.{% else %}{{ t("No successful backup has been recorded yet.") }}{% endif %}
             {% if next_job %} {{ t("Next scheduled run:") }} {{ next_job.name }} · {{ next_job.next_run_at|local_datetime }}.{% endif %}
@@ -21,9 +24,20 @@
     <div class="overview-actions">
         <a class="button" href="{{ ROUTER.generate('backups.create') }}">{{ t("New backup") }}</a>
         <a class="button-secondary" href="{{ ROUTER.generate('snapshots') }}">{{ t("Restore") }}</a>
-        <a class="button-secondary" href="{{ ROUTER.generate('repositories.create') }}">{{ t("Add storage") }}</a>
+        <a class="button-secondary" href="{{ ROUTER.generate('activity') }}">{{ t("View activity") }}</a>
     </div>
 </section>
+
+{% if diagnostics.issues %}
+<section class="simple-section">
+    <div class="simple-section-head"><h2>{{ t("Needs attention") }}</h2><a class="text-link" href="{{ ROUTER.generate('activity') }}">{{ t("Diagnostics") }}</a></div>
+    {% for issue in diagnostics.issues|slice(0, 4) %}
+        <a class="diagnostic-row diagnostic-row-{{ issue.severity }}" href="{{ ROUTER.generate(issue.route) }}">
+            <div><strong>{{ issue.title|trans }}</strong><small>{{ issue.detail|trans }}</small></div><span>→</span>
+        </a>
+    {% endfor %}
+</section>
+{% endif %}
 
 <section class="simple-section">
     <div class="simple-section-head">
@@ -32,13 +46,8 @@
     </div>
     {% for job in jobs %}
         <a class="simple-row" href="{{ ROUTER.generate('backups.show', {uuid: job.uuid}) }}">
-            <div>
-                <strong>{{ job.name }}</strong>
-                <small>{{ job.repository_name }} · {{ job.schedule_type|status_label }}</small>
-            </div>
-            <div class="simple-row-meta">
-                {% if not job.enabled %}{{ 'disabled'|status_label }}{% elseif job.next_run_at %}{{ t('next') }} {{ job.next_run_at|local_datetime }}{% else %}{{ job.latest_status ? (job.latest_status|status_label) : t('not run yet') }}{% endif %}
-            </div>
+            <div><strong>{{ job.name }}</strong><small>{{ job.repository_name }} · {{ job.schedule_type|status_label }}</small></div>
+            <div class="simple-row-meta">{% if not job.enabled %}{{ 'disabled'|status_label }}{% elseif job.next_run_at %}{{ t('next') }} {{ job.next_run_at|local_datetime }}{% else %}{{ job.latest_status ? (job.latest_status|status_label) : t('not run yet') }}{% endif %}</div>
         </a>
     {% else %}
         <div class="empty-inline"><strong>{{ t("No backup jobs") }}</strong><p>{{ t("Create one when your first backup storage location is ready.") }}</p></div>
@@ -46,20 +55,14 @@
 </section>
 
 <section class="simple-section">
-    <div class="simple-section-head">
-        <h2>{{ t("Recent activity") }}</h2>
-        <span class="muted">{{ t("Backup engine:") }} {{ restic_version ?: t('unavailable') }}</span>
-    </div>
-    {% for run in recent_runs %}
-        <a class="simple-row" href="{{ ROUTER.generate('backups.show', {uuid: run.job_uuid}) }}">
-            <div>
-                <strong>{{ run.job_name }}</strong>
-                <small>{{ run.status|status_label }}{% if run.error %} · {{ (run.error|trans)|slice(0, 100) }}{% endif %}</small>
-            </div>
-            <div class="simple-row-meta">{{ (run.finished_at ?: run.started_at)|local_datetime }}</div>
+    <div class="simple-section-head"><h2>{{ t("Recent activity") }}</h2><a class="text-link" href="{{ ROUTER.generate('activity') }}">{{ t("View all") }}</a></div>
+    {% for event in recent_activity %}
+        <a class="simple-row" href="{{ ROUTER.generate('activity') }}">
+            <div><strong>{{ event.title|trans }}</strong><small>{% if event.subject %}{{ event.subject }} · {% endif %}{{ event.summary|trans }}</small></div>
+            <div class="simple-row-meta">{{ event.created_at|local_datetime }}</div>
         </a>
     {% else %}
-        <div class="empty-inline"><strong>{{ t("No activity yet") }}</strong><p>{{ t("Backup runs will appear here.") }}</p></div>
+        <div class="empty-inline"><strong>{{ t("No activity yet") }}</strong><p>{{ t("Completed backups, restores, maintenance and errors will appear here.") }}</p></div>
     {% endfor %}
 </section>
 {% endblock %}
