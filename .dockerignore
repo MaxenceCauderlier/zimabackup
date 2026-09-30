@@ -1,10 +1,12 @@
 .git
-.env
+.github
+.env*
 vendor
 storage
 dev-data
 dev-media
+dev-zimaos-apps
 packaging
-README.md
-
 tests
+README.md
+docker-compose*.yml

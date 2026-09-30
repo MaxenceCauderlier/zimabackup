@@ -59,7 +59,7 @@ x-casaos:
   description:
     en_US: Back up files and installed applications, keep encrypted recovery points, and restore application data from a simple ZimaOS-friendly interface.
     fr_FR: Sauvegardez vos fichiers et applications installées, conservez des points de récupération chiffrés et restaurez les données applicatives depuis une interface simple adaptée à ZimaOS.
-  author: MaxenceCauderlier
+  author: ZimaBackup
   developer: ZimaBackup
   category: Productivity
   architectures:

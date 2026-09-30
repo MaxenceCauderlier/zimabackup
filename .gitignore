@@ -20,3 +20,6 @@
 
 /dev-zimaos-apps/*
 !/dev-zimaos-apps/.gitkeep
+
+# Generated ZimaOS package
+/packaging/zimaos/docker-compose.generated.yml
