@@ -56,6 +56,7 @@ $discoveryInterval = max(30, $settings->getInt('apps.discovery.interval', (int) 
 $lastDiscovery = 0;
 $lastMaintenance = 0;
 $lastActivityCleanup = 0;
+$lastStorageProbe = 0;
 
 $safeActivity = static function (callable $callback): void {
     try {
@@ -314,6 +315,15 @@ while (true) {
             $safeActivity(static fn () => $activity->recordOperation($operation, false, $exception->getMessage()));
             fwrite(STDERR, sprintf("%s - Operation failed: %s\n", date('c'), $exception->getMessage()));
         }
+    }
+
+    if ((time() - $lastStorageProbe) >= 30) {
+        try {
+            $repositories->probeAllStorage();
+        } catch (Throwable $exception) {
+            fwrite(STDERR, sprintf("%s - Storage probe failed: %s\n", date('c'), $exception->getMessage()));
+        }
+        $lastStorageProbe = time();
     }
 
     $discoveryInterval = max(30, $settings->getInt('apps.discovery.interval', $discoveryInterval));

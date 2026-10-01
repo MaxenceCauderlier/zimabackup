@@ -31,7 +31,7 @@ final class RepositoryService
         );
 
         foreach ($repositories as &$repository) {
-            $this->decoratePresence($repository);
+            $this->decorateCachedPresence($repository);
         }
         unset($repository);
 
@@ -65,15 +65,10 @@ final class RepositoryService
             throw new InvalidArgumentException('An active repository already uses this path.');
         }
 
-        if ($this->repositoryConfigExists($containerPath)) {
-            throw new InvalidArgumentException(
-                'A Restic repository already exists at this path. Reconnecting an existing repository is not implemented yet; do not initialize over existing backup data.'
-            );
-        }
-
-        if (!$this->pathIsMissingOrEmpty($containerPath)) {
-            throw new InvalidArgumentException('Repository destination must be absent or empty before initialization.');
-        }
+        // Do not inspect the filesystem from the web process. On ZimaOS,
+        // /media can be intentionally inaccessible to www-data even though the
+        // privileged worker can use it. The worker revalidates the destination
+        // immediately before Restic initialization.
 
         $uuid = Uuid::v4();
         $recoveryKey = rtrim(strtr(base64_encode(random_bytes(32)), '+/', '-_'), '=');
@@ -147,13 +142,6 @@ final class RepositoryService
             throw new InvalidArgumentException('Repository not found.');
         }
 
-        $containerPath = $this->paths->toContainerPath((string) $repository['path']);
-        if (!$this->repositoryConfigExists($containerPath)) {
-            $message = $this->missingMessage((string) $repository['path']);
-            $this->markMissing((int) $repository['id'], $message);
-            throw new InvalidArgumentException($message);
-        }
-
         if (!in_array($repository['status'], ['ready', 'failed', 'missing'], true)) {
             throw new InvalidArgumentException('Repository must finish initialization before it can be checked.');
         }
@@ -203,7 +191,7 @@ final class RepositoryService
         $this->restic->checkRepository($path, $passwordFile);
         $now = date('c');
         $this->database->execute(
-            "UPDATE repositories SET status = 'ready', error = NULL, missing_since = NULL, last_check_status = 'success', last_check_at = :checked_at, last_check_error = NULL, updated_at = :checked_at WHERE id = :id",
+            "UPDATE repositories SET status = 'ready', error = NULL, missing_since = NULL, last_check_status = 'success', last_check_at = :checked_at, last_check_error = NULL, storage_present = 1, storage_empty = 0, storage_checked_at = :checked_at, updated_at = :checked_at WHERE id = :id",
             ['checked_at' => $now, 'id' => $repositoryId]
         );
     }
@@ -219,9 +207,10 @@ final class RepositoryService
             }
         }
 
+        $now = date('c');
         $this->database->execute(
-            "UPDATE repositories SET last_check_status = 'failed', last_check_at = :checked_at, last_check_error = :error WHERE id = :id",
-            ['checked_at' => date('c'), 'error' => substr($error, 0, 4000), 'id' => $repositoryId]
+            "UPDATE repositories SET last_check_status = 'failed', last_check_at = :checked_at, last_check_error = :error, storage_present = 1, storage_empty = 0, storage_checked_at = :checked_at WHERE id = :id",
+            ['checked_at' => $now, 'error' => substr($error, 0, 4000), 'id' => $repositoryId]
         );
     }
 
@@ -233,13 +222,6 @@ final class RepositoryService
         }
         if ($repository['status'] !== 'ready') {
             throw new InvalidArgumentException('Repository must be ready before pruning.');
-        }
-
-        $containerPath = $this->paths->toContainerPath((string) $repository['path']);
-        if (!$this->repositoryConfigExists($containerPath)) {
-            $message = $this->missingMessage((string) $repository['path']);
-            $this->markMissing((int) $repository['id'], $message);
-            throw new InvalidArgumentException($message);
         }
 
         $active = (int) $this->database->scalar(
@@ -284,7 +266,7 @@ final class RepositoryService
         $this->restic->pruneRepository($path, (string) $repository['password_file']);
         $now = date('c');
         $this->database->execute(
-            "UPDATE repositories SET last_prune_status = 'success', last_prune_at = :at, last_prune_error = NULL, updated_at = :at WHERE id = :id",
+            "UPDATE repositories SET last_prune_status = 'success', last_prune_at = :at, last_prune_error = NULL, storage_present = 1, storage_empty = 0, storage_checked_at = :at, updated_at = :at WHERE id = :id",
             ['at' => $now, 'id' => $repositoryId]
         );
     }
@@ -357,12 +339,11 @@ final class RepositoryService
             throw new InvalidArgumentException('Repository not found.');
         }
 
-        $containerPath = $this->paths->toContainerPath((string) $repository['path']);
-        if ($this->repositoryConfigExists($containerPath)) {
-            throw new InvalidArgumentException('A Restic config file is present again. Run an integrity check instead of reinitializing.');
+        if ((int) ($repository['storage_present'] ?? 0) === 1) {
+            throw new InvalidArgumentException('Backup storage is available again. Verify it instead of reinitializing.');
         }
-        if (!$this->pathIsMissingOrEmpty($containerPath)) {
-            throw new InvalidArgumentException('Reinitialization is blocked because the repository path contains files. Nothing was changed.');
+        if ((int) ($repository['storage_empty'] ?? 0) !== 1) {
+            throw new InvalidArgumentException('Reinitialization is available only after the background worker confirms that the destination is absent or empty.');
         }
         if (!is_readable((string) $repository['password_file'])) {
             throw new InvalidArgumentException('The existing repository recovery key is missing or unreadable.');
@@ -382,7 +363,7 @@ final class RepositoryService
             ['repository_id' => $repository['id'], 'operation_id' => $operationId]
         );
         $this->database->execute(
-            "UPDATE repositories SET status = 'reinitializing', error = NULL, last_check_status = NULL, last_check_error = NULL, updated_at = :updated_at WHERE id = :id",
+            "UPDATE repositories SET status = 'reinitializing', error = NULL, last_check_status = NULL, last_check_error = NULL, storage_present = 0, storage_empty = 1, updated_at = :updated_at WHERE id = :id",
             ['updated_at' => date('c'), 'id' => $repository['id']]
         );
     }
@@ -422,7 +403,7 @@ final class RepositoryService
         $this->restic->checkRepository($containerPath, $passwordFile);
         $now = date('c');
         $this->database->execute(
-            "UPDATE repositories SET status = 'ready', error = NULL, missing_since = NULL, last_check_at = :updated_at, last_check_status = 'success', last_check_error = NULL, updated_at = :updated_at WHERE id = :id",
+            "UPDATE repositories SET status = 'ready', error = NULL, missing_since = NULL, last_check_at = :updated_at, last_check_status = 'success', last_check_error = NULL, storage_present = 1, storage_empty = 0, storage_checked_at = :updated_at, updated_at = :updated_at WHERE id = :id",
             ['updated_at' => $now, 'id' => $repositoryId]
         );
 
@@ -526,7 +507,7 @@ final class RepositoryService
         $this->restic->checkRepository($containerPath, $passwordFile);
         $now = date('c');
         $this->database->execute(
-            "UPDATE repositories SET status = 'ready', error = NULL, missing_since = NULL, last_check_at = :updated_at, last_check_status = 'success', last_check_error = NULL, updated_at = :updated_at WHERE id = :id",
+            "UPDATE repositories SET status = 'ready', error = NULL, missing_since = NULL, last_check_at = :updated_at, last_check_status = 'success', last_check_error = NULL, storage_present = 1, storage_empty = 0, storage_checked_at = :updated_at, updated_at = :updated_at WHERE id = :id",
             ['updated_at' => $now, 'id' => $repositoryId]
         );
     }
@@ -539,35 +520,86 @@ final class RepositoryService
         );
     }
 
-    private function decoratePresence(array &$repository): void
+    /**
+     * Decorate one repository using the last storage probe performed by the
+     * background worker. The web process must not inspect /DATA or /media
+     * directly because ZimaOS can restrict those paths to root.
+     */
+    private function decorateCachedPresence(array &$repository): void
     {
-        $containerPath = $this->paths->toContainerPath((string) $repository['path']);
-        $present = $this->repositoryConfigExists($containerPath);
-        $repository['storage_present'] = $present;
-        $repository['storage_empty'] = $this->pathIsMissingOrEmpty($containerPath);
-        $repository['can_reinitialize'] = !$present && $repository['storage_empty'];
+        $checked = $repository['storage_checked_at'] ?? null;
+        $presentValue = $repository['storage_present'] ?? null;
+        $emptyValue = $repository['storage_empty'] ?? null;
 
-        if (!$present && in_array((string) $repository['status'], ['ready', 'missing'], true)) {
-            $message = $this->missingMessage((string) $repository['path']);
-            if ($repository['status'] !== 'missing') {
-                $this->markMissing((int) $repository['id'], $message);
-            }
-            $repository['status'] = 'missing';
-            $repository['error'] = $message;
-            $repository['missing_since'] = $repository['missing_since'] ?: date('c');
+        $repository['storage_state'] = $checked === null
+            ? 'unknown'
+            : ((int) $presentValue === 1 ? 'present' : 'missing');
+        $repository['storage_present'] = $checked !== null && (int) $presentValue === 1;
+        $repository['storage_empty'] = $checked !== null && (int) $emptyValue === 1;
+        $repository['can_reinitialize'] = $repository['storage_state'] === 'missing' && $repository['storage_empty'];
+    }
+
+    /** Probe every active repository. This method is intended for the worker. */
+    public function probeAllStorage(): void
+    {
+        $repositories = $this->database->fetchAll(
+            "SELECT * FROM repositories WHERE archived_at IS NULL AND status NOT IN ('pending','initializing','reinitializing') ORDER BY id ASC"
+        );
+
+        foreach ($repositories as $repository) {
+            $this->probeStorage((int) $repository['id']);
         }
     }
 
-    private function markMissing(int $repositoryId, string $message): void
+    /** Probe one repository from the worker and cache the result for the UI. */
+    public function probeStorage(int $repositoryId): void
+    {
+        $repository = $this->findById($repositoryId);
+        if ($repository === null || $repository['archived_at'] !== null) {
+            return;
+        }
+
+        $containerPath = $this->paths->toContainerPath((string) $repository['path']);
+        $present = $this->repositoryConfigExists($containerPath);
+        $empty = !$present && $this->pathIsMissingOrEmpty($containerPath);
+        $now = date('c');
+
+        $this->database->execute(
+            'UPDATE repositories SET storage_present = :present, storage_empty = :empty, storage_checked_at = :checked_at WHERE id = :id',
+            [
+                'present' => $present ? 1 : 0,
+                'empty' => $empty ? 1 : 0,
+                'checked_at' => $now,
+                'id' => $repositoryId,
+            ]
+        );
+
+        if ($present) {
+            if ((string) $repository['status'] === 'missing') {
+                $this->database->execute(
+                    "UPDATE repositories SET status = 'ready', error = NULL, missing_since = NULL, last_check_status = NULL, last_check_at = NULL, last_check_error = NULL, updated_at = :updated_at WHERE id = :id",
+                    ['updated_at' => $now, 'id' => $repositoryId]
+                );
+            }
+            return;
+        }
+
+        if (in_array((string) $repository['status'], ['ready', 'failed', 'missing'], true)) {
+            $this->markMissing($repositoryId, $this->missingMessage((string) $repository['path']), $empty);
+        }
+    }
+
+    private function markMissing(int $repositoryId, string $message, ?bool $empty = null): void
     {
         $now = date('c');
         $this->database->execute(
-            "UPDATE repositories SET status = 'missing', error = :error, missing_since = COALESCE(missing_since, :missing_since), last_check_status = 'failed', last_check_at = :checked_at, last_check_error = :error, updated_at = :updated_at WHERE id = :id",
+            "UPDATE repositories SET status = 'missing', error = :error, missing_since = COALESCE(missing_since, :missing_since), last_check_status = 'failed', last_check_at = :checked_at, last_check_error = :error, storage_present = 0, storage_empty = COALESCE(:storage_empty, storage_empty), storage_checked_at = :checked_at, updated_at = :updated_at WHERE id = :id",
             [
                 'error' => substr($message, 0, 4000),
                 'missing_since' => $now,
                 'checked_at' => $now,
                 'updated_at' => $now,
+                'storage_empty' => $empty === null ? null : ($empty ? 1 : 0),
                 'id' => $repositoryId,
             ]
         );

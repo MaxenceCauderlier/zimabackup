@@ -774,6 +774,7 @@ return json_decode(<<<'JSON'
   "starting containers": "démarrage des conteneurs",
   "storage missing": "stockage absent",
   "storage present": "stockage présent",
+  "storage check pending": "vérification du stockage en attente",
   "unavailable": "indisponible",
   "verifying": "vérification",
   "warning": "avertissement",
@@ -794,7 +795,9 @@ return json_decode(<<<'JSON'
   "← Restore history": "← Historique des restaurations",
   "← Restores": "← Restaurations",
   "← Snapshots": "← Snapshots",
-  "← Storage": "← Stockage"
+  "← Storage": "← Stockage",
+  "Backup storage is available again. Verify it instead of reinitializing.": "Le stockage de sauvegarde est de nouveau disponible. Vérifiez-le au lieu de le réinitialiser.",
+  "Reinitialization is available only after the background worker confirms that the destination is absent or empty.": "La réinitialisation est disponible uniquement après confirmation par le service en arrière-plan que la destination est absente ou vide."
 }
 JSON
 , true, 512, JSON_THROW_ON_ERROR);

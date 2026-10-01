@@ -382,11 +382,8 @@ final class BackupService
         if ($job['repository_status'] !== 'ready') {
             throw new InvalidArgumentException('The destination repository is not ready.');
         }
-        $repositoryPath = $this->paths->toContainerPath((string) $job['repository_path']);
-        if (!is_file(rtrim($repositoryPath, '/') . '/config')) {
-            $this->markRepositoryMissing((int) $job['repo_id'], (string) $job['repository_path']);
-            throw new InvalidArgumentException('The destination repository storage is missing. Open Repositories for recovery options.');
-        }
+        // Do not inspect /media from the web process. The worker validates
+        // the repository immediately before the backup starts.
 
         $pdo = $this->database->pdo();
         $pdo->exec('BEGIN IMMEDIATE');
