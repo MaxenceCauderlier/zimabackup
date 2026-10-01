@@ -76,10 +76,9 @@ final class ApplicationInstallService
             }
         }
 
-        if ($this->isApplicationPresent((string) $restore['app_key'])) {
-            throw new InvalidArgumentException('This application is already present in Docker. ZimaBackup will not replace an existing deployment.');
-        }
-
+        // Do not query Docker from the web process here. The web container
+        // intentionally has no Docker socket. The privileged worker repeats
+        // this safety check immediately before creating any Docker object.
         $active = (int) $this->database->scalar(
             "SELECT COUNT(*) FROM application_install_runs WHERE application_restore_run_id = :id AND status IN ('pending', 'running')",
             ['id' => (int) $restore['id']]
