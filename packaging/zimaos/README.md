@@ -1,37 +1,35 @@
-# ZimaOS package
+# ZimaBackup package for ZimaOS / CasaOS
 
-This directory contains the source Compose definition used to test ZimaBackup as a custom ZimaOS application.
+This directory contains the Docker Compose definition intended for direct import as a custom ZimaOS/CasaOS application. It follows the current top-level `x-casaos` schema.
 
-## 1. Publish the container image
+## Before importing
 
-Push the project to GitHub. The workflow in `.github/workflows/docker-publish.yml` publishes:
-
-- `develop` -> `ghcr.io/MaxenceCauderlier/zimabackup:dev`
-- `main` -> `ghcr.io/MaxenceCauderlier/zimabackup:edge`
-- `vX.Y.Z` tag -> `X.Y.Z`, `X.Y` and `latest`
-
-After the first GHCR publication, make the package public in GitHub Package settings if anonymous ZimaOS pulls are desired.
-
-## 2. Generate your ZimaOS Compose
-
-From the project root:
+1. Publish the ZimaBackup image to GHCR.
+2. Make the GHCR package public if ZimaOS should pull it without credentials.
+3. Generate the Compose file. This package already defaults to GitHub owner `maxencecauderlier`:
 
 ```bash
-./packaging/zimaos/render-compose.sh YOUR_GITHUB_USERNAME 0.15.1
+./packaging/zimaos/render-compose.sh
 ```
 
-This creates `packaging/zimaos/docker-compose.generated.yml` with the image, repository and metadata URLs filled in.
+This creates `packaging/zimaos/docker-compose.generated.yml`.
 
-## 3. Import into ZimaOS
+## Import into ZimaOS / CasaOS
 
-Use the generated Compose as a custom application definition in ZimaOS. ZimaBackup stores persistent state in:
+Open the custom app / Compose import screen and paste or upload the generated compose file. The app exposes the web interface through `${WEBUI_PORT:-8090}` so CasaOS/ZimaOS can assign the Web UI port when supported.
+
+Persistent ZimaBackup state is stored at:
 
 ```text
 /DATA/AppData/ZimaBackup
 ```
 
-The browser-facing service receives `/DATA` and `/media` read-only. The worker receives them read/write and receives the Docker socket. `/var/lib/casaos/apps` is mounted read-only so ZimaBackup can preserve exact installed ZimaOS application definitions.
+The web service can read `/DATA` and `/media` but does not receive the Docker socket. The worker can write to `/DATA` and `/media`, receives `/var/run/docker.sock`, and reads `/var/lib/casaos/apps` so ZimaBackup can preserve installed ZimaOS application definitions.
 
-## Security note
+## Security
 
-The worker Docker socket is intentionally isolated from the web service. Access to `/var/run/docker.sock`, even when mounted read-only, is highly privileged because Docker API operations are not equivalent to filesystem read-only access.
+The Docker socket gives the worker very high privileges even when mounted with `:ro`; the suffix only makes the socket filesystem mount read-only and does not turn Docker API access into read-only access. This privilege is intentionally isolated from the browser-facing service.
+
+## Architecture
+
+The current GHCR workflow publishes `linux/amd64`, so the package declares only `amd64`. Add arm64 to both the image build and `x-casaos.architectures` only after the image is published and tested for arm64.

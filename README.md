@@ -2,9 +2,9 @@
 
 ZimaBackup is a lightweight, application-aware backup and disaster-recovery manager for ZimaOS, built with PHP 8.4, Twig, SQLite and Restic.
 
-## Current milestone — v0.15.1 GHCR distribution
+## Current milestone — v0.15.2 GHCR distribution
 
-v0.15.1 adds a production distribution path through GitHub Container Registry (GHCR), a GitHub Actions publishing workflow, a prebuilt-image Compose file and a ZimaOS custom-app Compose definition. The v0.15.0 read-only ZimaOS integration remains unchanged: When the worker can read `/var/lib/casaos/apps`, ZimaBackup captures the exact installed `docker-compose.yml` together with its `x-casaos` metadata and stores it only inside the encrypted application backup manifest. Docker Inspect remains available as a runtime fallback when an exact ZimaOS definition cannot be found.
+v0.15.2 adds a production distribution path through GitHub Container Registry (GHCR), a GitHub Actions publishing workflow, a prebuilt-image Compose file and a ZimaOS custom-app Compose definition. The v0.15.0 read-only ZimaOS integration remains unchanged: When the worker can read `/var/lib/casaos/apps`, ZimaBackup captures the exact installed `docker-compose.yml` together with its `x-casaos` metadata and stores it only inside the encrypted application backup manifest. Docker Inspect remains available as a runtime fallback when an exact ZimaOS definition cannot be found.
 
 The browser never receives the raw installed Compose file. Snapshot previews mask environment values, while application restores write the original Compose definition to the protected staging workspace with mode `0600`.
 
@@ -110,8 +110,8 @@ ZimaBackup can be built and published automatically to GitHub Container Registry
 
 Publishing rules:
 
-- `develop` -> `ghcr.io/MaxenceCauderlier/zimabackup:dev`
-- `main` -> `ghcr.io/MaxenceCauderlier/zimabackup:edge`
+- `develop` -> `ghcr.io/maxencecauderlier/zimabackup:dev`
+- `main` -> `ghcr.io/maxencecauderlier/zimabackup:edge`
 - Git tag `vX.Y.Z` -> `X.Y.Z`, `X.Y` and `latest`
 - every published build also receives a `sha-...` traceability tag
 
@@ -136,10 +136,10 @@ docker compose -f docker-compose.ghcr.yml up -d
 
 ### Prepare a ZimaOS custom application
 
-Generate a Compose file with your GitHub owner and image tag:
+Generate the ZimaOS Compose file (defaults are already set to `maxencecauderlier` and `0.15.2`):
 
 ```bash
-./packaging/zimaos/render-compose.sh YOUR_GITHUB_USERNAME 0.15.1
+./packaging/zimaos/render-compose.sh
 ```
 
 The generated file is:
@@ -231,7 +231,7 @@ The test passes when the recreated Docker project is running and `http://localho
 
 Keep the existing `storage/` directory.
 
-v0.15.1 adds no database migration. Previous migrations are kept and applied automatically when required.
+v0.15.2 adds no database migration. Previous migrations are kept and applied automatically when required.
 
 ```bash
 docker compose down
@@ -276,7 +276,7 @@ docker compose logs -f worker
 
 
 
-## v0.15.1 - GHCR Distribution
+## v0.15.2 - GHCR Distribution
 
 - Production-oriented multi-stage Dockerfile with build-only Composer tooling removed from the runtime image.
 - GitHub Actions workflow publishes GHCR images from `develop`, `main` and semantic version tags.
