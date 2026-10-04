@@ -2,9 +2,9 @@
 
 ZimaBackup is a lightweight, application-aware backup and disaster-recovery manager for ZimaOS, built with PHP 8.4, Twig, SQLite and Restic.
 
-## Current milestone — v0.15.4 ZimaOS storage permissions fix
+## Current milestone — v0.15.5 Application install staging fix
 
-v0.15.4 fixes ZimaOS storage detection when `/media` is accessible to the privileged worker but intentionally not traversable by the web process. Storage presence is now probed by the worker and cached in SQLite for the UI. The GHCR distribution and ZimaOS custom-app packaging remain available. The v0.15.0 read-only ZimaOS integration remains unchanged: When the worker can read `/var/lib/casaos/apps`, ZimaBackup captures the exact installed `docker-compose.yml` together with its `x-casaos` metadata and stores it only inside the encrypted application backup manifest. Docker Inspect remains available as a runtime fallback when an exact ZimaOS definition cannot be found.
+v0.15.5 fixes Restore & Install on ZimaOS. The unprivileged web process no longer tries to read the protected application staging workspace. The worker now persists the authoritative manifest obtained with `restic dump` to the exact staging path expected by installation, using mode `0600`, and only the worker reads it before touching Docker. The v0.15.3 storage-permission fix remains included.
 
 The browser never receives the raw installed Compose file. Snapshot previews mask environment values, while application restores write the original Compose definition to the protected staging workspace with mode `0600`.
 
@@ -136,7 +136,7 @@ docker compose -f docker-compose.ghcr.yml up -d
 
 ### Prepare a ZimaOS custom application
 
-Generate the ZimaOS Compose file (defaults are already set to `maxencecauderlier` and `0.15.4`):
+Generate the ZimaOS Compose file (defaults are already set to `maxencecauderlier` and `0.15.5`):
 
 ```bash
 ./packaging/zimaos/render-compose.sh
@@ -231,7 +231,7 @@ The test passes when the recreated Docker project is running and `http://localho
 
 Keep the existing `storage/` directory.
 
-v0.15.4 adds no database migration. Previous migrations are kept and applied automatically when required.
+v0.15.5 adds no database migration. Previous migrations are kept and applied automatically when required.
 
 ```bash
 docker compose down
@@ -276,7 +276,7 @@ docker compose logs -f worker
 
 
 
-## v0.15.4 - GHCR Distribution
+## v0.15.5 - GHCR Distribution
 
 - Production-oriented multi-stage Dockerfile with build-only Composer tooling removed from the runtime image.
 - GitHub Actions workflow publishes GHCR images from `develop`, `main` and semantic version tags.
@@ -341,10 +341,20 @@ This release makes Restore a practical recovery workflow instead of an all-or-no
 - Cleanup runs through the worker and refuses symlinked restore paths.
 
 
-## v0.15.4 - ZimaOS Storage Permission Fix
+## v0.15.5 - ZimaOS Storage Permission Fix
 
 - Storage presence is probed by the privileged background worker and cached in SQLite.
 - The web process no longer traverses `/media` to decide whether a backup repository exists.
 - Fixes false `missing` states on ZimaOS disks mounted with restrictive permissions such as `root:root 0750`.
 - Repository initialization still validates existing data in the worker immediately before `restic init`.
 - Manual backup queueing no longer performs a web-side repository filesystem check.
+
+
+## v0.15.5 - Application Install Staging Fix
+
+- The web process no longer reads the protected restored application manifest.
+- `application.install` queueing stays unprivileged; Docker and manifest checks happen in the worker.
+- Application restore explicitly persists the manifest obtained via `restic dump` at the recorded staging path.
+- Restored manifest directories remain private and the manifest file is written with mode `0600`.
+- The final Docker project name is resolved from the manifest by the worker just before installation.
+- No database migration is required.

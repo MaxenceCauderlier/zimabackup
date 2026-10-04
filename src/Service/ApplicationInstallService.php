@@ -95,8 +95,10 @@ final class ApplicationInstallService
             throw new InvalidArgumentException('This restored application has already been installed successfully.');
         }
 
-        $manifest = $this->loadManifest($restore);
-        $projectName = $this->safeName((string) ($manifest['project_name'] ?? $manifest['name'] ?? $restore['app_name']));
+        // The web process intentionally cannot read the privileged staging
+        // directory. Keep queueing unprivileged and let the worker load the
+        // restored manifest immediately before touching Docker.
+        $projectName = $this->safeName((string) ($restore['app_name'] ?? 'application'));
         $uuid = Uuid::v4();
         $now = date('c');
 
@@ -156,6 +158,10 @@ final class ApplicationInstallService
         }
 
         $projectName = $this->safeName((string) ($manifest['project_name'] ?? $manifest['name'] ?? $install['app_name']));
+        $this->database->execute(
+            'UPDATE application_install_runs SET project_name = :project_name WHERE id = :id',
+            ['project_name' => $projectName, 'id' => $installRunId]
+        );
         $hostRoots = $this->currentHostRoots();
 
         $this->database->execute(

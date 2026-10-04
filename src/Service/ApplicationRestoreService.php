@@ -300,6 +300,16 @@ final class ApplicationRestoreService
             throw new RuntimeException('The application manifest has an unsupported schema.');
         }
 
+        // Restic's filtered restore layout is not used as an implicit contract
+        // for later installation. We already have the authoritative manifest
+        // through `restic dump`, so persist it explicitly at the path recorded
+        // in snapshot_applications. Only the worker can access this 0600 file.
+        $this->writeManifestToStaging(
+            $stagingPath,
+            (string) $run['manifest_path'],
+            $rawManifest
+        );
+
         $zimaos = is_array($manifest['zimaos'] ?? null) ? $manifest['zimaos'] : [];
         $exactCompose = is_string($zimaos['compose_yaml'] ?? null) ? trim((string) $zimaos['compose_yaml']) : '';
         $compose = $exactCompose !== ''
@@ -451,6 +461,34 @@ final class ApplicationRestoreService
             "UPDATE application_restore_runs SET status = 'failed', finished_at = :finished_at, error = :error WHERE id = :id",
             ['finished_at' => date('c'), 'error' => substr($error, 0, 4000), 'id' => $restoreRunId]
         );
+    }
+
+    private function writeManifestToStaging(string $stagingPath, string $manifestPath, string $contents): void
+    {
+        $manifestPath = str_replace('\\', '/', trim($manifestPath));
+        $relative = ltrim($manifestPath, '/');
+        if ($relative === '' || str_contains($relative, "\0")) {
+            throw new RuntimeException('The restored application manifest path is invalid.');
+        }
+
+        $segments = explode('/', $relative);
+        foreach ($segments as $segment) {
+            if ($segment === '' || $segment === '.' || $segment === '..') {
+                throw new RuntimeException('The restored application manifest path is unsafe.');
+            }
+        }
+
+        $target = rtrim($stagingPath, '/') . '/' . $relative;
+        $directory = dirname($target);
+        if (!is_dir($directory) && !mkdir($directory, 0700, true) && !is_dir($directory)) {
+            throw new RuntimeException('Unable to create the restored application manifest directory.');
+        }
+        chmod($directory, 0700);
+
+        if (file_put_contents($target, $contents, LOCK_EX) === false) {
+            throw new RuntimeException('Unable to persist the restored application manifest.');
+        }
+        chmod($target, 0600);
     }
 
     private function validateRestoreSource(string $source, string $repositoryPath): string
