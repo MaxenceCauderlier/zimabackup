@@ -7,7 +7,7 @@ if [ "$#" -gt 2 ]; then
 fi
 
 owner="${1:-maxencecauderlier}"
-tag="${2:-0.15.3}"
+tag="${2:-0.15.6}"
 case "$owner" in
     *[!A-Za-z0-9_.-]*|'')
         echo "Invalid GitHub owner: $owner" >&2

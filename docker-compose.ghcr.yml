@@ -2,7 +2,7 @@ name: zimabackup
 
 services:
   app:
-    image: "${ZIMABACKUP_IMAGE:-ghcr.io/maxencecauderlier/zimabackup:0.15.5}"
+    image: "${ZIMABACKUP_IMAGE:-ghcr.io/maxencecauderlier/zimabackup:0.15.6}"
     restart: unless-stopped
     labels:
       org.zimabackup.internal: "true"
@@ -19,7 +19,7 @@ services:
       - "${ZIMABACKUP_MEDIA_PATH:-/media}:/media:ro"
 
   worker:
-    image: "${ZIMABACKUP_IMAGE:-ghcr.io/maxencecauderlier/zimabackup:0.15.5}"
+    image: "${ZIMABACKUP_IMAGE:-ghcr.io/maxencecauderlier/zimabackup:0.15.6}"
     restart: unless-stopped
     labels:
       org.zimabackup.internal: "true"

@@ -542,12 +542,25 @@ final class ApplicationInstallService
             }
         }
 
-        // Two common read-only system mounts are safe to reuse verbatim. Other
-        // arbitrary host binds require manual review instead of automatic root
-        // access during a disaster recovery install.
+        // Reuse only a deliberately small set of host-system binds that are
+        // known to be part of supported ZimaOS/CasaOS application definitions.
+        // These paths are references to host facilities, not application data,
+        // so they are not restored from Restic. Never broaden this into a
+        // generic /opt, /etc, /proc, /sys or /var allow-list: mounts such as the
+        // Docker socket need an explicit higher-risk recovery flow instead.
         if (!$readWrite && in_array($source, ['/etc/localtime', '/etc/timezone'], true)) {
             return $source;
         }
+
+        // The official CasaOS/ZimaOS Jellyfin definition mounts the Raspberry
+        // Pi OpenMAX libraries from /opt/vc/lib. Docker Inspect reports that
+        // bind as read/write because the Compose definition does not set :ro.
+        // Reusing this exact path is intentionally allowed; arbitrary /opt
+        // paths remain blocked.
+        if ($source === '/opt/vc/lib') {
+            return $source;
+        }
+
         throw new RuntimeException(sprintf('Automatic install refused host bind outside /DATA and /media: %s', $source));
     }
 
