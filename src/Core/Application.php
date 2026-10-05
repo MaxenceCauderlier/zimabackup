@@ -32,6 +32,7 @@ use ZimaBackup\Service\SnapshotApplicationService;
 use ZimaBackup\Service\TaskQueueService;
 use ZimaBackup\Service\Translator;
 use ZimaBackup\Service\ZimaOsAppDefinitionService;
+use ZimaBackup\Service\ZimaOsApiClient;
 
 final class Application
 {
@@ -108,6 +109,7 @@ final class Application
         $docker = new DockerEngineClient(getenv('DOCKER_SOCKET') ?: '/var/run/docker.sock');
         $composePreview = new ComposePreviewService();
         $zimaosDefinitions = new ZimaOsAppDefinitionService(getenv('ZIMAOS_APPS_ROOT') ?: '/var/lib/casaos/apps');
+        $zimaosApi = new ZimaOsApiClient(getenv('ZIMAOS_API_BASE_URL') ?: '');
         $appDiscovery = new ApplicationDiscoveryService(
             $this->database,
             $docker,
@@ -131,6 +133,7 @@ final class Application
             DiagnosticsService::class => $diagnostics,
             DockerEngineClient::class => $docker,
             ZimaOsAppDefinitionService::class => $zimaosDefinitions,
+            ZimaOsApiClient::class => $zimaosApi,
             ApplicationDiscoveryService::class => $appDiscovery,
             ComposePreviewService::class => $composePreview,
         ];
@@ -178,7 +181,9 @@ final class Application
             $this->database,
             $pathService,
             $docker,
-            $queue
+            $queue,
+            $zimaosApi,
+            $this->rootPath . '/storage/secrets/application-installs'
         );
         $this->services[SnapshotService::class] = new SnapshotService(
             $this->database,

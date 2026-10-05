@@ -289,8 +289,11 @@ while (true) {
                         throw new RuntimeException('application.install task has no valid application_install_run_id.');
                     }
 
+                    $credentialPath = isset($operation['payload']['credentials_path'])
+                        ? (string) $operation['payload']['credentials_path']
+                        : null;
                     try {
-                        $applicationInstalls->execute($applicationInstallRunId);
+                        $applicationInstalls->execute($applicationInstallRunId, $credentialPath);
                     } catch (Throwable $exception) {
                         // execute() records the rollback-aware failure itself. This is
                         // still called for preflight errors that occur before its catch.
@@ -299,6 +302,12 @@ while (true) {
                             $applicationInstalls->markFailed($applicationInstallRunId, $exception->getMessage());
                         }
                         throw $exception;
+                    } finally {
+                        // Credentials are a one-shot handoff from the web process to the
+                        // worker and must not survive a completed or failed operation.
+                        if ($credentialPath !== null && is_file($credentialPath)) {
+                            @unlink($credentialPath);
+                        }
                     }
 
                     $queue->complete((int) $operation['id'], ['application_install_run_id' => $applicationInstallRunId]);

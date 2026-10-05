@@ -92,6 +92,7 @@ final class ApplicationRestoreController extends AbstractController
         return $this->render('application-restores/show.twig', [
             'restore' => $restore,
             'install' => $installs->latestForRestore((int) $restore['id']),
+            'native_zimaos_install' => $installs->nativeModeForRestore($restore),
             'install_error' => null,
             'flash_success' => $session->pull('flash_success'),
             'flash_error' => $session->pull('flash_error'),
@@ -119,18 +120,25 @@ final class ApplicationRestoreController extends AbstractController
         $installs = $this->app->service(ApplicationInstallService::class);
 
         try {
-            $installs->enqueue($uuid, trim((string) ($_POST['confirm_install'] ?? '')));
+            $installs->enqueue(
+                $uuid,
+                trim((string) ($_POST['confirm_install'] ?? '')),
+                trim((string) ($_POST['zimaos_username'] ?? '')),
+                (string) ($_POST['zimaos_password'] ?? '')
+            );
             return $this->redirect('application-restores.show', ['uuid' => $uuid]);
         } catch (InvalidArgumentException $exception) {
             return $this->render('application-restores/show.twig', [
                 'restore' => $restore,
                 'install' => $installs->latestForRestore((int) $restore['id']),
+                'native_zimaos_install' => $installs->nativeModeForRestore($restore),
                 'install_error' => $exception->getMessage(),
             ]);
         } catch (Throwable $exception) {
             return $this->render('application-restores/show.twig', [
                 'restore' => $restore,
                 'install' => $installs->latestForRestore((int) $restore['id']),
+                'native_zimaos_install' => $installs->nativeModeForRestore($restore),
                 'install_error' => 'Unable to queue application install: ' . $exception->getMessage(),
             ]);
         }

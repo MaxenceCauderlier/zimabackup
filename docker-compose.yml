@@ -2,7 +2,7 @@ name: zimabackup
 
 services:
   zimabackup:
-    image: ghcr.io/maxencecauderlier/zimabackup:0.15.8
+    image: ghcr.io/maxencecauderlier/zimabackup:0.15.9
     restart: unless-stopped
     labels:
       org.zimabackup.internal: "true"
@@ -15,13 +15,14 @@ services:
       APP_DEBUG: "0"
       TZ: "${TZ:-Europe/Paris}"
       RESTIC_CACHE_DIR: /var/www/html/storage/cache/restic
+      ZIMAOS_API_BASE_URL: "${ZIMAOS_API_BASE_URL:-http://host.docker.internal}"
     volumes:
       - /DATA/AppData/ZimaBackup:/var/www/html/storage
       - /DATA:/DATA:ro
       - /media:/media:ro
 
   worker:
-    image: ghcr.io/maxencecauderlier/zimabackup:0.15.8
+    image: ghcr.io/maxencecauderlier/zimabackup:0.15.9
     restart: unless-stopped
     labels:
       org.zimabackup.internal: "true"
@@ -36,6 +37,9 @@ services:
       DOCKER_SOCKET: /var/run/docker.sock
       ZIMABACKUP_COMPOSE_PROJECT: zimabackup
       ZIMAOS_APPS_ROOT: /var/lib/casaos/apps
+      ZIMAOS_API_BASE_URL: "${ZIMAOS_API_BASE_URL:-http://host.docker.internal}"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     volumes:
       - /DATA/AppData/ZimaBackup:/var/www/html/storage
       - /DATA:/DATA
@@ -77,12 +81,12 @@ x-casaos:
   category: Productivity
   architectures:
     - amd64
-  version: "0.15.8"
-  update_at: "2026-10-01"
+  version: "0.15.9"
+  update_at: "2026-10-05"
 
   release_notes:
-    en_US: ZimaOS storage detection now runs through the privileged worker, fixing false missing-storage reports caused by ZimaOS filesystem permissions.
-    fr_FR: La détection des stockages ZimaOS est désormais effectuée par le worker privilégié, ce qui corrige les faux signalements de stockage absent liés aux permissions du système de fichiers.
+    en_US: Application recovery can now register exact ZimaOS backups natively through App Management API v2 instead of bypassing ZimaOS through direct Docker creation.
+    fr_FR: La restauration d’application peut désormais réinstaller nativement les sauvegardes ZimaOS exactes via l’API App Management v2 au lieu de contourner ZimaOS par une création Docker directe.
 
   website: https://github.com/maxencecauderlier/zimabackup
   repo: https://github.com/maxencecauderlier/zimabackup

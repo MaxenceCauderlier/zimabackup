@@ -15,6 +15,7 @@ services:
       APP_DEBUG: "${APP_DEBUG:-1}"
       TZ: "${TZ:-Europe/Paris}"
       RESTIC_CACHE_DIR: /var/www/html/storage/cache/restic
+      ZIMAOS_API_BASE_URL: "${ZIMAOS_API_BASE_URL:-}"
     volumes:
       - ./storage:/var/www/html/storage
       - "${ZIMABACKUP_DATA_PATH:-./dev-data}:/DATA:ro"
@@ -38,6 +39,9 @@ services:
       DOCKER_SOCKET: /var/run/docker.sock
       ZIMABACKUP_COMPOSE_PROJECT: zimabackup
       ZIMAOS_APPS_ROOT: /var/lib/casaos/apps
+      ZIMAOS_API_BASE_URL: "${ZIMAOS_API_BASE_URL:-}"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     volumes:
       - ./storage:/var/www/html/storage
       - "${ZIMABACKUP_DATA_PATH:-./dev-data}:/DATA"

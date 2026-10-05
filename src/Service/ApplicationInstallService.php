@@ -26,7 +26,14 @@ final class ApplicationInstallService
         private readonly PathService $paths,
         private readonly DockerEngineClient $docker,
         private readonly TaskQueueService $queue,
+        private readonly ZimaOsApiClient $zimaosApi,
+        private readonly string $credentialDirectory,
     ) {
+    }
+
+    public function nativeModeForRestore(array $restore): bool
+    {
+        return $this->zimaosApi->isConfigured() && (bool) ($restore['exact_definition'] ?? false);
     }
 
     public function latestForRestore(int $restoreRunId): ?array
@@ -46,7 +53,7 @@ final class ApplicationInstallService
         ));
     }
 
-    public function enqueue(string $restoreUuid, string $confirm): array
+    public function enqueue(string $restoreUuid, string $confirm, string $zimaosUsername = '', string $zimaosPassword = ''): array
     {
         if (strtoupper(trim($confirm)) !== 'INSTALL') {
             throw new InvalidArgumentException('Type INSTALL to confirm application creation and startup.');
@@ -87,42 +94,65 @@ final class ApplicationInstallService
             throw new InvalidArgumentException('An installation is already queued or running for this restore.');
         }
 
+        $installMethod = $this->nativeModeForRestore($restore) ? 'zimaos' : 'docker';
         $successful = (int) $this->database->scalar(
-            "SELECT COUNT(*) FROM application_install_runs WHERE application_restore_run_id = :id AND status = 'success'",
-            ['id' => (int) $restore['id']]
+            "SELECT COUNT(*) FROM application_install_runs WHERE application_restore_run_id = :id AND status = 'success' AND install_method = :method",
+            ['id' => (int) $restore['id'], 'method' => $installMethod]
         );
         if ($successful > 0) {
-            throw new InvalidArgumentException('This restored application has already been installed successfully.');
+            throw new InvalidArgumentException($installMethod === 'zimaos'
+                ? 'This restored application is already registered in ZimaOS.'
+                : 'This restored application has already been installed successfully.');
+        }
+
+        // Native ZimaOS restore uses credentials only long enough for the worker
+        // to obtain a short-lived access token. They are never stored in SQLite.
+        $credentialPath = null;
+        if ($installMethod === 'zimaos') {
+            if (trim($zimaosUsername) === '' || $zimaosPassword === '') {
+                throw new InvalidArgumentException('Enter your ZimaOS username and password to restore this application natively.');
+            }
         }
 
         // The web process intentionally cannot read the privileged staging
         // directory. Keep queueing unprivileged and let the worker load the
-        // restored manifest immediately before touching Docker.
+        // restored manifest immediately before touching Docker or ZimaOS.
         $projectName = $this->safeName((string) ($restore['app_name'] ?? 'application'));
         $uuid = Uuid::v4();
         $now = date('c');
+        if ($installMethod === 'zimaos') {
+            $credentialPath = $this->persistCredentials($uuid, trim($zimaosUsername), $zimaosPassword);
+        }
 
         $pdo = $this->database->pdo();
         $pdo->exec('BEGIN IMMEDIATE');
         try {
             $this->database->execute(
-                "INSERT INTO application_install_runs(uuid, application_restore_run_id, app_key, app_name, project_name, status, stage, created_at) " .
-                "VALUES (:uuid, :restore_id, :app_key, :app_name, :project_name, 'pending', 'queued', :created_at)",
+                "INSERT INTO application_install_runs(uuid, application_restore_run_id, app_key, app_name, project_name, status, stage, install_method, created_at) " .
+                "VALUES (:uuid, :restore_id, :app_key, :app_name, :project_name, 'pending', 'queued', :install_method, :created_at)",
                 [
                     'uuid' => $uuid,
                     'restore_id' => (int) $restore['id'],
                     'app_key' => (string) $restore['app_key'],
                     'app_name' => (string) $restore['app_name'],
                     'project_name' => $projectName,
+                    'install_method' => $installMethod,
                     'created_at' => $now,
                 ]
             );
             $installId = $this->database->lastInsertId();
-            $this->queue->enqueue('application.install', ['application_install_run_id' => $installId]);
+            $payload = ['application_install_run_id' => $installId];
+            if ($credentialPath !== null) {
+                $payload['credentials_path'] = $credentialPath;
+            }
+            $this->queue->enqueue('application.install', $payload);
             $pdo->commit();
         } catch (Throwable $exception) {
             if ($pdo->inTransaction()) {
                 $pdo->rollBack();
+            }
+            if ($credentialPath !== null && is_file($credentialPath)) {
+                @unlink($credentialPath);
             }
             throw $exception;
         }
@@ -130,11 +160,11 @@ final class ApplicationInstallService
         return $this->findById($installId) ?? [];
     }
 
-    public function execute(int $installRunId): void
+    public function execute(int $installRunId, ?string $credentialPath = null): void
     {
         $install = $this->database->fetchOne(
             'SELECT ai.*, ar.uuid AS restore_uuid, ar.status AS restore_status, ar.mode AS restore_mode, ar.staging_path, ' .
-            'ar.selected_mounts_json, ar.applied_paths_json, sa.manifest_path ' .
+            'ar.selected_mounts_json, ar.applied_paths_json, ar.compose_path, sa.manifest_path, sa.exact_definition, sa.zimaos_app_id ' .
             'FROM application_install_runs ai ' .
             'JOIN application_restore_runs ar ON ar.id = ai.application_restore_run_id ' .
             'JOIN snapshot_applications sa ON sa.id = ar.snapshot_application_id ' .
@@ -146,6 +176,10 @@ final class ApplicationInstallService
         }
         if ($install['restore_status'] !== 'success' || $install['restore_mode'] !== 'original') {
             throw new RuntimeException('Application installation requires a successful original-path restore.');
+        }
+        if (($install['install_method'] ?? 'docker') === 'zimaos') {
+            $this->executeNativeZimaOs($installRunId, $install, $credentialPath);
+            return;
         }
         if ($this->isApplicationPresent((string) $install['app_key'])) {
             throw new RuntimeException('Application appeared in Docker before installation started. Existing deployments are never replaced.');
@@ -277,6 +311,141 @@ final class ApplicationInstallService
         }
     }
 
+    private function executeNativeZimaOs(int $installRunId, array $install, ?string $credentialPath): void
+    {
+        if (!$this->zimaosApi->isConfigured()) {
+            throw new RuntimeException('Native ZimaOS restore is not configured on this installation.');
+        }
+        $manifest = $this->loadManifest($install);
+        $zimaos = is_array($manifest['zimaos'] ?? null) ? $manifest['zimaos'] : [];
+        $composeYaml = is_string($zimaos['compose_yaml'] ?? null) ? trim((string) $zimaos['compose_yaml']) : '';
+        if ($composeYaml === '') {
+            throw new RuntimeException('This recovery point does not contain an exact ZimaOS Compose definition.');
+        }
+        $projectName = $this->safeName((string) ($manifest['project_name'] ?? $manifest['name'] ?? $install['app_name']));
+        $this->database->execute(
+            "UPDATE application_install_runs SET project_name = :project_name, status = 'running', stage = 'zimaos-authentication', started_at = :started_at, finished_at = NULL, error = NULL WHERE id = :id",
+            ['project_name' => $projectName, 'started_at' => date('c'), 'id' => $installRunId]
+        );
+
+        $credentials = $this->loadCredentials($credentialPath);
+        try {
+            $token = $this->zimaosApi->login($credentials['username'], $credentials['password']);
+            // Remove the password from the local variable as soon as authentication succeeds.
+            $credentials['password'] = '';
+
+            $this->setStage($installRunId, 'zimaos-validating');
+            $this->zimaosApi->validateCompose($token, $composeYaml);
+            if ($this->zimaosApi->appExists($token, $projectName)) {
+                throw new RuntimeException(sprintf('ZimaOS already has an installed application project named %s. Existing applications are never replaced.', $projectName));
+            }
+
+            // If this restore was previously installed through ZimaBackup's Docker
+            // fallback, remove only the Docker objects recorded by that exact run.
+            // AppData bind mounts are deliberately preserved.
+            $this->setStage($installRunId, 'removing-docker-fallback');
+            $this->removePreviousDockerFallback((int) $install['application_restore_run_id']);
+            if ($this->isApplicationPresent((string) $install['app_key'])) {
+                throw new RuntimeException('The application is still present in Docker after removing the recorded ZimaBackup fallback. Native ZimaOS installation was stopped to avoid replacing an unmanaged deployment.');
+            }
+
+            $this->setStage($installRunId, 'zimaos-installing');
+            $this->zimaosApi->installCompose($token, $composeYaml);
+
+            $this->setStage($installRunId, 'zimaos-verifying');
+            $this->zimaosApi->waitForComposeApp($token, $projectName, 60);
+
+            $this->database->execute(
+                "UPDATE application_install_runs SET status = 'success', stage = 'registered-in-zimaos', zimaos_app_id = :zimaos_app_id, native_verified_at = :verified_at, finished_at = :finished_at, error = NULL WHERE id = :id",
+                [
+                    'zimaos_app_id' => $projectName,
+                    'verified_at' => date('c'),
+                    'finished_at' => date('c'),
+                    'id' => $installRunId,
+                ]
+            );
+            $token = '';
+        } catch (Throwable $exception) {
+            $this->markFailed($installRunId, $exception->getMessage());
+            throw $exception;
+        } finally {
+            $credentials['password'] = '';
+            $credentials['username'] = '';
+            if ($credentialPath !== null && is_file($credentialPath)) {
+                @unlink($credentialPath);
+            }
+        }
+    }
+
+    private function removePreviousDockerFallback(int $restoreRunId): void
+    {
+        $previous = $this->database->fetchOne(
+            "SELECT * FROM application_install_runs WHERE application_restore_run_id = :restore_id AND install_method = 'docker' AND status = 'success' ORDER BY id DESC LIMIT 1",
+            ['restore_id' => $restoreRunId]
+        );
+        if ($previous === null) {
+            return;
+        }
+        $containers = $this->decodeList((string) ($previous['container_ids_json'] ?? '[]'));
+        $networks = $this->decodeList((string) ($previous['created_networks_json'] ?? '[]'));
+        foreach (array_reverse($containers, true) as $containerId) {
+            if (is_string($containerId) && trim($containerId) !== '') {
+                $this->docker->removeContainer($containerId, true);
+            }
+        }
+        foreach (array_reverse($networks, true) as $networkId) {
+            if (is_string($networkId) && trim($networkId) !== '') {
+                $this->docker->removeNetwork($networkId);
+            }
+        }
+        $this->database->execute(
+            "UPDATE application_install_runs SET stage = 'superseded-by-zimaos' WHERE id = :id",
+            ['id' => (int) $previous['id']]
+        );
+    }
+
+    /** @return array{username:string,password:string} */
+    private function loadCredentials(?string $path): array
+    {
+        if ($path === null || trim($path) === '') {
+            throw new RuntimeException('Temporary ZimaOS credentials are missing. Start the installation again.');
+        }
+        $base = realpath($this->credentialDirectory);
+        $file = realpath($path);
+        if ($base === false || $file === false || !str_starts_with($file, rtrim($base, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR)) {
+            throw new RuntimeException('Temporary ZimaOS credentials path is invalid.');
+        }
+        if (!is_readable($file)) {
+            throw new RuntimeException('Temporary ZimaOS credentials are no longer available. Start the installation again.');
+        }
+        try {
+            $data = json_decode((string) file_get_contents($file), true, 32, JSON_THROW_ON_ERROR);
+        } catch (JsonException $exception) {
+            throw new RuntimeException('Temporary ZimaOS credentials are invalid.', 0, $exception);
+        }
+        $username = trim((string) ($data['username'] ?? ''));
+        $password = (string) ($data['password'] ?? '');
+        if ($username === '' || $password === '') {
+            throw new RuntimeException('Temporary ZimaOS credentials are incomplete. Start the installation again.');
+        }
+        return ['username' => $username, 'password' => $password];
+    }
+
+    private function persistCredentials(string $uuid, string $username, string $password): string
+    {
+        if (!is_dir($this->credentialDirectory) && !mkdir($this->credentialDirectory, 0700, true) && !is_dir($this->credentialDirectory)) {
+            throw new RuntimeException('Unable to create the temporary ZimaOS credentials directory.');
+        }
+        @chmod($this->credentialDirectory, 0700);
+        $path = rtrim($this->credentialDirectory, '/') . '/' . $uuid . '.json';
+        $payload = json_encode(['username' => $username, 'password' => $password], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
+        if (file_put_contents($path, $payload, LOCK_EX) === false) {
+            throw new RuntimeException('Unable to store temporary ZimaOS credentials for the worker.');
+        }
+        @chmod($path, 0600);
+        return $path;
+    }
+
     public function markFailed(int $installRunId, string $error): void
     {
         $this->database->execute(
@@ -293,7 +462,7 @@ final class ApplicationInstallService
     private function restoreByUuid(string $uuid): ?array
     {
         return $this->database->fetchOne(
-            'SELECT ar.*, sa.manifest_path FROM application_restore_runs ar ' .
+            'SELECT ar.*, sa.manifest_path, sa.exact_definition, sa.zimaos_app_id FROM application_restore_runs ar ' .
             'JOIN snapshot_applications sa ON sa.id = ar.snapshot_application_id ' .
             'WHERE ar.uuid = :uuid',
             ['uuid' => $uuid]

@@ -2,7 +2,7 @@ name: zimabackup
 
 services:
   zimabackup:
-    image: ghcr.io/maxencecauderlier/zimabackup:0.15.8
+    image: ghcr.io/maxencecauderlier/zimabackup:0.15.9
     restart: unless-stopped
     labels:
       org.zimabackup.internal: "true"
@@ -15,13 +15,14 @@ services:
       APP_DEBUG: "0"
       TZ: "${TZ:-Europe/Paris}"
       RESTIC_CACHE_DIR: /var/www/html/storage/cache/restic
+      ZIMAOS_API_BASE_URL: "${ZIMAOS_API_BASE_URL:-http://host.docker.internal}"
     volumes:
       - /DATA/AppData/ZimaBackup:/var/www/html/storage
       - /DATA:/DATA:ro
       - /media:/media:ro
 
   worker:
-    image: ghcr.io/maxencecauderlier/zimabackup:0.15.8
+    image: ghcr.io/maxencecauderlier/zimabackup:0.15.9
     restart: unless-stopped
     labels:
       org.zimabackup.internal: "true"
@@ -36,6 +37,9 @@ services:
       DOCKER_SOCKET: /var/run/docker.sock
       ZIMABACKUP_COMPOSE_PROJECT: zimabackup
       ZIMAOS_APPS_ROOT: /var/lib/casaos/apps
+      ZIMAOS_API_BASE_URL: "${ZIMAOS_API_BASE_URL:-http://host.docker.internal}"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     volumes:
       - /DATA/AppData/ZimaBackup:/var/www/html/storage
       - /DATA:/DATA
@@ -72,11 +76,11 @@ x-casaos:
   category: Productivity
   architectures:
     - amd64
-  version: "0.15.8"
-  update_at: "2026-10-01"
+  version: "0.15.9"
+  update_at: "2026-10-05"
   release_notes:
-    en_US: ZimaOS/CasaOS package aligned with the current top-level x-casaos application schema and dynamic WEBUI_PORT support.
-    fr_FR: Package ZimaOS/CasaOS aligné sur le schéma x-casaos actuel et prise en charge du port WEBUI_PORT dynamique.
+    en_US: Native ZimaOS application restore through App Management API v2.
+    fr_FR: Restauration native des applications ZimaOS via l’API App Management v2.
   website: https://github.com/maxencecauderlier/zimabackup
   repo: https://github.com/maxencecauderlier/zimabackup
   support: https://github.com/maxencecauderlier/zimabackup/issues

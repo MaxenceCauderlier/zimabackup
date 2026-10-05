@@ -4,7 +4,8 @@ set -eu
 mkdir -p \
     /var/www/html/storage/cache \
     /var/www/html/storage/logs \
-    /var/www/html/storage/secrets/repositories
+    /var/www/html/storage/secrets/repositories \
+    /var/www/html/storage/secrets/application-installs
 
 # The bind-mounted storage directory may be created by Docker as root.
 # Best effort only: some NAS setups intentionally restrict chmod/chown.

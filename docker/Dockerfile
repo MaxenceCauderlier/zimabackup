@@ -51,6 +51,7 @@ RUN mkdir -p \
         storage/cache \
         storage/logs \
         storage/secrets/repositories \
+        storage/secrets/application-installs \
         storage/manifests \
     && chown -R www-data:www-data storage
 

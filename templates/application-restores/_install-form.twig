@@ -1,0 +1,26 @@
+<form method="post" action="{{ ROUTER.generate('application-restores.install', {uuid: restore.uuid}) }}" class="install-confirm-form">
+    <input type="hidden" name="_csrf" value="{{ csrf_token }}">
+
+    {% if native_zimaos_install %}
+        <div class="info-strip compact-strip">
+            <strong>{{ t("Native ZimaOS installation") }}</strong>
+            <p>{{ t("This recovery point contains the exact ZimaOS application definition. ZimaBackup will validate it and install it through ZimaOS App Management API v2 so the application appears normally in ZimaOS.") }}</p>
+        </div>
+        <label class="field">
+            <span>{{ t("ZimaOS username") }}</span>
+            <input type="text" name="zimaos_username" autocomplete="username" required>
+        </label>
+        <label class="field">
+            <span>{{ t("ZimaOS password") }}</span>
+            <input type="password" name="zimaos_password" autocomplete="current-password" required>
+            <small>{{ t("Your password and temporary access token are never written to the database or activity log. The password is handed to the worker in a temporary 0600 file and deleted immediately after authentication.") }}</small>
+        </label>
+    {% endif %}
+
+    <label class="field">
+        <span>{{ t("Type INSTALL to confirm") }}</span>
+        <input type="text" name="confirm_install" autocomplete="off" placeholder="INSTALL" required>
+        <small>{{ t(native_zimaos_install ? "This action asks ZimaOS to install and manage the restored application." : "This action creates and starts Docker containers on the host.") }}</small>
+    </label>
+    <button class="button" type="submit">{{ t(native_zimaos_install ? "Install in ZimaOS" : "Restore & Install application") }}</button>
+</form>

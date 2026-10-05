@@ -90,62 +90,89 @@
 <section class="panel live-panel" data-auto-refresh>
     <div class="live-panel-head">
         <div>
-            <span class="card-kicker">{{ t("Restore & Install") }}</span>
-            <h2>{{ t(install.status == 'pending' ? 'Installation queued' : 'Recreating application') }}</h2>
+            <span class="card-kicker">{{ t(install.install_method == 'zimaos' ? "Native ZimaOS restore" : "Restore & Install") }}</span>
+            <h2>{{ t(install.status == 'pending' ? 'Installation queued' : (install.install_method == 'zimaos' ? 'Installing through ZimaOS' : 'Recreating application')) }}</h2>
             <p class="muted">{{ t("Current stage:") }} <strong>{{ install.stage ? t(install.stage|replace({'-': ' '})) : t('preparing') }}</strong></p>
         </div>
         <span class="status-pill warning"><span class="status-dot"></span>{{ install.status|status_label }}</span>
     </div>
     <div class="install-stage-track">
-        {% for stage_name in ['preflight', 'pulling-images', 'creating-networks', 'creating-containers', 'starting-containers', 'verifying'] %}
+        {% set install_stages = install.install_method == 'zimaos'
+            ? ['zimaos-authentication', 'zimaos-validating', 'removing-docker-fallback', 'zimaos-installing', 'zimaos-verifying']
+            : ['preflight', 'pulling-images', 'creating-networks', 'creating-containers', 'starting-containers', 'verifying'] %}
+        {% for stage_name in install_stages %}
             <span class="install-stage {{ install.stage == stage_name ? 'active' : '' }}">{{ t(stage_name|replace({'-': ' '})) }}</span>
         {% endfor %}
+    </div>
+</section>
+{% elseif install and install.status == 'success' and install.install_method == 'zimaos' %}
+<section class="panel success-panel-v2 install-result-panel">
+    <div>
+        <span class="status-pill ok"><span class="status-dot"></span>{{ t("Registered in ZimaOS") }}</span>
+        <h2>{{ t("Native ZimaOS restore completed") }}</h2>
+        <p>{{ t("ZimaOS accepted the recovered Compose definition, installed the application through App Management API v2, and ZimaBackup verified that the project is registered in ZimaOS.") }}</p>
+    </div>
+    <div class="summary-cards two-summary-cards compact-summary-cards">
+        <article class="summary-card"><span>{{ t("Project") }}</span><strong>{{ install.project_name }}</strong></article>
+        <article class="summary-card"><span>{{ t("Managed by") }}</span><strong>ZimaOS</strong></article>
     </div>
 </section>
 {% elseif install and install.status == 'success' %}
 <section class="panel success-panel-v2 install-result-panel">
     <div>
         <span class="status-pill ok"><span class="status-dot"></span>{{ t("Application running") }}</span>
-        <h2>{{ t("Restore & Install completed") }}</h2>
-        <p>{{ t("ZimaBackup recreated the Docker application from the encrypted backup manifest and verified that the restored containers stayed running.") }}</p>
+        <h2>{{ t("Docker restore completed") }}</h2>
+        <p>{{ t("ZimaBackup recreated the Docker application and verified that the restored containers stayed running.") }}</p>
     </div>
     <div class="summary-cards two-summary-cards compact-summary-cards">
         <article class="summary-card"><span>{{ t("Project") }}</span><strong>{{ install.project_name }}</strong></article>
         <article class="summary-card"><span>{{ t("Containers") }}</span><strong>{{ install.container_ids|length }}</strong></article>
     </div>
 </section>
+{% if native_zimaos_install and restore.status == 'success' and restore.mode == 'original' and not restore.cleaned_at %}
+<section class="panel install-action-panel">
+    <div class="panel-heading">
+        <div>
+            <span class="card-kicker">{{ t("ZimaOS registration available") }}</span>
+            <h2>{{ t("Install this restored application in ZimaOS") }}</h2>
+            <p class="muted">{{ t("This application was previously recreated through the Docker fallback. ZimaBackup can now remove only those fallback Docker objects and reinstall the same recovered application through ZimaOS so it appears in the Applications screen.") }}</p>
+        </div>
+    </div>
+    {% include 'application-restores/_install-form.twig' %}
+</section>
+{% endif %}
 {% elseif install and install.status == 'failed' %}
 <section class="panel attention-panel">
     <span class="status-pill error"><span class="status-dot"></span>{{ t("Install failed") }}</span>
-    <h2>{{ t("Docker objects were rolled back where possible") }}</h2>
+    <h2>{{ t(install.install_method == 'zimaos' ? "ZimaOS installation did not complete" : "Docker objects were rolled back where possible") }}</h2>
     <p>{{ install.error|trans }}</p>
     <p class="muted">{{ t("Restored application data was deliberately left in place so you can inspect it or retry after correcting the problem.") }}</p>
 </section>
+{% if restore.status == 'success' and restore.mode == 'original' and not restore.cleaned_at %}
+<section class="panel install-action-panel">
+    <div class="panel-heading"><div><span class="card-kicker">{{ t("Retry") }}</span><h2>{{ t(native_zimaos_install ? "Install in ZimaOS" : "Restore & Install") }}</h2></div></div>
+    {% include 'application-restores/_install-form.twig' %}
+</section>
+{% endif %}
 {% elseif restore.status == 'success' and restore.mode == 'original' and not restore.cleaned_at %}
 <section class="panel install-action-panel">
     <div class="panel-heading">
         <div>
             <span class="card-kicker">{{ t("Final recovery step") }}</span>
-            <h2>{{ t("Restore & Install") }}</h2>
-            <p class="muted">{{ t("ZimaBackup can now pull missing images, recreate required Docker networks, create the backed-up containers and start them.") }}</p>
+            <h2>{{ t(native_zimaos_install ? "Install in ZimaOS" : "Restore & Install") }}</h2>
+            <p class="muted">{{ t(native_zimaos_install ? "The exact installed ZimaOS definition is available. ZimaBackup will use ZimaOS App Management API v2 instead of bypassing ZimaOS through direct Docker creation." : "No exact ZimaOS definition is available. ZimaBackup can recreate the backed-up Docker application directly as a fallback.") }}</p>
         </div>
-        <span class="status-pill warning"><span class="status-dot"></span>{{ t("Docker write access") }}</span>
+        <span class="status-pill warning"><span class="status-dot"></span>{{ t(native_zimaos_install ? "ZimaOS authorization required" : "Docker write access") }}</span>
     </div>
 
+    {% if not native_zimaos_install %}
     <div class="info-strip compact-strip">
         <strong>{{ t("Safety rules") }}</strong>
         <p>{{ t("An existing Docker application is never replaced. Bind mounts outside") }} <code>/DATA</code> {{ t("and") }} <code>/media</code> {{ t("are refused by default, named volumes are not installed automatically yet, and a failed install removes Docker objects created by that attempt without deleting restored data.") }}</p>
     </div>
+    {% endif %}
 
-    <form method="post" action="{{ ROUTER.generate('application-restores.install', {uuid: restore.uuid}) }}" class="install-confirm-form">
-        <input type="hidden" name="_csrf" value="{{ csrf_token }}">
-        <label class="field">
-            <span>{{ t("Type INSTALL to confirm") }}</span>
-            <input type="text" name="confirm_install" autocomplete="off" placeholder="INSTALL" required>
-            <small>{{ t("This action creates and starts Docker containers on the host.") }}</small>
-        </label>
-        <button class="button" type="submit">{{ t("Restore & Install application") }}</button>
-    </form>
+    {% include 'application-restores/_install-form.twig' %}
 </section>
 {% elseif restore.status == 'success' and restore.mode == 'staging' %}
 <section class="panel">

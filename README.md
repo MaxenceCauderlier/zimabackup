@@ -2,9 +2,11 @@
 
 ZimaBackup is a lightweight, application-aware backup and disaster-recovery manager for ZimaOS, built with PHP 8.4, Twig, SQLite and Restic.
 
-## Current milestone — v0.15.8 Docker create payload compatibility
+## Current milestone — v0.15.9 Native ZimaOS Restore
 
-v0.15.8 fixes automatic application installation against the Docker Engine API. Docker requires `ExposedPorts` to use empty JSON objects (`{"8096/tcp": {}}`); PHP associative decoding had turned those objects into arrays (`[]`), causing `/containers/create` to fail. The installer now normalizes those fields before sending the request. No database migration is required.
+v0.15.9 completes the ZimaOS-native application recovery path for backups that contain an exact installed ZimaOS Compose definition. After application data is restored to its original paths, ZimaBackup can authenticate temporarily against the local ZimaOS user API, validate the recovered Compose with App Management API v2, and install it through ZimaOS itself. This makes the recovered application appear normally in the ZimaOS Applications screen instead of existing only as unmanaged Docker containers.
+
+Credentials are not stored in SQLite or Activity. The password is handed from the web process to the worker in a one-shot `0600` file under `storage/secrets/application-installs/`, used to obtain an access token, and deleted immediately after the worker consumes it. The access token exists only in worker memory. Generic Docker applications without an exact ZimaOS definition continue to use the direct Docker fallback.
 
 ## User-facing terminology
 ZimaBackup deliberately hides Restic-specific vocabulary from normal users:
@@ -50,26 +52,13 @@ Publishing rules:
 - every published build also receives a `sha-...` traceability tag
 The workflow uses GitHub's generated `GITHUB_TOKEN`; no registry password is stored in the repository. Release tags are rejected when they do not match the root `VERSION` file.
 After the first successful push, make the GHCR package public in GitHub Package settings if ZimaOS should pull it anonymously.
-### Run a prebuilt image manually
-Copy the GHCR environment example:
+### Run the published ZimaOS image
+The root `docker-compose.yml` is the official ZimaOS/GHCR deployment file and already points to `ghcr.io/maxencecauderlier/zimabackup:0.15.9`. Import that file as a custom app in ZimaOS, or run:
 ```bash
-cp .env.ghcr.example .env
+docker compose pull
+docker compose up -d
 ```
-Set `ZIMABACKUP_IMAGE`, then run:
-```bash
-docker compose -f docker-compose.ghcr.yml pull
-docker compose -f docker-compose.ghcr.yml up -d
-```
-### Prepare a ZimaOS custom application
-Generate the ZimaOS Compose file (defaults are already set to `maxencecauderlier` and `0.15.8`):
-```bash
-./packaging/zimaos/render-compose.sh
-```
-The generated file is:
-```text
-packaging/zimaos/docker-compose.generated.yml
-```
-It uses `/DATA/AppData/ZimaBackup` for persistent ZimaBackup state, mounts `/DATA` and `/media` read-only in the browser-facing service, gives write access only to the worker, mounts the Docker socket only in the worker, and reads `/var/lib/casaos/apps` read-only for exact ZimaOS application definitions.
+It uses `/DATA/AppData/ZimaBackup` for persistent ZimaBackup state, mounts `/DATA` and `/media` read-only in the browser-facing service, gives write access only to the worker, mounts the Docker socket only in the worker, and reads `/var/lib/casaos/apps` read-only for exact ZimaOS application definitions. The worker also receives `host.docker.internal:host-gateway` so it can reach the local ZimaOS APIs at `http://host.docker.internal` during native application restore.
 ## Development
 Copy the environment file:
 ```bash
@@ -77,7 +66,7 @@ cp .env.example .env
 ```
 Build and start:
 ```bash
-docker compose up --build
+docker compose -f docker-compose.dev.yml up --build
 ```
 Open:
 ```text
@@ -124,7 +113,7 @@ The simulator creates the Compose project `zima-demo` with Nginx + Redis and bin
 The test passes when the recreated Docker project is running and `http://localhost:8095` serves the restored HTML file.
 ## Upgrading
 Keep the existing `storage/` directory.
-v0.15.8 adds no database migration. Previous migrations are kept and applied automatically when required.
+v0.15.9 adds migration `017_native_zimaos_restore.sql` to record whether an application install used the Docker fallback or native ZimaOS App Management. Previous migrations are kept and applied automatically when required.
 ```bash
 docker compose down
 docker compose up --build
@@ -150,7 +139,7 @@ storage/secrets/repositories/
 Save every displayed recovery key outside the ZimaOS machine.
 ## Useful commands
 ```bash
-docker compose exec app php bin/migrate.php
+docker compose exec zimabackup php bin/migrate.php
 docker compose exec worker restic version
 docker compose logs -f worker
 ```
@@ -158,7 +147,7 @@ docker compose logs -f worker
 - Production-oriented multi-stage Dockerfile with build-only Composer tooling removed from the runtime image.
 - GitHub Actions workflow publishes GHCR images from `develop`, `main` and semantic version tags.
 - Release tags must match the root `VERSION` file.
-- Added `docker-compose.ghcr.yml` for prebuilt-image deployments.
+- The root `docker-compose.yml` is the official GHCR/ZimaOS deployment file; `docker-compose.dev.yml` is reserved for local development.
 - Added a ZimaOS custom-app Compose source with valid current `x-casaos` metadata.
 - Added `packaging/zimaos/render-compose.sh` to fill the GitHub owner and image tag.
 - Added OCI metadata, BuildKit cache, provenance and SBOM generation in CI.
@@ -234,3 +223,13 @@ This release makes Restore a practical recovery workflow instead of an all-or-no
 - restore uses the snapshot's own protected-mount list;
 - legacy snapshots can recover essential AppData binds when those paths exist in the snapshot;
 - incomplete legacy recovery points fail explicitly instead of starting an application with empty configuration.
+
+## v0.15.9 - Native ZimaOS Restore
+- Exact ZimaOS recovery points are installed through `POST /v2/app_management/compose` instead of direct Docker container creation.
+- ZimaBackup performs an API v2 dry-run before changing the running Docker fallback.
+- Authentication uses the current `/v1/users/login` endpoint only to obtain a short-lived access token; application lifecycle remains on API v2.
+- ZimaOS credentials are never stored in SQLite or Activity and are deleted from the one-shot worker handoff after authentication.
+- A previous successful ZimaBackup Docker fallback can be superseded safely: only container/network IDs recorded by that fallback are removed before native ZimaOS installation.
+- Native installation is verified through `GET /v2/app_management/compose/{project}`.
+- Generic Docker apps without an exact ZimaOS definition continue to use the existing Docker Engine fallback.
+- New migration: `017_native_zimaos_restore.sql`.
