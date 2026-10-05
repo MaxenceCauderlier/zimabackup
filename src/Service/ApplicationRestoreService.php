@@ -31,7 +31,7 @@ final class ApplicationRestoreService
             'SELECT sa.*, br.snapshot_id, br.id AS backup_run_id, br.finished_at AS snapshot_finished_at, ' .
             'bj.id AS backup_job_id, bj.uuid AS job_uuid, bj.name AS job_name, ' .
             'r.id AS repository_id, r.name AS repository_name, r.path AS repository_path, ' .
-            'r.password_file, r.status AS repository_status, ba.selected_mounts_json ' .
+            'r.password_file, r.status AS repository_status, ba.selected_mounts_json, sa.manifest_preview_json ' .
             'FROM snapshot_applications sa ' .
             'JOIN backup_runs br ON br.id = sa.backup_run_id ' .
             'JOIN backup_jobs bj ON bj.id = br.backup_job_id ' .
@@ -46,6 +46,10 @@ final class ApplicationRestoreService
         }
 
         $mounts = json_decode((string) ($row['selected_mounts_json'] ?? '[]'), true);
+        $previewManifest = json_decode((string) ($row['manifest_preview_json'] ?? '{}'), true);
+        if (is_array($previewManifest) && array_key_exists('protected_mounts', $previewManifest) && is_array($previewManifest['protected_mounts'])) {
+            $mounts = $previewManifest['protected_mounts'];
+        }
         $warnings = json_decode((string) ($row['warnings_json'] ?? '[]'), true);
         $row['selected_mounts'] = is_array($mounts) ? array_values($mounts) : [];
         $row['warnings'] = is_array($warnings) ? array_values($warnings) : [];
@@ -237,6 +241,42 @@ final class ApplicationRestoreService
             ['started_at' => date('c'), 'id' => $restoreRunId]
         );
 
+        // Read the authoritative manifest before restoring data. New backups
+        // embed the exact protected mounts. For older snapshots we can recover
+        // essential /DATA/AppData binds when they are actually present in the
+        // snapshot instead of relying only on the current backup-job config.
+        $rawManifest = $this->restic->dumpSnapshotFile(
+            $repositoryPath,
+            $passwordFile,
+            (string) $run['snapshot_id'],
+            (string) $run['manifest_path']
+        );
+        try {
+            $manifest = json_decode($rawManifest, true, 512, JSON_THROW_ON_ERROR);
+        } catch (JsonException $exception) {
+            throw new RuntimeException('The application manifest is invalid JSON.', 0, $exception);
+        }
+        $schema = (string) ($manifest['schema'] ?? '');
+        if (!is_array($manifest) || !in_array($schema, ['zimabackup.application-manifest.v1', 'zimabackup.application-manifest.v2'], true)) {
+            throw new RuntimeException('The application manifest has an unsupported schema.');
+        }
+
+        $selectedMounts = $this->resolveProtectedMountsForSnapshot(
+            $selectedMounts,
+            $manifest,
+            $repositoryPath,
+            $passwordFile,
+            (string) $run['snapshot_id'],
+            $repositoryLogicalPath
+        );
+        $this->database->execute(
+            'UPDATE application_restore_runs SET selected_mounts_json = :selected_mounts_json WHERE id = :id',
+            [
+                'selected_mounts_json' => json_encode($selectedMounts, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR),
+                'id' => $restoreRunId,
+            ]
+        );
+
         $includes = [];
         foreach ($selectedMounts as $mount) {
             if (!is_array($mount)) {
@@ -283,22 +323,6 @@ final class ApplicationRestoreService
             },
             array_values($includes)
         );
-
-        $rawManifest = $this->restic->dumpSnapshotFile(
-            $repositoryPath,
-            $passwordFile,
-            (string) $run['snapshot_id'],
-            (string) $run['manifest_path']
-        );
-        try {
-            $manifest = json_decode($rawManifest, true, 512, JSON_THROW_ON_ERROR);
-        } catch (JsonException $exception) {
-            throw new RuntimeException('The application manifest is invalid JSON.', 0, $exception);
-        }
-        $schema = (string) ($manifest['schema'] ?? '');
-        if (!is_array($manifest) || !in_array($schema, ['zimabackup.application-manifest.v1', 'zimabackup.application-manifest.v2'], true)) {
-            throw new RuntimeException('The application manifest has an unsupported schema.');
-        }
 
         // Restic's filtered restore layout is not used as an implicit contract
         // for later installation. We already have the authoritative manifest
@@ -489,6 +513,134 @@ final class ApplicationRestoreService
             throw new RuntimeException('Unable to persist the restored application manifest.');
         }
         chmod($target, 0600);
+    }
+
+    /**
+     * Resolve the exact application data protected by this snapshot.
+     *
+     * New manifests contain protected_mounts and are self-contained. Older
+     * manifests fall back to the restore-run selection, plus essential
+     * /DATA/AppData binds that can be proven to exist in the snapshot.
+     *
+     * @param list<array<string,mixed>> $fallbackMounts
+     * @return list<array<string,mixed>>
+     */
+    private function resolveProtectedMountsForSnapshot(
+        array $fallbackMounts,
+        array $manifest,
+        string $repositoryPath,
+        string $passwordFile,
+        string $snapshotId,
+        string $repositoryLogicalPath,
+    ): array {
+        $hasEmbeddedSelection = array_key_exists('protected_mounts', $manifest) && is_array($manifest['protected_mounts']);
+        $mounts = $hasEmbeddedSelection ? array_values($manifest['protected_mounts']) : array_values($fallbackMounts);
+
+        $essential = $this->essentialApplicationMounts($manifest);
+        if (!$hasEmbeddedSelection) {
+            foreach ($essential as $mount) {
+                $mounts[] = $mount;
+            }
+        }
+
+        $deduplicated = [];
+        foreach ($mounts as $mount) {
+            if (!is_array($mount)) {
+                continue;
+            }
+            $source = trim((string) ($mount['source'] ?? $mount['Source'] ?? ''));
+            if ($source === '') {
+                continue;
+            }
+            $source = $this->validateRestoreSource($source, $repositoryLogicalPath);
+            $destination = (string) ($mount['destination'] ?? $mount['Destination'] ?? '');
+            $service = $mount['service'] ?? null;
+            $deduplicated[$source . '|' . $destination . '|' . (string) $service] = [
+                'source' => $source,
+                'destination' => $destination,
+                'service' => $service,
+            ];
+        }
+        $mounts = array_values($deduplicated);
+
+        $pathsToCheck = array_values(array_unique(array_map(
+            static fn (array $mount): string => (string) $mount['source'],
+            $mounts
+        )));
+        $presence = $this->restic->snapshotPathsPresent($repositoryPath, $passwordFile, $snapshotId, $pathsToCheck);
+
+        $missing = [];
+        foreach ($pathsToCheck as $path) {
+            if (($presence[$path] ?? false) !== true) {
+                $missing[] = $path;
+            }
+        }
+        if ($missing !== []) {
+            throw new RuntimeException(sprintf(
+                'This recovery point does not contain required application data: %s. The application cannot be restored completely from this backup.',
+                implode(', ', $missing)
+            ));
+        }
+
+        // Legacy backups did not record protected_mounts. Keep only inferred
+        // essential mounts that are truly present; optional runtime binds are
+        // never fabricated or restored implicitly.
+        if (!$hasEmbeddedSelection) {
+            $essentialPaths = array_fill_keys(array_map(static fn (array $mount): string => (string) $mount['source'], $essential), true);
+            foreach ($essentialPaths as $path => $_) {
+                if (($presence[$path] ?? false) !== true) {
+                    throw new RuntimeException(sprintf(
+                        'This older recovery point is incomplete for automatic application recovery because required data was not backed up: %s.',
+                        $path
+                    ));
+                }
+            }
+        }
+
+        return $mounts;
+    }
+
+    /** @return list<array{source:string,destination:string,service:?string}> */
+    private function essentialApplicationMounts(array $manifest): array
+    {
+        $result = [];
+        foreach ((array) ($manifest['containers'] ?? []) as $container) {
+            if (!is_array($container)) {
+                continue;
+            }
+            $service = isset($container['service']) ? (string) $container['service'] : null;
+            foreach ((array) ($container['mounts'] ?? []) as $mount) {
+                if (!is_array($mount)) {
+                    continue;
+                }
+                $type = (string) ($mount['Type'] ?? $mount['type'] ?? '');
+                if ($type !== 'bind') {
+                    continue;
+                }
+                $source = trim((string) ($mount['Source'] ?? $mount['source'] ?? ''));
+                $destination = trim((string) ($mount['Destination'] ?? $mount['destination'] ?? ''));
+                if (!str_starts_with($source, '/DATA/AppData/')) {
+                    continue;
+                }
+                $haystack = strtolower($source . ' ' . $destination);
+                $ephemeral = false;
+                foreach (['cache', 'transcode', '/tmp', '/temp'] as $ignored) {
+                    if (str_contains($haystack, $ignored)) {
+                        $ephemeral = true;
+                        break;
+                    }
+                }
+                if ($ephemeral) {
+                    continue;
+                }
+                $result[$source . '|' . $destination . '|' . (string) $service] = [
+                    'source' => $source,
+                    'destination' => $destination,
+                    'service' => $service,
+                ];
+            }
+        }
+        return array_values($result);
     }
 
     private function validateRestoreSource(string $source, string $repositoryPath): string

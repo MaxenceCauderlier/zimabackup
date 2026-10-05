@@ -416,6 +416,99 @@ final class ResticService
         return $matches;
     }
 
+
+    /**
+     * Check whether one or more logical paths exist in a snapshot. A directory
+     * counts as present when Restic lists either the directory node itself or
+     * any descendant. The snapshot stream is processed incrementally so large
+     * backups do not need to be loaded into memory.
+     *
+     * @param list<string> $paths
+     * @return array<string,bool>
+     */
+    public function snapshotPathsPresent(
+        string $repositoryPath,
+        string $passwordFile,
+        string $snapshotId,
+        array $paths,
+    ): array {
+        $wanted = [];
+        foreach ($paths as $path) {
+            $path = '/' . ltrim(trim((string) $path), '/');
+            if ($path !== '/') {
+                $wanted[$path] = false;
+            }
+        }
+        if ($wanted === []) {
+            return [];
+        }
+
+        $process = new Process([
+            $this->binary,
+            'ls',
+            '--repo', $repositoryPath,
+            '--password-file', $passwordFile,
+            '--json',
+            $snapshotId,
+        ]);
+        $process->setTimeout(300);
+
+        $buffer = '';
+        $stderr = '';
+        $consume = static function (string $line) use (&$wanted): void {
+            $line = trim($line);
+            if ($line === '') {
+                return;
+            }
+            try {
+                $message = json_decode($line, true, 512, JSON_THROW_ON_ERROR);
+            } catch (JsonException) {
+                return;
+            }
+            if (!is_array($message)) {
+                return;
+            }
+            $messageType = $message['message_type'] ?? $message['struct_type'] ?? null;
+            if ($messageType !== 'node') {
+                return;
+            }
+            $nodePath = (string) ($message['path'] ?? '');
+            if ($nodePath === '') {
+                return;
+            }
+            foreach ($wanted as $path => $present) {
+                if ($present) {
+                    continue;
+                }
+                if ($nodePath === $path || str_starts_with($nodePath, rtrim($path, '/') . '/')) {
+                    $wanted[$path] = true;
+                }
+            }
+        };
+
+        $exitCode = $process->run(function (string $type, string $data) use (&$buffer, &$stderr, $consume): void {
+            if ($type === Process::ERR) {
+                $stderr .= $data;
+                return;
+            }
+            $buffer .= $data;
+            while (($position = strpos($buffer, "\n")) !== false) {
+                $line = substr($buffer, 0, $position);
+                $buffer = substr($buffer, $position + 1);
+                $consume($line);
+            }
+        });
+        if (trim($buffer) !== '') {
+            $consume($buffer);
+        }
+        if ($exitCode !== 0) {
+            $message = trim($stderr !== '' ? $stderr : $process->getErrorOutput());
+            throw new RuntimeException($message !== '' ? $message : sprintf('Restic ls failed with exit code %d.', $exitCode));
+        }
+
+        return $wanted;
+    }
+
     /**
      * List only the direct children of one snapshot directory.
      * Restic currently streams the whole snapshot for `ls --json`; filtering is

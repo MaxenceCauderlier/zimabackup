@@ -245,9 +245,10 @@ final class ApplicationDiscoveryService
      * the same backup run.
      *
      * @param list<string> $appKeys
+     * @param array<string, list<array<string,mixed>>> $protectedMountsByApp
      * @return array<string, string> app key => manifest path
      */
-    public function createBackupManifests(array $appKeys, string $jobUuid, int $runId): array
+    public function createBackupManifests(array $appKeys, string $jobUuid, int $runId, array $protectedMountsByApp = []): array
     {
         $wanted = array_values(array_unique(array_filter(array_map('strval', $appKeys))));
         if ($wanted === []) {
@@ -282,6 +283,7 @@ final class ApplicationDiscoveryService
                 'restore_notice' => $exactDefinition
                     ? 'The exact installed ZimaOS Compose definition is preserved together with a Docker runtime fallback.'
                     : 'No ZimaOS Compose definition was available. Recovery uses the normalized Docker runtime definition.',
+                'protected_mounts' => array_values($protectedMountsByApp[$appKey] ?? []),
                 ...$group['manifest'],
             ];
 

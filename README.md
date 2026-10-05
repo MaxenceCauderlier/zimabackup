@@ -2,10 +2,14 @@
 
 ZimaBackup is a lightweight, application-aware backup and disaster-recovery manager for ZimaOS, built with PHP 8.4, Twig, SQLite and Restic.
 
-## Current milestone — v0.15.6 ZimaOS system-bind restore compatibility
+## Current milestone — v0.15.7 application recovery completeness
 
-v0.15.6 fixes Restore & Install for official ZimaOS/CasaOS apps such as Jellyfin that reference a known host-system library path outside `/DATA` and `/media`. `/opt/vc/lib` is now allowed explicitly because the official Jellyfin Compose uses it for OpenMAX libraries. The allow-list remains intentionally narrow; arbitrary `/opt`, `/etc`, `/proc`, `/sys`, `/var`, and Docker-socket binds are still blocked unless separately handled.
-The browser never receives the raw installed Compose file. Snapshot previews mask environment values, while application restores write the original Compose definition to the protected staging workspace with mode `0600`.
+v0.15.7 makes application recovery points self-contained. New application manifests record the exact bind mounts protected by that backup, and the worker automatically includes recommended persistent AppData mounts in every new recovery point, including for backup jobs created by older ZimaBackup versions.
+
+During restore, ZimaBackup now uses the mount list stored in the recovery point instead of relying on the current backup-job configuration. For older recovery points, it can recover essential `/DATA/AppData/...` binds when they are actually present in the snapshot. If required application data was never backed up, restoration stops with an explicit “incomplete recovery point” error instead of creating an empty configuration directory or failing later during installation.
+
+The previous ZimaOS compatibility rules remain in place, including the narrow `/opt/vc/lib` exception used by the official Jellyfin definition.
+
 ### Scheduling
 Backup jobs can run:
 - manually;
@@ -91,7 +95,7 @@ docker compose -f docker-compose.ghcr.yml pull
 docker compose -f docker-compose.ghcr.yml up -d
 ```
 ### Prepare a ZimaOS custom application
-Generate the ZimaOS Compose file (defaults are already set to `maxencecauderlier` and `0.15.6`):
+Generate the ZimaOS Compose file (defaults are already set to `maxencecauderlier` and `0.15.7`):
 ```bash
 ./packaging/zimaos/render-compose.sh
 ```
@@ -154,7 +158,7 @@ The simulator creates the Compose project `zima-demo` with Nginx + Redis and bin
 The test passes when the recreated Docker project is running and `http://localhost:8095` serves the restored HTML file.
 ## Upgrading
 Keep the existing `storage/` directory.
-v0.15.6 adds no database migration. Previous migrations are kept and applied automatically when required.
+v0.15.7 adds no database migration. Previous migrations are kept and applied automatically when required.
 ```bash
 docker compose down
 docker compose up --build
@@ -184,7 +188,7 @@ docker compose exec app php bin/migrate.php
 docker compose exec worker restic version
 docker compose logs -f worker
 ```
-## v0.15.6 - GHCR Distribution
+## v0.15.7 - GHCR Distribution
 - Production-oriented multi-stage Dockerfile with build-only Composer tooling removed from the runtime image.
 - GitHub Actions workflow publishes GHCR images from `develop`, `main` and semantic version tags.
 - Release tags must match the root `VERSION` file.
@@ -235,13 +239,13 @@ This release makes Restore a practical recovery workflow instead of an all-or-no
 - Completed/failed file restore targets can be cleaned from Restore history without deleting the source snapshot.
 - Application restore staging workspaces can be cleaned after restore/install activity has finished. Original AppData applied to `/DATA` or `/media` is never removed by staging cleanup.
 - Cleanup runs through the worker and refuses symlinked restore paths.
-## v0.15.6 - ZimaOS Storage Permission Fix
+## v0.15.7 - ZimaOS Storage Permission Fix
 - Storage presence is probed by the privileged background worker and cached in SQLite.
 - The web process no longer traverses `/media` to decide whether a backup repository exists.
 - Fixes false `missing` states on ZimaOS disks mounted with restrictive permissions such as `root:root 0750`.
 - Repository initialization still validates existing data in the worker immediately before `restic init`.
 - Manual backup queueing no longer performs a web-side repository filesystem check.
-## v0.15.6 - Application Install Staging Fix
+## v0.15.7 - Application Install Staging Fix
 - The web process no longer reads the protected restored application manifest.
 - `application.install` queueing stays unprivileged; Docker and manifest checks happen in the worker.
 - Application restore explicitly persists the manifest obtained via `restic dump` at the recorded staging path.
@@ -249,9 +253,18 @@ This release makes Restore a practical recovery workflow instead of an all-or-no
 - The final Docker project name is resolved from the manifest by the worker just before installation.
 - No database migration is required.
 
-## v0.15.6 - ZimaOS System Bind Compatibility
+## v0.15.7 - ZimaOS System Bind Compatibility
 
 - Restore & Install accepts the exact `/opt/vc/lib` host bind used by the official Jellyfin ZimaOS/CasaOS definition.
 - Arbitrary host paths outside `/DATA` and `/media` remain blocked.
 - Existing safe read-only `/etc/localtime` and `/etc/timezone` exceptions remain unchanged.
 - No database migration is required.
+
+## v0.15.7 - Application Recovery Completeness
+
+- application manifests now embed `protected_mounts`;
+- recommended persistent AppData mounts are always included in new backups;
+- existing backup jobs are automatically enriched at run time;
+- restore uses the snapshot's own protected-mount list;
+- legacy snapshots can recover essential AppData binds when those paths exist in the snapshot;
+- incomplete legacy recovery points fail explicitly instead of starting an application with empty configuration.

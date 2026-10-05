@@ -125,8 +125,16 @@ final class BackupService
             $requestedMountIds = array_values(array_unique(array_map('intval', $selection['mount_ids'] ?? [])));
             $availableMounts = [];
             foreach ($application['mounts'] as $mount) {
-                $availableMounts[(int) $mount['id']] = $mount;
+                $mountId = (int) $mount['id'];
+                $availableMounts[$mountId] = $mount;
+                // Recommended application data is required for a reliable
+                // disaster-recovery backup. Keep it protected even if a form
+                // submission accidentally omits the checkbox.
+                if ((int) ($mount['eligible'] ?? 0) === 1 && (int) ($mount['recommended'] ?? 0) === 1) {
+                    $requestedMountIds[] = $mountId;
+                }
             }
+            $requestedMountIds = array_values(array_unique($requestedMountIds));
 
             $selectedMounts = [];
             foreach ($requestedMountIds as $mountId) {
@@ -552,10 +560,64 @@ final class BackupService
                 static fn (array $application): string => (string) $application['app_key'],
                 $applicationRows
             ));
+            $protectedMountsByApp = [];
+            foreach ($applicationRows as $applicationRow) {
+                $appKey = (string) $applicationRow['app_key'];
+                $decoded = json_decode((string) ($applicationRow['selected_mounts_json'] ?? '[]'), true);
+                $protected = is_array($decoded) ? array_values($decoded) : [];
+
+                // Existing jobs may predate the self-contained application
+                // recovery rules. Always add currently discovered recommended
+                // AppData mounts so a new recovery point contains the minimum
+                // data required to reinstall the application.
+                $discovered = $this->applications->findByKey($appKey);
+                if ($discovered !== null) {
+                    foreach ((array) ($discovered['mounts'] ?? []) as $mount) {
+                        if (!is_array($mount) || (int) ($mount['eligible'] ?? 0) !== 1 || (int) ($mount['recommended'] ?? 0) !== 1) {
+                            continue;
+                        }
+                        $protected[] = [
+                            'source' => (string) $mount['source'],
+                            'destination' => (string) $mount['destination'],
+                            'service' => $mount['service_name'] ?? null,
+                        ];
+                    }
+                }
+
+                $unique = [];
+                foreach ($protected as $mount) {
+                    if (!is_array($mount)) {
+                        continue;
+                    }
+                    $source = trim((string) ($mount['source'] ?? ''));
+                    if ($source === '') {
+                        continue;
+                    }
+                    $source = $this->validateSource($source, $repositoryLogicalPath);
+                    $destination = (string) ($mount['destination'] ?? '');
+                    $service = $mount['service'] ?? null;
+                    $unique[$source . '|' . $destination . '|' . (string) $service] = [
+                        'source' => $source,
+                        'destination' => $destination,
+                        'service' => $service,
+                    ];
+
+                    $containerPath = $this->paths->toContainerPath($source);
+                    if (!file_exists($containerPath)) {
+                        throw new RuntimeException(sprintf('Required application data does not exist: %s', $source));
+                    }
+                    if (!is_readable($containerPath)) {
+                        throw new RuntimeException(sprintf('Required application data is not readable by the backup worker: %s', $source));
+                    }
+                    $containerSources[$containerPath] = $containerPath;
+                }
+                $protectedMountsByApp[$appKey] = array_values($unique);
+            }
             $manifestPaths = $this->applications->createBackupManifests(
                 $appKeys,
                 (string) $run['job_uuid'],
-                $runId
+                $runId,
+                $protectedMountsByApp
             );
             foreach ($appKeys as $appKey) {
                 $manifestPath = $manifestPaths[$appKey] ?? null;
