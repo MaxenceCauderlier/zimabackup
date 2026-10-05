@@ -2,7 +2,7 @@ name: zimabackup
 
 services:
   zimabackup:
-    image: ghcr.io/maxencecauderlier/zimabackup:0.15.7
+    image: ghcr.io/maxencecauderlier/zimabackup:0.15.8
     restart: unless-stopped
     labels:
       org.zimabackup.internal: "true"
@@ -21,7 +21,7 @@ services:
       - /media:/media:ro
 
   worker:
-    image: ghcr.io/maxencecauderlier/zimabackup:0.15.7
+    image: ghcr.io/maxencecauderlier/zimabackup:0.15.8
     restart: unless-stopped
     labels:
       org.zimabackup.internal: "true"
@@ -77,7 +77,7 @@ x-casaos:
   category: Productivity
   architectures:
     - amd64
-  version: "0.15.7"
+  version: "0.15.8"
   update_at: "2026-10-01"
 
   release_notes:

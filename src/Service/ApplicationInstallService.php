@@ -392,7 +392,12 @@ final class ApplicationInstallService
         $this->copyScalar($configuration, 'WorkingDir', $container, 'working_dir');
         $this->copyScalar($configuration, 'Domainname', $container, 'domainname');
         if (is_array($container['exposed_ports'] ?? null) && $container['exposed_ports'] !== []) {
-            $configuration['ExposedPorts'] = $container['exposed_ports'];
+            // Docker Engine expects ExposedPorts to be an object whose values
+            // are empty JSON objects, e.g. {"8096/tcp": {}}. Manifests are
+            // decoded with associative arrays, so those empty objects become
+            // PHP [] values and would otherwise be re-encoded as JSON arrays.
+            // Normalize the map explicitly before calling /containers/create.
+            $configuration['ExposedPorts'] = $this->dockerEmptyObjectMap($container['exposed_ports']);
         }
         if (is_array($container['healthcheck'] ?? null) && $container['healthcheck'] !== []) {
             $configuration['Healthcheck'] = $container['healthcheck'];
@@ -648,6 +653,32 @@ final class ApplicationInstallService
         $value = preg_replace('/[^a-z0-9._-]+/', '-', $value) ?: 'restored-app';
         $value = trim($value, '-_.');
         return $value !== '' ? $value : 'restored-app';
+    }
+
+
+    /**
+     * Normalize Docker maps whose values must serialize as empty JSON objects.
+     *
+     * Docker Inspect returns maps such as ExposedPorts as {"8096/tcp": {}}.
+     * json_decode(..., true) turns each empty object into [], which json_encode
+     * would emit as an array. Docker's create API rejects that shape. This
+     * helper accepts either the associative Inspect form or a simple list of
+     * port names and restores the API-compatible object values.
+     *
+     * @param array<mixed> $values
+     * @return array<string, \stdClass>
+     */
+    private function dockerEmptyObjectMap(array $values): array
+    {
+        $normalized = [];
+        foreach ($values as $key => $value) {
+            $name = is_int($key) ? trim((string) $value) : trim((string) $key);
+            if ($name === '') {
+                continue;
+            }
+            $normalized[$name] = new \stdClass();
+        }
+        return $normalized;
     }
 
     private function copyArray(array &$target, string $targetKey, array $source, string $sourceKey): void
