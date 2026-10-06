@@ -7,7 +7,7 @@ if [ "$#" -gt 2 ]; then
 fi
 
 owner="${1:-maxencecauderlier}"
-tag="${2:-0.15.9}"
+tag="${2:-0.15.10}"
 case "$owner" in
     *[!A-Za-z0-9_.-]*|'')
         echo "Invalid GitHub owner: $owner" >&2
@@ -21,8 +21,8 @@ output_file="$base_dir/docker-compose.generated.yml"
 
 sed \
     -e "s#maxencecauderlier#${owner}#g" \
-    -e "s#zimabackup:0\.15\.2#zimabackup:${tag}#g" \
-    -e "s#version: \"0\.15\.2\"#version: \"${tag}\"#g" \
+    -e "s#zimabackup:[0-9][0-9.]*#zimabackup:${tag}#g" \
+    -e "s#version: \"[0-9][0-9.]*\"#version: \"${tag}\"#g" \
     "$source_file" > "$output_file"
 
 printf 'Generated %s\n' "$output_file"

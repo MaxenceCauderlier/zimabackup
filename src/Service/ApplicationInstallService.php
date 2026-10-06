@@ -33,7 +33,10 @@ final class ApplicationInstallService
 
     public function nativeModeForRestore(array $restore): bool
     {
-        return $this->zimaosApi->isConfigured() && (bool) ($restore['exact_definition'] ?? false);
+        // Whether a recovery point is a native ZimaOS restore is a property
+        // of the backup itself. API configuration is validated separately so
+        // an exact ZimaOS definition can never fall back silently to Docker.
+        return (bool) ($restore['exact_definition'] ?? false);
     }
 
     public function latestForRestore(int $restoreRunId): ?array
@@ -94,7 +97,13 @@ final class ApplicationInstallService
             throw new InvalidArgumentException('An installation is already queued or running for this restore.');
         }
 
-        $installMethod = $this->nativeModeForRestore($restore) ? 'zimaos' : 'docker';
+        $nativeZimaOs = $this->nativeModeForRestore($restore);
+        if ($nativeZimaOs && !$this->zimaosApi->isConfigured()) {
+            throw new InvalidArgumentException(
+                'This recovery point contains an exact ZimaOS application definition, but the local ZimaOS API is not configured. Check ZIMAOS_API_BASE_URL.'
+            );
+        }
+        $installMethod = $nativeZimaOs ? 'zimaos' : 'docker';
         $successful = (int) $this->database->scalar(
             "SELECT COUNT(*) FROM application_install_runs WHERE application_restore_run_id = :id AND status = 'success' AND install_method = :method",
             ['id' => (int) $restore['id'], 'method' => $installMethod]
@@ -328,8 +337,19 @@ final class ApplicationInstallService
             ['project_name' => $projectName, 'started_at' => date('c'), 'id' => $installRunId]
         );
 
-        $credentials = $this->loadCredentials($credentialPath);
+        $credentials = [
+            'username' => '',
+            'password' => '',
+        ];
         try {
+            $credentials = $this->loadCredentials($credentialPath);
+
+            // The credentials file is a one-shot handoff from the web process
+            // to the worker. Delete it immediately after it has been consumed.
+            if ($credentialPath !== null && is_file($credentialPath)) {
+                @unlink($credentialPath);
+            }
+
             $token = $this->zimaosApi->login($credentials['username'], $credentials['password']);
             // Remove the password from the local variable as soon as authentication succeeds.
             $credentials['password'] = '';

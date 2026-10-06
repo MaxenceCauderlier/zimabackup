@@ -2,7 +2,7 @@ name: zimabackup
 
 services:
   zimabackup:
-    image: ghcr.io/maxencecauderlier/zimabackup:0.15.9
+    image: ghcr.io/maxencecauderlier/zimabackup:0.15.10
     restart: unless-stopped
     labels:
       org.zimabackup.internal: "true"
@@ -22,7 +22,7 @@ services:
       - /media:/media:ro
 
   worker:
-    image: ghcr.io/maxencecauderlier/zimabackup:0.15.9
+    image: ghcr.io/maxencecauderlier/zimabackup:0.15.10
     restart: unless-stopped
     labels:
       org.zimabackup.internal: "true"
@@ -81,12 +81,14 @@ x-casaos:
   category: Productivity
   architectures:
     - amd64
-  version: "0.15.9"
-  update_at: "2026-10-05"
+  version: "0.15.10"
+  update_at: "2026-10-06"
 
   release_notes:
-    en_US: Application recovery can now register exact ZimaOS backups natively through App Management API v2 instead of bypassing ZimaOS through direct Docker creation.
-    fr_FR: La restauration d’application peut désormais réinstaller nativement les sauvegardes ZimaOS exactes via l’API App Management v2 au lieu de contourner ZimaOS par une création Docker directe.
+    en_US: |-
+      Improves native ZimaOS application recovery reliability: application inspection now preserves restore history, production Twig templates refresh correctly after upgrades, and the worker reliably reaches the local ZimaOS API.
+    fr_FR: |-
+      Améliore la fiabilité de la restauration native ZimaOS : l’inspection des applications conserve désormais l’historique des restaurations, les templates Twig sont correctement actualisés après une mise à jour, et le worker joint de façon fiable l’API locale ZimaOS.
 
   website: https://github.com/maxencecauderlier/zimabackup
   repo: https://github.com/maxencecauderlier/zimabackup

@@ -68,7 +68,7 @@ final class Application
         $this->twig = new Environment($loader, [
             'cache' => $cache,
             'debug' => $this->config['debug'],
-            'auto_reload' => $this->config['debug'],
+            'auto_reload' => true,
         ]);
 
         $this->twig->addGlobal('APP', $this->config);

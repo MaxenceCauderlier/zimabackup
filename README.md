@@ -2,11 +2,11 @@
 
 ZimaBackup is a lightweight, application-aware backup and disaster-recovery manager for ZimaOS, built with PHP 8.4, Twig, SQLite and Restic.
 
-## Current milestone — v0.15.9 Native ZimaOS Restore
+## Current milestone — v0.15.10 Native ZimaOS Restore Reliability
 
-v0.15.9 completes the ZimaOS-native application recovery path for backups that contain an exact installed ZimaOS Compose definition. After application data is restored to its original paths, ZimaBackup can authenticate temporarily against the local ZimaOS user API, validate the recovered Compose with App Management API v2, and install it through ZimaOS itself. This makes the recovered application appear normally in the ZimaOS Applications screen instead of existing only as unmanaged Docker containers.
+v0.15.10 hardens the native ZimaOS application recovery path validated on a real Jellyfin restore. Application rescans now preserve stable snapshot-application IDs and therefore keep restore history valid, exact ZimaOS backups never fall back silently to unmanaged Docker installation, production Twig templates refresh after image upgrades, and the worker reaches the host API through `host.docker.internal:host-gateway`.
 
-Credentials are not stored in SQLite or Activity. The password is handed from the web process to the worker in a one-shot `0600` file under `storage/secrets/application-installs/`, used to obtain an access token, and deleted immediately after the worker consumes it. The access token exists only in worker memory. Generic Docker applications without an exact ZimaOS definition continue to use the direct Docker fallback.
+ZimaOS credentials remain one-shot: the password is handed from the web process to the worker in a `0600` file under `storage/secrets/application-installs/`, deleted immediately after the worker reads it, and then cleared from the local variable after authentication. The access token exists only in worker memory. Generic Docker applications without an exact ZimaOS definition continue to use the direct Docker fallback.
 
 ## User-facing terminology
 ZimaBackup deliberately hides Restic-specific vocabulary from normal users:
@@ -53,7 +53,7 @@ Publishing rules:
 The workflow uses GitHub's generated `GITHUB_TOKEN`; no registry password is stored in the repository. Release tags are rejected when they do not match the root `VERSION` file.
 After the first successful push, make the GHCR package public in GitHub Package settings if ZimaOS should pull it anonymously.
 ### Run the published ZimaOS image
-The root `docker-compose.yml` is the official ZimaOS/GHCR deployment file and already points to `ghcr.io/maxencecauderlier/zimabackup:0.15.9`. Import that file as a custom app in ZimaOS, or run:
+The root `docker-compose.yml` is the official ZimaOS/GHCR deployment file and already points to `ghcr.io/maxencecauderlier/zimabackup:0.15.10`. Import that file as a custom app in ZimaOS, or run:
 ```bash
 docker compose pull
 docker compose up -d
@@ -113,11 +113,15 @@ The simulator creates the Compose project `zima-demo` with Nginx + Redis and bin
 The test passes when the recreated Docker project is running and `http://localhost:8095` serves the restored HTML file.
 ## Upgrading
 Keep the existing `storage/` directory.
-v0.15.9 adds migration `017_native_zimaos_restore.sql` to record whether an application install used the Docker fallback or native ZimaOS App Management. Previous migrations are kept and applied automatically when required.
+
+v0.15.10 adds no database migration. It keeps migration `017_native_zimaos_restore.sql` from v0.15.9. Because native restore depends on the worker host-gateway mapping, recreate the containers during the upgrade instead of only restarting them:
+
 ```bash
-docker compose down
-docker compose up --build
+docker compose pull
+docker compose up -d --force-recreate
 ```
+
+Production Twig now uses `auto_reload`, so updated templates are recompiled automatically while the persistent Twig cache remains enabled.
 ## Security model
 The browser-facing Apache/PHP service:
 - has no Docker socket;
@@ -223,6 +227,15 @@ This release makes Restore a practical recovery workflow instead of an all-or-no
 - restore uses the snapshot's own protected-mount list;
 - legacy snapshots can recover essential AppData binds when those paths exist in the snapshot;
 - incomplete legacy recovery points fail explicitly instead of starting an application with empty configuration.
+
+## v0.15.10 - Native ZimaOS Restore Reliability
+- Application rescans update existing `snapshot_applications` rows instead of deleting them, preserving foreign-key references from restore history.
+- Exact ZimaOS recovery points can no longer fall back silently to direct Docker installation when the local ZimaOS API is not configured.
+- One-shot ZimaOS credential files are deleted immediately after the worker consumes them.
+- Production Twig templates use automatic source freshness checks so image upgrades do not require manual cache deletion.
+- The production worker keeps the `host.docker.internal:host-gateway` mapping required to reach the local ZimaOS API on Linux.
+- ZimaOS/AppStore Compose metadata and GHCR image references are bumped to `0.15.10`.
+- No database migration is required.
 
 ## v0.15.9 - Native ZimaOS Restore
 - Exact ZimaOS recovery points are installed through `POST /v2/app_management/compose` instead of direct Docker container creation.
