@@ -192,12 +192,97 @@ final class SnapshotApplicationService
             $pdo = $this->database->pdo();
             $pdo->exec('BEGIN IMMEDIATE');
             try {
-                $this->database->execute('DELETE FROM snapshot_applications WHERE backup_run_id = :run_id', ['run_id' => $runId]);
                 $now = date('c');
+
                 foreach ($found as $application) {
+                    /*
+                    * Do not delete/recreate snapshot applications during a rescan.
+                    *
+                    * Existing restore runs may reference snapshot_applications.id
+                    * through a foreign key. Recreating the row would either fail
+                    * because of that foreign key or invalidate the restore history.
+                    *
+                    * The application key is stable inside a given backup run, so we
+                    * update the existing row when possible and only insert a new one
+                    * when the application has never been discovered before.
+                    */
+                    $existing = $this->database->fetchOne(
+                        'SELECT id
+                        FROM snapshot_applications
+                        WHERE backup_run_id = :backup_run_id
+                        AND app_key = :app_key',
+                        [
+                            'backup_run_id' => $runId,
+                            'app_key' => $application['app_key'],
+                        ]
+                    );
+
+                    if ($existing !== null) {
+                        $this->database->execute(
+                            'UPDATE snapshot_applications SET
+                                name = :name,
+                                project_name = :project_name,
+                                image = :image,
+                                manifest_path = :manifest_path,
+                                container_count = :container_count,
+                                compose_preview = :compose_preview,
+                                manifest_preview_json = :manifest_preview_json,
+                                warnings_json = :warnings_json,
+                                definition_source = :definition_source,
+                                zimaos_app_id = :zimaos_app_id,
+                                exact_definition = :exact_definition
+                            WHERE id = :id',
+                            [
+                                'id' => (int) $existing['id'],
+                                'name' => $application['name'],
+                                'project_name' => $application['project_name'],
+                                'image' => $application['image'],
+                                'manifest_path' => $application['manifest_path'],
+                                'container_count' => $application['container_count'],
+                                'compose_preview' => $application['compose_preview'],
+                                'manifest_preview_json' => $application['manifest_preview_json'],
+                                'warnings_json' => $application['warnings_json'],
+                                'definition_source' => $application['definition_source'],
+                                'zimaos_app_id' => $application['zimaos_app_id'],
+                                'exact_definition' => $application['exact_definition'],
+                            ]
+                        );
+
+                        continue;
+                    }
+
                     $this->database->execute(
-                        'INSERT INTO snapshot_applications(backup_run_id, app_key, name, project_name, image, manifest_path, container_count, compose_preview, manifest_preview_json, warnings_json, created_at, definition_source, zimaos_app_id, exact_definition) ' .
-                        'VALUES (:backup_run_id, :app_key, :name, :project_name, :image, :manifest_path, :container_count, :compose_preview, :manifest_preview_json, :warnings_json, :created_at, :definition_source, :zimaos_app_id, :exact_definition)',
+                        'INSERT INTO snapshot_applications(
+                            backup_run_id,
+                            app_key,
+                            name,
+                            project_name,
+                            image,
+                            manifest_path,
+                            container_count,
+                            compose_preview,
+                            manifest_preview_json,
+                            warnings_json,
+                            created_at,
+                            definition_source,
+                            zimaos_app_id,
+                            exact_definition
+                        ) VALUES (
+                            :backup_run_id,
+                            :app_key,
+                            :name,
+                            :project_name,
+                            :image,
+                            :manifest_path,
+                            :container_count,
+                            :compose_preview,
+                            :manifest_preview_json,
+                            :warnings_json,
+                            :created_at,
+                            :definition_source,
+                            :zimaos_app_id,
+                            :exact_definition
+                        )',
                         [
                             'backup_run_id' => $runId,
                             ...$application,
@@ -205,9 +290,19 @@ final class SnapshotApplicationService
                         ]
                     );
                 }
+
                 $this->database->execute(
-                    "UPDATE snapshot_application_scans SET status = 'ready', application_count = :count, error = NULL, finished_at = :finished_at WHERE backup_run_id = :run_id",
-                    ['count' => count($found), 'finished_at' => $now, 'run_id' => $runId]
+                    "UPDATE snapshot_application_scans
+                    SET status = 'ready',
+                        application_count = :count,
+                        error = NULL,
+                        finished_at = :finished_at
+                    WHERE backup_run_id = :run_id",
+                    [
+                        'count' => count($found),
+                        'finished_at' => $now,
+                        'run_id' => $runId,
+                    ]
                 );
                 $pdo->commit();
             } catch (Throwable $exception) {
