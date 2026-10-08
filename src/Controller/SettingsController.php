@@ -7,6 +7,7 @@ namespace ZimaBackup\Controller;
 use InvalidArgumentException;
 use ZimaBackup\Core\Session;
 use ZimaBackup\Security\Csrf;
+use ZimaBackup\Service\DiagnosticsService;
 use ZimaBackup\Service\ResticService;
 use ZimaBackup\Service\SettingsService;
 use ZimaBackup\Service\Translator;
@@ -22,6 +23,8 @@ final class SettingsController extends AbstractController
         $restic = $this->app->service(ResticService::class);
         /** @var Session $session */
         $session = $this->app->service(Session::class);
+        /** @var DiagnosticsService $diagnostics */
+        $diagnostics = $this->app->service(DiagnosticsService::class);
 
         $versionPath = $this->app->rootPath() . '/VERSION';
         $version = is_file($versionPath) ? trim((string) file_get_contents($versionPath)) : 'dev';
@@ -33,6 +36,7 @@ final class SettingsController extends AbstractController
             'docker_socket' => getenv('DOCKER_SOCKET') ?: '/var/run/docker.sock',
             'languages' => Translator::supportedLocales(),
             'zimaos_integration' => $this->app->service(ZimaOsAppDefinitionService::class)->status(),
+            'zimaos_api_status' => $diagnostics->zimaOsApiStatus(),
             'flash_success' => $session->pull('flash_success'),
             'flash_error' => $session->pull('flash_error'),
         ]);

@@ -2,11 +2,11 @@
 
 ZimaBackup is a lightweight, application-aware backup and disaster-recovery manager for ZimaOS, built with PHP 8.4, Twig, SQLite and Restic.
 
-## Current milestone — v0.15.10 Native ZimaOS Restore Reliability
+## Current milestone — v0.16.0 Pre-1.0 Recovery Readiness
 
-v0.15.10 hardens the native ZimaOS application recovery path validated on a real Jellyfin restore. Application rescans now preserve stable snapshot-application IDs and therefore keep restore history valid, exact ZimaOS backups never fall back silently to unmanaged Docker installation, production Twig templates refresh after image upgrades, and the worker reaches the host API through `host.docker.internal:host-gateway`.
+v0.16.0 focuses on pre-1.0 operational visibility instead of adding another backup feature. The worker now probes local ZimaOS API connectivity without credentials, records the result in runtime diagnostics, and surfaces native-restore readiness in Settings and on the dashboard. Recovery pages can warn before the user submits credentials when the worker cannot resolve or reach the local ZimaOS API.
 
-ZimaOS credentials remain one-shot: the password is handed from the web process to the worker in a `0600` file under `storage/secrets/application-installs/`, deleted immediately after the worker reads it, and then cleared from the local variable after authentication. The access token exists only in worker memory. Generic Docker applications without an exact ZimaOS definition continue to use the direct Docker fallback.
+Native application restore keeps the v0.15.10 safety model: exact ZimaOS definitions never fall back silently to unmanaged Docker installation, application rescans preserve stable snapshot-application IDs, and ZimaOS credentials remain one-shot. The password is handed from the web process to the worker in a `0600` file, deleted immediately after the worker reads it, and the access token exists only in worker memory.
 
 ## User-facing terminology
 ZimaBackup deliberately hides Restic-specific vocabulary from normal users:
@@ -53,7 +53,7 @@ Publishing rules:
 The workflow uses GitHub's generated `GITHUB_TOKEN`; no registry password is stored in the repository. Release tags are rejected when they do not match the root `VERSION` file.
 After the first successful push, make the GHCR package public in GitHub Package settings if ZimaOS should pull it anonymously.
 ### Run the published ZimaOS image
-The root `docker-compose.yml` is the official ZimaOS/GHCR deployment file and already points to `ghcr.io/maxencecauderlier/zimabackup:0.15.10`. Import that file as a custom app in ZimaOS, or run:
+The root `docker-compose.yml` is the official ZimaOS/GHCR deployment file and already points to `ghcr.io/maxencecauderlier/zimabackup:0.16.0`. Import that file as a custom app in ZimaOS, or run:
 ```bash
 docker compose pull
 docker compose up -d
@@ -114,7 +114,7 @@ The test passes when the recreated Docker project is running and `http://localho
 ## Upgrading
 Keep the existing `storage/` directory.
 
-v0.15.10 adds no database migration. It keeps migration `017_native_zimaos_restore.sql` from v0.15.9. Because native restore depends on the worker host-gateway mapping, recreate the containers during the upgrade instead of only restarting them:
+v0.16.0 adds no database migration. It keeps migration `017_native_zimaos_restore.sql` from v0.15.9. Recreate the containers during the upgrade so the worker keeps the required host-gateway mapping and starts reporting ZimaOS API readiness immediately:
 
 ```bash
 docker compose pull
@@ -227,6 +227,15 @@ This release makes Restore a practical recovery workflow instead of an all-or-no
 - restore uses the snapshot's own protected-mount list;
 - legacy snapshots can recover essential AppData binds when those paths exist in the snapshot;
 - incomplete legacy recovery points fail explicitly instead of starting an application with empty configuration.
+
+## v0.16.0 - Pre-1.0 Recovery Readiness
+- The worker probes local ZimaOS API DNS/host mapping and TCP reachability every 60 seconds without sending credentials.
+- Settings shows the configured ZimaOS API endpoint, worker reachability, resolved host address and last check time.
+- Dashboard diagnostics warn when native ZimaOS recovery networking is configured but unavailable.
+- Native application restore pages warn before installation when the latest worker probe reports an unreachable local API.
+- Low-level PHP `file_get_contents` / `getaddrinfo` failures are replaced with actionable ZimaOS/Docker host-gateway messages.
+- GHCR and ZimaOS/AppStore Compose metadata are bumped to `0.16.0`.
+- No database migration is required.
 
 ## v0.15.10 - Native ZimaOS Restore Reliability
 - Application rescans update existing `snapshot_applications` rows instead of deleting them, preserving foreign-key references from restore history.

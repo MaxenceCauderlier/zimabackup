@@ -6,6 +6,13 @@
             <strong>{{ t("Native ZimaOS installation") }}</strong>
             <p>{{ t("This recovery point contains the exact ZimaOS application definition. ZimaBackup will validate it and install it through ZimaOS App Management API v2 so the application appears normally in ZimaOS.") }}</p>
         </div>
+        {% if zimaos_api_status is defined and zimaos_api_status.checked_at and not zimaos_api_status.stale and zimaos_api_status.configured and not zimaos_api_status.reachable %}
+            <div class="alert alert-warning">
+                <strong>{{ t("Native ZimaOS restore is not ready") }}</strong>
+                <div>{{ (zimaos_api_status.error ?: 'The worker cannot reach the local ZimaOS API.')|trans }}</div>
+                <div>{{ t("Check Settings → ZimaOS integration before starting installation.") }}</div>
+            </div>
+        {% endif %}
         <label class="field">
             <span>{{ t("ZimaOS username") }}</span>
             <input type="text" name="zimaos_username" autocomplete="username" required>

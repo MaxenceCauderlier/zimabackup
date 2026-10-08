@@ -2,7 +2,7 @@ name: zimabackup
 
 services:
   zimabackup:
-    image: ghcr.io/maxencecauderlier/zimabackup:0.15.10
+    image: ghcr.io/maxencecauderlier/zimabackup:0.16.0
     restart: unless-stopped
     labels:
       org.zimabackup.internal: "true"
@@ -22,7 +22,7 @@ services:
       - /media:/media:ro
 
   worker:
-    image: ghcr.io/maxencecauderlier/zimabackup:0.15.10
+    image: ghcr.io/maxencecauderlier/zimabackup:0.16.0
     restart: unless-stopped
     labels:
       org.zimabackup.internal: "true"
@@ -81,14 +81,14 @@ x-casaos:
   category: Productivity
   architectures:
     - amd64
-  version: "0.15.10"
+  version: "0.16.0"
   update_at: "2026-10-06"
 
   release_notes:
     en_US: |-
-      Improves native ZimaOS application recovery reliability: application inspection now preserves restore history, production Twig templates refresh correctly after upgrades, and the worker reliably reaches the local ZimaOS API.
+      Adds worker-side ZimaOS API readiness diagnostics and clearer native restore failures. Settings now shows local API reachability, and the dashboard warns when native application recovery networking needs attention.
     fr_FR: |-
-      Améliore la fiabilité de la restauration native ZimaOS : l’inspection des applications conserve désormais l’historique des restaurations, les templates Twig sont correctement actualisés après une mise à jour, et le worker joint de façon fiable l’API locale ZimaOS.
+      Ajoute un diagnostic de disponibilité de l’API ZimaOS exécuté par le worker et des erreurs de restauration native plus claires. Les Réglages affichent désormais l’accessibilité de l’API locale et le tableau de bord signale les problèmes réseau.
 
   website: https://github.com/maxencecauderlier/zimabackup
   repo: https://github.com/maxencecauderlier/zimabackup

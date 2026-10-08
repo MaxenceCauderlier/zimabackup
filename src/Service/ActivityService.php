@@ -155,10 +155,15 @@ final class ActivityService
 
     public function heartbeat(): void
     {
+        $this->setRuntimeStatus('worker.heartbeat', 'alive');
+    }
+
+    public function setRuntimeStatus(string $key, string $value): void
+    {
         $this->database->execute(
             'INSERT INTO runtime_status(key, value, updated_at) VALUES (:key, :value, :updated_at) ' .
             'ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at',
-            ['key' => 'worker.heartbeat', 'value' => 'alive', 'updated_at' => date('c')]
+            ['key' => $key, 'value' => $value, 'updated_at' => date('c')]
         );
     }
 

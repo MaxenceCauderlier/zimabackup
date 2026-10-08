@@ -10,6 +10,7 @@ use ZimaBackup\Core\Session;
 use ZimaBackup\Security\Csrf;
 use ZimaBackup\Service\ApplicationInstallService;
 use ZimaBackup\Service\ApplicationRestoreService;
+use ZimaBackup\Service\DiagnosticsService;
 
 final class ApplicationRestoreController extends AbstractController
 {
@@ -85,6 +86,8 @@ final class ApplicationRestoreController extends AbstractController
 
         /** @var ApplicationInstallService $installs */
         $installs = $this->app->service(ApplicationInstallService::class);
+        /** @var DiagnosticsService $diagnostics */
+        $diagnostics = $this->app->service(DiagnosticsService::class);
 
         /** @var Session $session */
         $session = $this->app->service(Session::class);
@@ -93,6 +96,7 @@ final class ApplicationRestoreController extends AbstractController
             'restore' => $restore,
             'install' => $installs->latestForRestore((int) $restore['id']),
             'native_zimaos_install' => $installs->nativeModeForRestore($restore),
+            'zimaos_api_status' => $diagnostics->zimaOsApiStatus(),
             'install_error' => null,
             'flash_success' => $session->pull('flash_success'),
             'flash_error' => $session->pull('flash_error'),
@@ -118,6 +122,8 @@ final class ApplicationRestoreController extends AbstractController
 
         /** @var ApplicationInstallService $installs */
         $installs = $this->app->service(ApplicationInstallService::class);
+        /** @var DiagnosticsService $diagnostics */
+        $diagnostics = $this->app->service(DiagnosticsService::class);
 
         try {
             $installs->enqueue(
@@ -132,6 +138,7 @@ final class ApplicationRestoreController extends AbstractController
                 'restore' => $restore,
                 'install' => $installs->latestForRestore((int) $restore['id']),
                 'native_zimaos_install' => $installs->nativeModeForRestore($restore),
+                'zimaos_api_status' => $diagnostics->zimaOsApiStatus(),
                 'install_error' => $exception->getMessage(),
             ]);
         } catch (Throwable $exception) {
@@ -139,6 +146,7 @@ final class ApplicationRestoreController extends AbstractController
                 'restore' => $restore,
                 'install' => $installs->latestForRestore((int) $restore['id']),
                 'native_zimaos_install' => $installs->nativeModeForRestore($restore),
+                'zimaos_api_status' => $diagnostics->zimaOsApiStatus(),
                 'install_error' => 'Unable to queue application install: ' . $exception->getMessage(),
             ]);
         }

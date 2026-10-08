@@ -17,6 +17,7 @@ use ZimaBackup\Service\SnapshotBrowserService;
 use ZimaBackup\Service\SnapshotService;
 use ZimaBackup\Service\SettingsService;
 use ZimaBackup\Service\TaskQueueService;
+use ZimaBackup\Service\ZimaOsApiClient;
 
 require dirname(__DIR__) . '/vendor/autoload.php';
 
@@ -50,6 +51,8 @@ $snapshotBrowser = $app->service(SnapshotBrowserService::class);
 $settings = $app->service(SettingsService::class);
 /** @var ActivityService $activity */
 $activity = $app->service(ActivityService::class);
+/** @var ZimaOsApiClient $zimaosApi */
+$zimaosApi = $app->service(ZimaOsApiClient::class);
 
 $interval = max(2, (int) (getenv('WORKER_INTERVAL') ?: 10));
 $discoveryInterval = max(30, $settings->getInt('apps.discovery.interval', (int) (getenv('APP_DISCOVERY_INTERVAL') ?: 120)));
@@ -57,12 +60,42 @@ $lastDiscovery = 0;
 $lastMaintenance = 0;
 $lastActivityCleanup = 0;
 $lastStorageProbe = 0;
+$lastZimaOsProbe = 0;
 
 $safeActivity = static function (callable $callback): void {
     try {
         $callback();
     } catch (Throwable $exception) {
         fwrite(STDERR, sprintf("%s - Activity logging failed: %s\n", date('c'), $exception->getMessage()));
+    }
+};
+
+$probeZimaOsApi = static function () use ($zimaosApi, $activity): void {
+    try {
+        $probe = $zimaosApi->probe();
+        $activity->setRuntimeStatus(
+            'zimaos.api',
+            json_encode($probe, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR)
+        );
+    } catch (Throwable $exception) {
+        $fallback = [
+            'configured' => $zimaosApi->isConfigured(),
+            'reachable' => false,
+            'base_url' => $zimaosApi->baseUrl(),
+            'host' => null,
+            'port' => null,
+            'resolved_ip' => null,
+            'error' => 'Unable to check local ZimaOS API connectivity.',
+        ];
+        try {
+            $activity->setRuntimeStatus(
+                'zimaos.api',
+                json_encode($fallback, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR)
+            );
+        } catch (Throwable) {
+            // Keep the worker alive even if diagnostics cannot be persisted.
+        }
+        fwrite(STDERR, sprintf("%s - ZimaOS API probe failed: %s\n", date('c'), $exception->getMessage()));
     }
 };
 
@@ -73,6 +106,9 @@ echo sprintf(
 );
 $safeActivity(static fn () => $activity->heartbeat());
 $safeActivity(static fn () => $activity->record("info", "system", "Backup worker started", "Background backup and restore processing is available."));
+
+$probeZimaOsApi();
+$lastZimaOsProbe = time();
 
 while (true) {
     $safeActivity(static fn () => $activity->heartbeat());
@@ -333,6 +369,11 @@ while (true) {
             fwrite(STDERR, sprintf("%s - Storage probe failed: %s\n", date('c'), $exception->getMessage()));
         }
         $lastStorageProbe = time();
+    }
+
+    if ((time() - $lastZimaOsProbe) >= 60) {
+        $probeZimaOsApi();
+        $lastZimaOsProbe = time();
     }
 
     $discoveryInterval = max(30, $settings->getInt('apps.discovery.interval', $discoveryInterval));

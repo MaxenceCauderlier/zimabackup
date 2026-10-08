@@ -30,6 +30,89 @@ final class ZimaOsApiClient
         return rtrim(trim($this->baseUrl), '/');
     }
 
+    /**
+     * Lightweight worker-side connectivity probe. No credentials are sent and
+     * no authenticated API route is called. It only verifies DNS/host mapping
+     * and that a TCP connection can be opened to the configured ZimaOS API.
+     *
+     * @return array{configured:bool,reachable:bool,base_url:string,host:?string,port:?int,resolved_ip:?string,error:?string}
+     */
+    public function probe(): array
+    {
+        $baseUrl = $this->baseUrl();
+        if ($baseUrl === '') {
+            return [
+                'configured' => false,
+                'reachable' => false,
+                'base_url' => '',
+                'host' => null,
+                'port' => null,
+                'resolved_ip' => null,
+                'error' => 'Native ZimaOS restore is not configured on this installation.',
+            ];
+        }
+
+        $parts = parse_url($baseUrl);
+        $host = is_array($parts) ? trim((string) ($parts['host'] ?? '')) : '';
+        $scheme = is_array($parts) ? strtolower((string) ($parts['scheme'] ?? 'http')) : 'http';
+        $port = is_array($parts) && isset($parts['port'])
+            ? (int) $parts['port']
+            : ($scheme === 'https' ? 443 : 80);
+
+        if ($host === '') {
+            return [
+                'configured' => true,
+                'reachable' => false,
+                'base_url' => $baseUrl,
+                'host' => null,
+                'port' => $port,
+                'resolved_ip' => null,
+                'error' => 'The configured ZimaOS API URL has no valid host.',
+            ];
+        }
+
+        $resolvedIp = filter_var($host, FILTER_VALIDATE_IP) !== false ? $host : gethostbyname($host);
+        if ($resolvedIp === $host && filter_var($host, FILTER_VALIDATE_IP) === false) {
+            return [
+                'configured' => true,
+                'reachable' => false,
+                'base_url' => $baseUrl,
+                'host' => $host,
+                'port' => $port,
+                'resolved_ip' => null,
+                'error' => 'The local ZimaOS API host cannot be resolved from the worker.',
+            ];
+        }
+
+        $errno = 0;
+        $error = '';
+        $socket = @fsockopen($host, $port, $errno, $error, 2.0);
+        if (is_resource($socket)) {
+            fclose($socket);
+            return [
+                'configured' => true,
+                'reachable' => true,
+                'base_url' => $baseUrl,
+                'host' => $host,
+                'port' => $port,
+                'resolved_ip' => $resolvedIp,
+                'error' => null,
+            ];
+        }
+
+        return [
+            'configured' => true,
+            'reachable' => false,
+            'base_url' => $baseUrl,
+            'host' => $host,
+            'port' => $port,
+            'resolved_ip' => $resolvedIp,
+            'error' => $error !== ''
+                ? sprintf('The local ZimaOS API is not reachable from the worker: %s', $error)
+                : 'The local ZimaOS API is not reachable from the worker.',
+        ];
+    }
+
     public function login(string $username, string $password): string
     {
         if (!$this->isConfigured()) {
@@ -179,7 +262,17 @@ final class ZimaOsApiClient
         $responseHeaders = $http_response_header ?? [];
         if ($raw === false && $responseHeaders === []) {
             $error = error_get_last();
-            throw new RuntimeException('Unable to reach the local ZimaOS API: ' . (($error['message'] ?? null) ?: $url));
+            $message = (string) ($error['message'] ?? '');
+            if (str_contains($message, 'getaddrinfo') || str_contains($message, 'php_network_getaddresses')) {
+                throw new RuntimeException('The local ZimaOS API host cannot be resolved from the worker. Recreate the ZimaBackup containers so host.docker.internal is mapped to Docker host-gateway.');
+            }
+            if (stripos($message, 'Connection refused') !== false) {
+                throw new RuntimeException('The local ZimaOS API refused the connection. Check that ZimaOS services are running and that ZIMAOS_API_BASE_URL points to the host API.');
+            }
+            if (stripos($message, 'timed out') !== false) {
+                throw new RuntimeException('The local ZimaOS API connection timed out. Check the Docker host-gateway mapping and ZimaOS services.');
+            }
+            throw new RuntimeException('Unable to reach the local ZimaOS API from the worker. Check the ZimaOS API address and Docker host-gateway mapping.');
         }
         $status = 0;
         if (isset($responseHeaders[0]) && preg_match('/\s(\d{3})\s/', (string) $responseHeaders[0], $match) === 1) {

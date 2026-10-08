@@ -91,6 +91,18 @@ final class DiagnosticsService
             ];
         }
 
+        $zimaOsApi = $this->zimaOsApiStatus();
+        if (($zimaOsApi['configured'] ?? null) === true
+            && ($zimaOsApi['reachable'] ?? null) === false
+            && !($zimaOsApi['stale'] ?? true)) {
+            $issues[] = [
+                'severity' => 'warning',
+                'title' => 'Native ZimaOS restore is not ready',
+                'detail' => (string) (($zimaOsApi['error'] ?? null) ?: 'The worker cannot reach the local ZimaOS API.'),
+                'route' => 'settings',
+            ];
+        }
+
         $staleCutoff = date('c', time() - 21600);
         $stale = (int) $this->database->scalar(
             "SELECT COUNT(*) FROM operations WHERE status = 'running' AND started_at IS NOT NULL AND started_at < :cutoff",
@@ -119,6 +131,55 @@ final class DiagnosticsService
             'warning_count' => $warnings,
             'worker_state' => $workerState,
             'worker_last_seen' => $workerLastSeen,
+            'zimaos_api' => $zimaOsApi,
+        ];
+    }
+
+    /**
+     * Last worker-side check of the local ZimaOS API. The web process never
+     * needs Docker or host-network privileges to expose this diagnostic.
+     *
+     * @return array<string,mixed>
+     */
+    public function zimaOsApiStatus(): array
+    {
+        $row = $this->database->fetchOne("SELECT value, updated_at FROM runtime_status WHERE key = 'zimaos.api'");
+        if ($row === null) {
+            return [
+                'configured' => null,
+                'reachable' => null,
+                'base_url' => '',
+                'host' => null,
+                'port' => null,
+                'resolved_ip' => null,
+                'error' => null,
+                'checked_at' => null,
+                'stale' => true,
+            ];
+        }
+
+        $decoded = json_decode((string) ($row['value'] ?? ''), true);
+        $status = is_array($decoded) ? $decoded : [];
+        $checkedAt = (string) ($row['updated_at'] ?? '');
+        $stale = true;
+        if ($checkedAt !== '') {
+            try {
+                $stale = (time() - (new DateTimeImmutable($checkedAt))->getTimestamp()) > 180;
+            } catch (Throwable) {
+                $stale = true;
+            }
+        }
+
+        return [
+            'configured' => array_key_exists('configured', $status) ? (bool) $status['configured'] : null,
+            'reachable' => array_key_exists('reachable', $status) ? (bool) $status['reachable'] : null,
+            'base_url' => (string) ($status['base_url'] ?? ''),
+            'host' => isset($status['host']) ? (string) $status['host'] : null,
+            'port' => isset($status['port']) ? (int) $status['port'] : null,
+            'resolved_ip' => isset($status['resolved_ip']) ? (string) $status['resolved_ip'] : null,
+            'error' => isset($status['error']) ? (string) $status['error'] : null,
+            'checked_at' => $checkedAt !== '' ? $checkedAt : null,
+            'stale' => $stale,
         ];
     }
 }

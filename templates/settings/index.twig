@@ -67,7 +67,43 @@
 <section class="simple-section">
     <div class="simple-section-head"><h2>{{ t("ZimaOS integration") }}</h2></div>
     <div class="simple-row"><div><strong>{{ t("Installed application definitions") }}</strong><small><code>{{ zimaos_integration.root }}</code></small></div><div class="simple-row-meta">{{ zimaos_integration.available ? t("Available") : t("Unavailable") }}</div></div>
-    <div class="empty-inline"><p>{{ t("When available, ZimaBackup preserves the exact installed Docker Compose file and x-casaos metadata in the encrypted backup. Docker Inspect remains as a recovery fallback.") }}</p></div>
+    <div class="simple-row">
+        <div>
+            <strong>{{ t("Local ZimaOS API") }}</strong>
+            <small>{% if zimaos_api_status.base_url %}<code>{{ zimaos_api_status.base_url }}</code>{% else %}{{ t("Not configured") }}{% endif %}</small>
+        </div>
+        <div class="simple-row-meta">
+            {% if not zimaos_api_status.checked_at %}
+                {{ t("Waiting for worker check") }}
+            {% elseif zimaos_api_status.stale %}
+                {{ t("Check is stale") }}
+            {% elseif not zimaos_api_status.configured %}
+                {{ t("Not configured") }}
+            {% elseif zimaos_api_status.reachable %}
+                <span class="status-pill ok"><span class="status-dot"></span>{{ t("Ready") }}</span>
+            {% else %}
+                <span class="status-pill warning"><span class="status-dot"></span>{{ t("Needs attention") }}</span>
+            {% endif %}
+        </div>
+    </div>
+    {% if zimaos_api_status.checked_at %}
+        <div class="simple-row">
+            <div>
+                <strong>{{ t("Worker API check") }}</strong>
+                <small>
+                    {% if zimaos_api_status.reachable and zimaos_api_status.resolved_ip %}
+                        {{ t("Resolved host:") }} <code>{{ zimaos_api_status.resolved_ip }}{% if zimaos_api_status.port %}:{{ zimaos_api_status.port }}{% endif %}</code>
+                    {% elseif zimaos_api_status.error %}
+                        {{ zimaos_api_status.error|trans }}
+                    {% else %}
+                        {{ t("No connectivity result is available yet.") }}
+                    {% endif %}
+                </small>
+            </div>
+            <div class="simple-row-meta">{{ zimaos_api_status.checked_at|local_datetime }}</div>
+        </div>
+    {% endif %}
+    <div class="empty-inline"><p>{{ t("When available, ZimaBackup preserves the exact installed Docker Compose file and x-casaos metadata in the encrypted backup. Docker Inspect remains as a recovery fallback.") }}</p><p>{{ t("The worker checks local ZimaOS API connectivity automatically so native application restore problems can be detected before installation starts.") }}</p></div>
 </section>
 
 <section class="simple-section">
